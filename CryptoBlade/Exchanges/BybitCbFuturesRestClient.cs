@@ -389,7 +389,7 @@ namespace CryptoBlade.Exchanges
             var balance = await ExchangePolicies.RetryForever
                 .ExecuteAsync(async () =>
                 {
-                    var balanceResult = await m_bybitRestClient.V5Api.Account.GetBalancesAsync(AccountType.Contract,
+                    var balanceResult = await m_bybitRestClient.V5Api.Account.GetBalancesAsync(AccountType.Unified,
                         null,
                         cancel);
                     if (balanceResult.GetResultOrError(out var data, out var error))
@@ -398,7 +398,7 @@ namespace CryptoBlade.Exchanges
                 });
             foreach (var b in balance.List)
             {
-                if (b.AccountType == AccountType.Contract)
+                if (b.AccountType == AccountType.Unified)
                 {
                     var asset = b.Assets.FirstOrDefault(x =>
                         string.Equals(x.Asset, Assets.QuoteAsset, StringComparison.OrdinalIgnoreCase));

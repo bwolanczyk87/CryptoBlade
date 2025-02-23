@@ -256,12 +256,13 @@ namespace CryptoBlade
             builder.Services.AddBybit(
                 restOptions =>
                 {
+                    restOptions.Environment = (BybitEnvironment)BybitEnvironment.CreateCustom("BybitEnvironment.Demo", "https://api-demo.bybit.com", "wss://stream-demo.bybit.com");
                     restOptions.V5Options.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
                     if (hasApiCredentials)
                         restOptions.V5Options.ApiCredentials = new ApiCredentials(apiKey, apiSecret);
-                    restOptions.ReceiveWindow = TimeSpan.FromSeconds(10);
-                    restOptions.AutoTimestamp = true;
-                    restOptions.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
+                    //restOptions.ReceiveWindow = TimeSpan.FromSeconds(10);
+                    //restOptions.AutoTimestamp = true;
+                    //restOptions.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
                 },
                 socketClientOptions =>
                 {

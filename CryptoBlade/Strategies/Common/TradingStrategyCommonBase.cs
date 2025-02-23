@@ -165,11 +165,11 @@ namespace CryptoBlade.Strategies.Common
                 m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
 
 
-                bool crossModeOk = await m_cbFuturesRestClient.SwitchCrossIsolatedMarginAsync(symbol, TradeMode.CrossMargin, cancel);
-                if (!crossModeOk)
-                    throw new InvalidOperationException("Failed to setup cross mode.");
+                //bool crossModeOk = await m_cbFuturesRestClient.SwitchCrossIsolatedMarginAsync(symbol, TradeMode.CrossMargin, cancel);
+                //if (!crossModeOk)
+                //    throw new InvalidOperationException("Failed to setup cross mode.");
 
-                m_logger.LogInformation($"Cross mode set to {TradeMode.CrossMargin} for {symbol.Name}");
+                //m_logger.LogInformation($"Cross mode set to {TradeMode.CrossMargin} for {symbol.Name}");
                 m_logger.LogInformation($"Symbol {symbol.Name} setup completed");
             }
         }
