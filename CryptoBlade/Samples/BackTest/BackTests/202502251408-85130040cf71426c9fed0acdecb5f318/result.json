@@ -1,0 +1,164 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 0,
+  "FinalEquity": 0,
+  "LowestEquityToBalance": 0,
+  "UnrealizedPnl": 0,
+  "RealizedPnl": 726.45016878240799999999999732,
+  "AverageDailyGainPercent": -100.0,
+  "MaxDrawDown": 1.0,
+  "TotalDays": 54,
+  "ExpectedDays": 207,
+  "LossProfitRatio": 0.043680604182527547142434161,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 0.9881667075054952,
+  "AdgNormalizedRootMeanSquareError": 0,
+  "TotalFundingRateProfitOrLoss": 11.214249792408000000000000006,
+  "OpenPositionWithOrders": [],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "DOGEUSDT",
+      "ProfitOrLoss": 0.0091100654545000000000000000
+    },
+    {
+      "Symbol": "MANAUSDT",
+      "ProfitOrLoss": 0.0000564535824000000000000000
+    },
+    {
+      "Symbol": "LDOUSDT",
+      "ProfitOrLoss": 0.0036361726461000000000000000
+    },
+    {
+      "Symbol": "XLMUSDT",
+      "ProfitOrLoss": 0.0130969033886000000000000000
+    },
+    {
+      "Symbol": "ADAUSDT",
+      "ProfitOrLoss": 0.4355964287480000000000000000
+    },
+    {
+      "Symbol": "FILUSDT",
+      "ProfitOrLoss": 0.0031562582590000000000000000
+    },
+    {
+      "Symbol": "ORDIUSDT",
+      "ProfitOrLoss": 0.0101254075818000000000000000
+    },
+    {
+      "Symbol": "TRXUSDT",
+      "ProfitOrLoss": 6.6097930492150000000000000053
+    },
+    {
+      "Symbol": "CELOUSDT",
+      "ProfitOrLoss": -0.0000625600000000000000000000
+    },
+    {
+      "Symbol": "MASKUSDT",
+      "ProfitOrLoss": 0.0736536802092000000000000000
+    },
+    {
+      "Symbol": "NEOUSDT",
+      "ProfitOrLoss": 0.0005259161400000000000000000
+    },
+    {
+      "Symbol": "TRBUSDT",
+      "ProfitOrLoss": 6.4050745007348000000000000000
+    },
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": 0.0400922307808000000000000000
+    },
+    {
+      "Symbol": "NEARUSDT",
+      "ProfitOrLoss": 0.0005784480760000000000000000
+    },
+    {
+      "Symbol": "ATOMUSDT",
+      "ProfitOrLoss": 0.0020388304070000000000000000
+    },
+    {
+      "Symbol": "DYDXUSDT",
+      "ProfitOrLoss": -0.0163923716700000000000000000
+    },
+    {
+      "Symbol": "STXUSDT",
+      "ProfitOrLoss": -0.1814923197351000000000000000
+    },
+    {
+      "Symbol": "OPUSDT",
+      "ProfitOrLoss": 0.0292991929880000000000000000
+    },
+    {
+      "Symbol": "STORJUSDT",
+      "ProfitOrLoss": 6.5068327046171000000000000012
+    },
+    {
+      "Symbol": "ZECUSDT",
+      "ProfitOrLoss": -0.0201305134550000000000000000
+    },
+    {
+      "Symbol": "TUSDT",
+      "ProfitOrLoss": -0.0503715685120000000000000002
+    },
+    {
+      "Symbol": "1000PEPEUSDT",
+      "ProfitOrLoss": 0.0665487001989999999999999996
+    },
+    {
+      "Symbol": "LINKUSDT",
+      "ProfitOrLoss": 0.0086493340220000000000000000
+    },
+    {
+      "Symbol": "COMPUSDT",
+      "ProfitOrLoss": -0.0015090500290000000000000000
+    },
+    {
+      "Symbol": "FLOWUSDT",
+      "ProfitOrLoss": 0.0002899500400000000000000000
+    },
+    {
+      "Symbol": "GMXUSDT",
+      "ProfitOrLoss": -8.948376424959500000000000000
+    },
+    {
+      "Symbol": "APTUSDT",
+      "ProfitOrLoss": 0.1320839188285000000000000000
+    },
+    {
+      "Symbol": "XRPUSDT",
+      "ProfitOrLoss": 0.0231546280980000000000000000
+    },
+    {
+      "Symbol": "UNIUSDT",
+      "ProfitOrLoss": 0.0003733529230000000000000000
+    },
+    {
+      "Symbol": "LINAUSDT",
+      "ProfitOrLoss": 0.0001842600000000000000000000
+    },
+    {
+      "Symbol": "AXSUSDT",
+      "ProfitOrLoss": -0.0006854807500000000000000000
+    },
+    {
+      "Symbol": "GRTUSDT",
+      "ProfitOrLoss": 0.0007543421628000000000000000
+    },
+    {
+      "Symbol": "MTLUSDT",
+      "ProfitOrLoss": 0.0000296515782000000000000000
+    },
+    {
+      "Symbol": "OGNUSDT",
+      "ProfitOrLoss": 0.0016339095060000000000000000
+    },
+    {
+      "Symbol": "RDNTUSDT",
+      "ProfitOrLoss": -0.0053213952472000000000000000
+    },
+    {
+      "Symbol": "INJUSDT",
+      "ProfitOrLoss": 0.0622231865800000000000000000
+    }
+  ]
+}

@@ -12,12 +12,14 @@ namespace CryptoBlade.Exchanges
 {
     public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
     {
+        private readonly IBybitSocketClient m_bybitSocketLinearClient;
         private readonly IBybitSocketClient m_bybitSocketClient;
         private const string c_asset = Assets.QuoteAsset;
 
-        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient)
+        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient, IBybitSocketClient? bybitSocketLinearClient)
         {
             m_bybitSocketClient = bybitSocketClient;
+            m_bybitSocketLinearClient = bybitSocketLinearClient ?? bybitSocketClient;
         }
 
         public async Task<IUpdateSubscription> SubscribeToWalletUpdatesAsync(Action<Strategies.Wallet.Balance> handler, CancellationToken cancel = default)
@@ -30,7 +32,7 @@ namespace CryptoBlade.Exchanges
                     {
                         foreach (BybitBalance bybitBalance in walletUpdateEvent.Data)
                         {
-                            if (bybitBalance.AccountType == AccountType.Contract)
+                            if (bybitBalance.AccountType == AccountType.Unified)
                             {
                                 var asset = bybitBalance.Assets.FirstOrDefault(x => string.Equals(x.Asset, c_asset, StringComparison.OrdinalIgnoreCase));
                                 if (asset != null)
@@ -78,7 +80,7 @@ namespace CryptoBlade.Exchanges
             var klineUpdatesSubscription = await ExchangePolicies.RetryForever
                 .ExecuteAsync(async () =>
                 {
-                    var subscriptionResult = await m_bybitSocketClient.V5LinearApi.SubscribeToKlineUpdatesAsync(
+                    var subscriptionResult = await m_bybitSocketLinearClient.V5LinearApi.SubscribeToKlineUpdatesAsync(
                         symbols,
                         timeFrame.ToKlineInterval(),
                         klineUpdateEvent =>
@@ -110,7 +112,7 @@ namespace CryptoBlade.Exchanges
         {
             var tickerSubscription = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
-                var tickerSubscriptionResult = await m_bybitSocketClient.V5LinearApi
+                var tickerSubscriptionResult = await m_bybitSocketLinearClient.V5LinearApi
                     .SubscribeToTickerUpdatesAsync(symbols,
                         tickerUpdateEvent =>
                         {

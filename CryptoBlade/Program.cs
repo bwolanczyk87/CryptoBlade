@@ -17,6 +17,9 @@ using CryptoBlade.BackTesting.Binance;
 using CryptoBlade.BackTesting.Bybit;
 using CryptoBlade.Optimizer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection;
+using Bybit.Net.Interfaces.Clients;
 
 namespace CryptoBlade
 {
@@ -233,11 +236,6 @@ namespace CryptoBlade
                 builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
             }
 
-            var exchangeAccount =
-                tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal));
-            string apiKey = exchangeAccount?.ApiKey ?? string.Empty;
-            string apiSecret = exchangeAccount?.ApiSecret ?? string.Empty;
-            bool hasApiCredentials = !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiSecret);
 
             if (tradingMode == TradingMode.Readonly || tradingMode == TradingMode.Dynamic)
             {
@@ -248,7 +246,10 @@ namespace CryptoBlade
                 builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
             }
 
-            if (hasApiCredentials)
+            var mainAccount = tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal)) ?? 
+                throw new InvalidOperationException("No account found with the name specified in the configuration.");
+
+            if (mainAccount.HasApiCredentials())
                 builder.Services.AddSingleton<IWalletManager, WalletManager>();
             else
                 builder.Services.AddSingleton<IWalletManager, NullWalletManager>();
@@ -256,26 +257,76 @@ namespace CryptoBlade
             builder.Services.AddBybit(
                 restOptions =>
                 {
-                    restOptions.Environment = (BybitEnvironment)BybitEnvironment.CreateCustom("BybitEnvironment.Demo", "https://api-demo.bybit.com", "wss://stream-demo.bybit.com");
                     restOptions.V5Options.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
-                    if (hasApiCredentials)
-                        restOptions.V5Options.ApiCredentials = new ApiCredentials(apiKey, apiSecret);
-                    //restOptions.ReceiveWindow = TimeSpan.FromSeconds(10);
-                    //restOptions.AutoTimestamp = true;
-                    //restOptions.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
-                },
-                socketClientOptions =>
-                {
-                    if (hasApiCredentials)
-                        socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(apiKey, apiSecret);
+
+                    if (mainAccount.HasApiCredentials())
+                        restOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
+
+                    if (mainAccount.IsDemo)
+                    {
+                        restOptions.Environment = (BybitEnvironment)BybitEnvironment.CreateCustom("BybitEnvironment.Demo", "https://api-demo.bybit.com", "wss://stream-demo.bybit.com");
+                    }
+                    else
+                    {
+                        restOptions.ReceiveWindow = TimeSpan.FromSeconds(10);
+                        restOptions.AutoTimestamp = true;
+                        restOptions.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
+                    }
                 });
+
+            builder.Services.AddSingleton<IBybitSocketClientMain>(provider =>
+            {
+                return new BybitSocketClientMain(socketClientOptions =>
+                {
+                    if (mainAccount.HasApiCredentials())
+                    {
+                        socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
+                    }
+                    if(mainAccount.IsDemo)
+                    {
+                        socketClientOptions.Environment = (BybitEnvironment)BybitEnvironment.CreateCustom("BybitEnvironment.Demo", "https://api-demo.bybit.com", "wss://stream-demo.bybit.com");
+                    }
+                });
+            });
+
+
+            if (mainAccount.IsDemo)
+            {
+                var secondaryAccount = tradingBotOptions.Accounts.FirstOrDefault(x => !x.IsDemo) ??
+                    throw new InvalidOperationException("No secondary account found with the name specified in the configuration.");
+
+                builder.Services.AddSingleton<IBybitSocketClientSecondary>(provider =>
+                {
+                    return new BybitSocketClientSecondary(socketClientOptions =>
+                    {
+                        if (secondaryAccount.HasApiCredentials())
+                        {
+                            socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(secondaryAccount.ApiKey, secondaryAccount.ApiSecret);
+                        }
+                    });
+                });
+
+                builder.Services.AddSingleton<ICbFuturesSocketClient>(provider =>
+                {
+                    IBybitSocketClient bybitSocketClientMain = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientMain>();
+                    IBybitSocketClient bybitSocketClientSecondary = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientSecondary>();
+                    return new BybitCbFuturesSocketClient(bybitSocketClientMain, bybitSocketClientSecondary);
+                });
+            }
+            else
+            {
+                builder.Services.AddSingleton<ICbFuturesSocketClient>(provider =>
+                {
+                    IBybitSocketClient bybitSocketClientMain = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientMain>();
+                    return new BybitCbFuturesSocketClient(bybitSocketClientMain, null);
+                });
+            }
 
             builder.Services.AddSingleton<ICbFuturesRestClient, BybitCbFuturesRestClient>();
             builder.Services.AddOptions<BybitCbFuturesRestClientOptions>().Configure(options =>
             {
                 options.PlaceOrderAttempts = tradingBotOptions.PlaceOrderAttempts;
             });
-            builder.Services.AddSingleton<ICbFuturesSocketClient, BybitCbFuturesSocketClient>();
         }
     }
 }

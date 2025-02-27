@@ -1,0 +1,973 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 2040.8277788019118900000000159,
+  "FinalEquity": 1696.5651488019118900000000159,
+  "LowestEquityToBalance": 0.525,
+  "UnrealizedPnl": -344.26106,
+  "RealizedPnl": 1040.8277788019118900000000159,
+  "AverageDailyGainPercent": 1.329792836618000,
+  "MaxDrawDown": 0.0008923749281465622418388225,
+  "TotalDays": 54,
+  "ExpectedDays": 54,
+  "LossProfitRatio": 0.0311912399230474933007296441,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 0.23328900393968321,
+  "AdgNormalizedRootMeanSquareError": 0.04684961926359492,
+  "TotalFundingRateProfitOrLoss": -5.7572757464881099999999999950,
+  "OpenPositionWithOrders": [
+    {
+      "Position": {
+        "Symbol": "MASKUSDT",
+        "Side": 0,
+        "Quantity": 422.40000000000000000000000000,
+        "AveragePrice": 2.9817591619318181818181818182,
+        "TradeMode": 0,
+        "CreateTime": "2025-01-06T16:42:00",
+        "UpdateTime": "2025-01-07T21:38:00"
+      },
+      "UnrealizedProfitOrLoss": -335.19939000000000000000000001,
+      "FilledOrders": [
+        {
+          "OrderId": "34a158e7-4052-42a5-a372-56eda8379c6e",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2555,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2555,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3255500000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:42:00"
+        },
+        {
+          "OrderId": "ade155d3-28e9-47ea-adf1-884464959471",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2512,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2512,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3251200000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:43:00"
+        },
+        {
+          "OrderId": "dd8f7645-4038-438b-b231-2dd9d74514cf",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2502,
+          "Quantity": 0.2000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2502,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.2000000000000000000000000000,
+          "ValueFilled": 0.6500400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:44:00"
+        },
+        {
+          "OrderId": "7f416f96-8dd1-4ccd-a2e8-55f7c8ae7360",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2491,
+          "Quantity": 0.4000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2491,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.4000000000000000000000000000,
+          "ValueFilled": 1.2996400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:45:00"
+        },
+        {
+          "OrderId": "967a6a22-c78b-481f-b0d9-e958b92d3aa0",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2452,
+          "Quantity": 0.8000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2452,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.8000000000000000000000000000,
+          "ValueFilled": 2.5961600000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:46:00"
+        },
+        {
+          "OrderId": "a921a419-cd1a-4fc3-8b6b-126464d97a83",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2402,
+          "Quantity": 1.6000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2402,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1.6000000000000000000000000000,
+          "ValueFilled": 5.1843200000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:47:00"
+        },
+        {
+          "OrderId": "2a4d2178-02c1-4d61-b7fa-92aa607e69bc",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2394,
+          "Quantity": 3.2000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2394,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 3.2000000000000000000000000000,
+          "ValueFilled": 10.366080000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:48:00"
+        },
+        {
+          "OrderId": "808d51af-5b1d-4ae2-9f9f-ad3ddaa2cf74",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2404,
+          "Quantity": 6.4000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2404,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 6.4000000000000000000000000000,
+          "ValueFilled": 20.738560000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T16:49:00"
+        },
+        {
+          "OrderId": "de4a75eb-7b2f-4fad-9ae7-0cbc93a0be94",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2038,
+          "Quantity": 25.600000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2038,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 25.600000000000000000000000000,
+          "ValueFilled": 82.01728000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:46:00"
+        },
+        {
+          "OrderId": "332a8ce4-daca-4f64-8a5a-32570958de5a",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2013,
+          "Quantity": 25.600000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2013,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 25.600000000000000000000000000,
+          "ValueFilled": 81.95328000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:47:00"
+        },
+        {
+          "OrderId": "2c417651-be16-4e83-9cae-ea40dd738c1a",
+          "Symbol": "MASKUSDT",
+          "Price": 3.2026,
+          "Quantity": 76.800000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 3.2026,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 76.800000000000000000000000000,
+          "ValueFilled": 245.95968000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:48:00"
+        },
+        {
+          "OrderId": "289ef1db-8780-4679-a809-6261190dcf6f",
+          "Symbol": "MASKUSDT",
+          "Price": 2.8696,
+          "Quantity": 281.60000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 2.8696,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 281.60000000000000000000000000,
+          "ValueFilled": 808.0793600000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-07T21:38:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "TRBUSDT",
+        "Side": 0,
+        "Quantity": 0.3000000000000000000000000000,
+        "AveragePrice": 67.435133333333333333333333333,
+        "TradeMode": 0,
+        "CreateTime": "2025-01-06T20:25:00",
+        "UpdateTime": "2025-01-06T20:47:00"
+      },
+      "UnrealizedProfitOrLoss": -8.975140000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "aae1736b-ba58-45de-b2e1-ce8000ad4058",
+          "Symbol": "TRBUSDT",
+          "Price": 67.647,
+          "Quantity": 0.0100000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 67.647,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0100000000000000000000000000,
+          "ValueFilled": 0.6764700000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:25:00"
+        },
+        {
+          "OrderId": "ff5c7d0a-32cf-4ef7-b37c-9839227fb88d",
+          "Symbol": "TRBUSDT",
+          "Price": 67.627,
+          "Quantity": 0.0100000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 67.627,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0100000000000000000000000000,
+          "ValueFilled": 0.6762700000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:26:00"
+        },
+        {
+          "OrderId": "1ed20079-7eb3-47f6-9a69-451842b880c1",
+          "Symbol": "TRBUSDT",
+          "Price": 67.482,
+          "Quantity": 0.0400000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 67.482,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0400000000000000000000000000,
+          "ValueFilled": 2.6992800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:43:00"
+        },
+        {
+          "OrderId": "eaa0c9a0-d827-4ba2-830b-1c127c33c20e",
+          "Symbol": "TRBUSDT",
+          "Price": 67.425,
+          "Quantity": 0.1200000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 67.425,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1200000000000000000000000000,
+          "ValueFilled": 8.091000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:46:00"
+        },
+        {
+          "OrderId": "342024cf-7168-4c5b-9fa8-da8644d14c7a",
+          "Symbol": "TRBUSDT",
+          "Price": 67.396,
+          "Quantity": 0.1200000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 67.396,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1200000000000000000000000000,
+          "ValueFilled": 8.087520000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-01-06T20:47:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "TRBUSDT",
+        "Side": 1,
+        "Quantity": 0.0600000000000000000000000000,
+        "AveragePrice": 37.642166666666666666666666667,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T20:30:00",
+        "UpdateTime": "2025-02-23T23:14:00"
+      },
+      "UnrealizedProfitOrLoss": 0.0074500000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "35be40a7-8709-4273-9183-d0925efa627e",
+          "Symbol": "TRBUSDT",
+          "Price": 37.585,
+          "Quantity": 0.0500000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 37.585,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0500000000000000000000000000,
+          "ValueFilled": 1.8792500000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T20:30:00"
+        },
+        {
+          "OrderId": "2f8e05e2-4ec9-4bf3-bec0-243e26dbbd60",
+          "Symbol": "TRBUSDT",
+          "Price": 37.928,
+          "Quantity": 0.0100000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 37.928,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0100000000000000000000000000,
+          "ValueFilled": 0.3792800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:14:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "LDOUSDT",
+        "Side": 1,
+        "Quantity": 9.200000000000000000000000000,
+        "AveragePrice": 1.6893521739130434782608695652,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T22:44:00",
+        "UpdateTime": "2025-02-23T23:15:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0740400000000000000000000002,
+      "FilledOrders": [
+        {
+          "OrderId": "dd46caee-3d14-439a-bf9f-4781e1e620dd",
+          "Symbol": "LDOUSDT",
+          "Price": 1.680800,
+          "Quantity": 1.2000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.680800,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1.2000000000000000000000000000,
+          "ValueFilled": 2.0169600000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:44:00"
+        },
+        {
+          "OrderId": "754857a2-cafb-49a8-8a98-896c12b54161",
+          "Symbol": "LDOUSDT",
+          "Price": 1.684900,
+          "Quantity": 1.2000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.684900,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1.2000000000000000000000000000,
+          "ValueFilled": 2.0218800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:45:00"
+        },
+        {
+          "OrderId": "10a779a3-1604-4278-99a8-a860b995cfd4",
+          "Symbol": "LDOUSDT",
+          "Price": 1.684700,
+          "Quantity": 0.2000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.684700,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.2000000000000000000000000000,
+          "ValueFilled": 0.3369400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:46:00"
+        },
+        {
+          "OrderId": "aee99e12-8bc9-4a44-b33c-caa0eb2df977",
+          "Symbol": "LDOUSDT",
+          "Price": 1.687700,
+          "Quantity": 0.4000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.687700,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.4000000000000000000000000000,
+          "ValueFilled": 0.6750800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:47:00"
+        },
+        {
+          "OrderId": "9b84c497-a2b2-4b6d-b133-0c268a386468",
+          "Symbol": "LDOUSDT",
+          "Price": 1.686500,
+          "Quantity": 0.5000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.686500,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.5000000000000000000000000000,
+          "ValueFilled": 0.8432500000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:48:00"
+        },
+        {
+          "OrderId": "0b6d1a2f-e5e6-4c69-910f-50dd3558808b",
+          "Symbol": "LDOUSDT",
+          "Price": 1.685200,
+          "Quantity": 0.6000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.685200,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.6000000000000000000000000000,
+          "ValueFilled": 1.0111200000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:49:00"
+        },
+        {
+          "OrderId": "c24c3b03-7de7-45e1-924f-1a2cadcafa36",
+          "Symbol": "LDOUSDT",
+          "Price": 1.684200,
+          "Quantity": 0.7000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.684200,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.7000000000000000000000000000,
+          "ValueFilled": 1.1789400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:50:00"
+        },
+        {
+          "OrderId": "10800f72-835c-4a19-bd50-aff71af9925f",
+          "Symbol": "LDOUSDT",
+          "Price": 1.685500,
+          "Quantity": 0.9000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.685500,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.9000000000000000000000000000,
+          "ValueFilled": 1.5169500000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:52:00"
+        },
+        {
+          "OrderId": "b9817422-3351-4f9e-9f64-a76f7930de8e",
+          "Symbol": "LDOUSDT",
+          "Price": 1.685000,
+          "Quantity": 0.9000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.685000,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.9000000000000000000000000000,
+          "ValueFilled": 1.5165000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:53:00"
+        },
+        {
+          "OrderId": "fd36b8b6-1158-4672-92c5-3844365c1c0d",
+          "Symbol": "LDOUSDT",
+          "Price": 1.702400,
+          "Quantity": 1.3000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.702400,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1.3000000000000000000000000000,
+          "ValueFilled": 2.2131200000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:14:00"
+        },
+        {
+          "OrderId": "07d6415f-9620-4a18-a2ce-686ec12f83f3",
+          "Symbol": "LDOUSDT",
+          "Price": 1.701000,
+          "Quantity": 1.3000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.701000,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1.3000000000000000000000000000,
+          "ValueFilled": 2.2113000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:15:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "1000PEPEUSDT",
+        "Side": 1,
+        "Quantity": 900.0000000000000000000000000,
+        "AveragePrice": 0.0093266888888888888888888889,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T22:46:00",
+        "UpdateTime": "2025-02-23T23:15:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0150399999999999999999999900,
+      "FilledOrders": [
+        {
+          "OrderId": "28aa9213-7755-426c-8711-31d223d71d01",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093027,
+          "Quantity": 200.0000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093027,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 200.0000000000000000000000000,
+          "ValueFilled": 1.8605400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:46:00"
+        },
+        {
+          "OrderId": "4c2647f4-987d-467c-af90-e125649c2505",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093107,
+          "Quantity": 200.0000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093107,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 200.0000000000000000000000000,
+          "ValueFilled": 1.8621400000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:47:00"
+        },
+        {
+          "OrderId": "11f0053c-b94d-4d34-b2d9-64a6bda3aa9d",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093190,
+          "Quantity": 100,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093190,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 100,
+          "ValueFilled": 0.9319000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:49:00"
+        },
+        {
+          "OrderId": "bb8a74c4-cd15-4b4c-995e-3a58ac99e44a",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093123,
+          "Quantity": 100,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093123,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 100,
+          "ValueFilled": 0.9312300,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:50:00"
+        },
+        {
+          "OrderId": "2040bc4c-112a-4704-b6f9-da81febbd80f",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093377,
+          "Quantity": 100.00000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093377,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 100.00000000000000000000000000,
+          "ValueFilled": 0.9337700000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:01:00"
+        },
+        {
+          "OrderId": "332d13ac-e43d-4a3d-b916-914423d0c387",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093696,
+          "Quantity": 100.00000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093696,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 100.00000000000000000000000000,
+          "ValueFilled": 0.9369600000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:14:00"
+        },
+        {
+          "OrderId": "f586dc1b-ebb7-4bde-92ce-83fdf69aa291",
+          "Symbol": "1000PEPEUSDT",
+          "Price": 0.0093748,
+          "Quantity": 100.00000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.0093748,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 100.00000000000000000000000000,
+          "ValueFilled": 0.9374800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:15:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "FILUSDT",
+        "Side": 1,
+        "Quantity": 1.0000000000000000000000000000,
+        "AveragePrice": 3.4061,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T22:44:00",
+        "UpdateTime": "2025-02-23T23:14:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0049000000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "a8c15e7c-7466-4423-be34-81a3745b62c8",
+          "Symbol": "FILUSDT",
+          "Price": 3.401,
+          "Quantity": 0.3000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.401,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.3000000000000000000000000000,
+          "ValueFilled": 1.0203000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:44:00"
+        },
+        {
+          "OrderId": "6b054215-33fc-4127-aa3e-bfef7994ab38",
+          "Symbol": "FILUSDT",
+          "Price": 3.404,
+          "Quantity": 0.1,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.404,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1,
+          "ValueFilled": 0.3404,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:46:00"
+        },
+        {
+          "OrderId": "c61a239b-449d-4d0c-ac18-8b778e02f2cb",
+          "Symbol": "FILUSDT",
+          "Price": 3.405,
+          "Quantity": 0.1,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.405,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1,
+          "ValueFilled": 0.3405,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:47:00"
+        },
+        {
+          "OrderId": "ee24fa7b-7709-4a84-b9d1-b51bd2ad220d",
+          "Symbol": "FILUSDT",
+          "Price": 3.405,
+          "Quantity": 0.1,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.405,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1,
+          "ValueFilled": 0.3405,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:48:00"
+        },
+        {
+          "OrderId": "d4da11b1-d893-41fb-800d-eb38c34b4bf5",
+          "Symbol": "FILUSDT",
+          "Price": 3.406,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.406,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3406000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:50:00"
+        },
+        {
+          "OrderId": "c5e22b0a-3727-49fa-861e-4a56c802597d",
+          "Symbol": "FILUSDT",
+          "Price": 3.408,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.408,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3408000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:52:00"
+        },
+        {
+          "OrderId": "5e63c1a1-acaf-4908-9cae-6135ee90ca85",
+          "Symbol": "FILUSDT",
+          "Price": 3.412,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.412,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3412000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:01:00"
+        },
+        {
+          "OrderId": "7e4ec51e-235a-4291-b7f5-aeb9cc97c7a9",
+          "Symbol": "FILUSDT",
+          "Price": 3.418,
+          "Quantity": 0.1000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 3.418,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.1000000000000000000000000000,
+          "ValueFilled": 0.3418000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T23:14:00"
+        }
+      ]
+    }
+  ],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "OPUSDT",
+      "ProfitOrLoss": -0.1901531317590000000000000000
+    },
+    {
+      "Symbol": "DOGEUSDT",
+      "ProfitOrLoss": -0.3645587529542000000000000001
+    },
+    {
+      "Symbol": "XLMUSDT",
+      "ProfitOrLoss": 0.0659070514293000000000000000
+    },
+    {
+      "Symbol": "APTUSDT",
+      "ProfitOrLoss": -0.0367713537486100000000000000
+    },
+    {
+      "Symbol": "ADAUSDT",
+      "ProfitOrLoss": 2.8151328803180000000000000000
+    },
+    {
+      "Symbol": "ATOMUSDT",
+      "ProfitOrLoss": 0.0362089681070000000000000000
+    },
+    {
+      "Symbol": "AXSUSDT",
+      "ProfitOrLoss": -0.0006355312020000000000000000
+    },
+    {
+      "Symbol": "ORDIUSDT",
+      "ProfitOrLoss": 2.3292723916513000000000000000
+    },
+    {
+      "Symbol": "CELOUSDT",
+      "ProfitOrLoss": -0.0055728800000000000000000000
+    },
+    {
+      "Symbol": "AGLDUSDT",
+      "ProfitOrLoss": 0.0026005329304000000000000000
+    },
+    {
+      "Symbol": "DYDXUSDT",
+      "ProfitOrLoss": -0.2087504991130000000000000000
+    },
+    {
+      "Symbol": "FLOWUSDT",
+      "ProfitOrLoss": 0.0394326943820000000000000000
+    },
+    {
+      "Symbol": "GRTUSDT",
+      "ProfitOrLoss": -0.0044279761294400000000000000
+    },
+    {
+      "Symbol": "STORJUSDT",
+      "ProfitOrLoss": -0.0094714146629000000000000000
+    },
+    {
+      "Symbol": "TRBUSDT",
+      "ProfitOrLoss": -0.1547464325935000000000000000
+    },
+    {
+      "Symbol": "TRXUSDT",
+      "ProfitOrLoss": -0.1957624876573000000000000000
+    },
+    {
+      "Symbol": "NEARUSDT",
+      "ProfitOrLoss": -0.4093858225660000000000000000
+    },
+    {
+      "Symbol": "MASKUSDT",
+      "ProfitOrLoss": -11.427060373163600000000000000
+    },
+    {
+      "Symbol": "NEOUSDT",
+      "ProfitOrLoss": -0.0457476105167000000000000000
+    },
+    {
+      "Symbol": "MTLUSDT",
+      "ProfitOrLoss": 0.0068862511188000000000000000
+    },
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": 0.0427163157791000000000000000
+    },
+    {
+      "Symbol": "STXUSDT",
+      "ProfitOrLoss": 0.0017424452572000000000000000
+    },
+    {
+      "Symbol": "FILUSDT",
+      "ProfitOrLoss": 0.0083938295130000000000000000
+    },
+    {
+      "Symbol": "LDOUSDT",
+      "ProfitOrLoss": 1.0154476919572000000000000000
+    },
+    {
+      "Symbol": "GMTUSDT",
+      "ProfitOrLoss": 0.0860991037661000000000000000
+    },
+    {
+      "Symbol": "ZECUSDT",
+      "ProfitOrLoss": 0.0018391968480000000000000000
+    },
+    {
+      "Symbol": "TUSDT",
+      "ProfitOrLoss": -0.0050014322350000000000000000
+    },
+    {
+      "Symbol": "UNIUSDT",
+      "ProfitOrLoss": 0.0040856052350000000000000000
+    },
+    {
+      "Symbol": "MANAUSDT",
+      "ProfitOrLoss": 0.0001939439200000000000000000
+    },
+    {
+      "Symbol": "1000PEPEUSDT",
+      "ProfitOrLoss": 0.8351928721750000000000000051
+    },
+    {
+      "Symbol": "LINAUSDT",
+      "ProfitOrLoss": 0.0000762700000000000000000000
+    },
+    {
+      "Symbol": "ETHWUSDT",
+      "ProfitOrLoss": 0.0006526969607400000000000000
+    },
+    {
+      "Symbol": "XRPUSDT",
+      "ProfitOrLoss": 0.0071140198160000000000000000
+    },
+    {
+      "Symbol": "INJUSDT",
+      "ProfitOrLoss": -0.0125871532170000000000000000
+    },
+    {
+      "Symbol": "GMXUSDT",
+      "ProfitOrLoss": 0.0096812560000000000000000000
+    },
+    {
+      "Symbol": "LINKUSDT",
+      "ProfitOrLoss": 0.0125200557300000000000000000
+    },
+    {
+      "Symbol": "OGNUSDT",
+      "ProfitOrLoss": -0.0078389678640000000000000000
+    }
+  ]
+}

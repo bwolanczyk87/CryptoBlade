@@ -21,7 +21,7 @@ namespace CryptoBlade.Helpers
             if (!walletBalance.HasValue)
                 return null;
             if (!symbolInfo.MaxLeverage.HasValue)
-                return null;
+                return null;    
             if (!symbolInfo.QtyStep.HasValue)
                 return null;
             decimal maxTradeQty =
