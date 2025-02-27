@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <Folder Include="Documentation\" />
-    <Folder Include="Samples\BackTest\Version\" />
   </ItemGroup>
 
 </Project>
