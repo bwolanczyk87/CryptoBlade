@@ -10,4 +10,4 @@ namespace CryptoBlade.Strategies.Wallet
 
         Task StopAsync(CancellationToken cancel);
     }
-}
+}x
