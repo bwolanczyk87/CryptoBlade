@@ -21,3 +21,7 @@ namespace CryptoBlade.BackTesting.Model
         }
     }
 }
+
+namespace CryptoBlade.BackTesting.Model
+{
+}
