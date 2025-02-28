@@ -7,7 +7,7 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Optimizer.Fitness;
 using CryptoBlade.Optimizer.Strategies;
 using CryptoBlade.Optimizer.Strategies.AutoHedge;
-using CryptoBlade.Optimizer.Strategies.MfiRsiTrend;
+using CryptoBlade.Optimizer.Strategies.MfiRsiEriTrend;
 using CryptoBlade.Optimizer.Strategies.Qiqi;
 using CryptoBlade.Optimizer.Strategies.Tartaglia;
 using CryptoBlade.Strategies;
