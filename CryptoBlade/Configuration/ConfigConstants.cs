@@ -2,7 +2,7 @@
 {
     public class ConfigConstants
     {
-        public const string DefaultHistoricalDataDirectory = "HistoricalData";
+        public const string DefaultHistoricalDataDirectory = "../HistoricalData";
         public const string BackTestsDirectory = "Results";
     }
 }

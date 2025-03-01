@@ -6,7 +6,7 @@
 
         public DateTime End { get; set; }
 
-        public decimal InitialBalance { get; set; } = 5000;
+        public decimal InitialBalance { get; set; } = 1000;
 
         public TimeSpan StartupCandleData { get; set; } = TimeSpan.FromDays(1);
 
@@ -14,8 +14,8 @@
 
         public string ResultDetailedFileName { get; set; } = "result_detailed.json";
 
-        public int InitialUntradableDays { get; set; } = 30;
+        public int InitialUntradableDays { get; set; } = 0;
 
-        public DataSource DataSource { get; set; } = DataSource.Bybit;
+        public DataSource DataSource { get; set; } = DataSource.Binance;
     }
 }

@@ -27,6 +27,5 @@ CryptoBlade/OptimizerResults
 LICENSE
 README.md
 cryptoblade.tar
-Samples/BackTest/BackTests
-Samples/BackTest/HistoricalData
-Samples/BackTest/OptimizerResults
+Data/HistoricalData
+Data/OptimizerResults
