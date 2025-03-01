@@ -1,3 +1,5 @@
+version: '3.4'
+
 services:
   cryptoblade:
     image: cryptoblade:latest
@@ -9,9 +11,11 @@ services:
     environment:
         - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
         - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv
-        - CB_TradingBot__BotMode=Live
-        - CB_TradingBot__AccountName=CryptoBlade_Subaccount
-        - CB_TradingBot__StrategyName=MfiRsiEriTrend
+        - CB_TradingBot__Accounts__1__ApiKey=URvF5Qbv7PBnHWs0k3
+        - CB_TradingBot__Accounts__1__ApiSecret=w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv
+        - CB_TradingBot__BotMode=Backtest
+        - CB_TradingBot__AccountName=CryptoBlade_Demo
+        - CB_TradingBot__StrategyName=MfiRsiCandlePrecise
         - CB_TradingBot__MaxRunningStrategies=200
         - CB_TradingBot__WalletExposureLong=500.0
         - CB_TradingBot__WalletExposureShort=500.0

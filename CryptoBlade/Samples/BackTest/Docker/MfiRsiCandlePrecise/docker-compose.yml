@@ -1,7 +1,6 @@
 services:
   cryptoblade:
     image: cryptoblade:latest
-    restart: unless-stopped
     labels:
         - "autoheal=true"
     ports:
@@ -9,40 +8,36 @@ services:
     environment:
         - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
         - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv
-        - CB_TradingBot__BotMode=Live
-        - CB_TradingBot__AccountName=CryptoBlade_Subaccount
-        - CB_TradingBot__StrategyName=MfiRsiEriTrend
-        - CB_TradingBot__MaxRunningStrategies=200
-        - CB_TradingBot__WalletExposureLong=500.0
-        - CB_TradingBot__WalletExposureShort=500.0
+        - CB_TradingBot__Accounts__1__ApiKey=URvF5Qbv7PBnHWs0k3
+        - CB_TradingBot__Accounts__1__ApiSecret=w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv
+        - CB_TradingBot__BotMode=Backtest
+        - CB_TradingBot__StrategyName=MfiRsiCandlePrecise
+        - CB_TradingBot__MaxRunningStrategies=20
+        - CB_TradingBot__WalletExposureLong=2.0
+        - CB_TradingBot__WalletExposureShort=2.0
         - CB_TradingBot__ForceMinQty=false
-        - CB_TradingBot__MinProfitRate=0.0001
-        - CB_TradingBot__TradingMode=Normal
+        - CB_TradingBot__TradingMode=Dynamic
         - CB_TradingBot__DcaOrdersCount=1000
-        - CB_TradingBot__DynamicBotCount__TargetLongExposure=100.0
-        - CB_TradingBot__DynamicBotCount__TargetShortExposure=100.0
-        - CB_TradingBot__DynamicBotCount__MaxLongStrategies=150
-        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=150
-        - CB_TradingBot__DynamicBotCount__MaxDynamicStrategyOpenPerStep=6
-        - CB_TradingBot__DynamicBotCount__Step=0.00:03:00
+        - CB_TradingBot__DynamicBotCount__TargetLongExposure=2.0
+        - CB_TradingBot__DynamicBotCount__TargetShortExposure=2.0
+        - CB_TradingBot__DynamicBotCount__MaxLongStrategies=10
+        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=10
+        - CB_TradingBot__DynamicBotCount__MaxDynamicStrategyOpenPerStep=10
+        - CB_TradingBot__DynamicBotCount__Step=0.00:01:00
         - CB_TradingBot__Unstucking__Enabled=true
-        - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.001
-        - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.0005
-        - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.1
-        - CB_TradingBot__Unstucking__ForceUnstuckThresholdPercent=-0.003
-        - CB_TradingBot__Unstucking__ForceUnstuckPositionThresholdPercent=-0.0007
-        - CB_TradingBot__Unstucking__ForceUnstuckPercentStep=0.1
+        - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.1
+        - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
+        - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.01
+        - CB_TradingBot__Unstucking__ForceUnstuckThresholdPercent=-0.3
+        - CB_TradingBot__Unstucking__ForceUnstuckPositionThresholdPercent=-0.02
+        - CB_TradingBot__Unstucking__ForceUnstuckPercentStep=0.01
         - CB_TradingBot__Unstucking__ForceKillTheWorst=true
-        - CB_TradingBot__Whitelist__0=BTCUSDT
-        - CB_TradingBot__Whitelist__1=ETHUSDT
         - CB_TradingBot__Whitelist__2=XRPUSDT
-        - CB_TradingBot__Whitelist__3=BNBUSDT
         - CB_TradingBot__Whitelist__4=DOGEUSDT
         - CB_TradingBot__Whitelist__5=ADAUSDT
         - CB_TradingBot__Whitelist__6=SOLUSDT
         - CB_TradingBot__Whitelist__7=TRXUSDT
         - CB_TradingBot__Whitelist__8=MATICUSDT
-        - CB_TradingBot__Whitelist__9=LTCUSDT
         - CB_TradingBot__Whitelist__10=DOTUSDT
         - CB_TradingBot__Whitelist__11=BCHUSDT
         - CB_TradingBot__Whitelist__12=SHIB1000USDT
@@ -94,7 +89,6 @@ services:
         - CB_TradingBot__Whitelist__58=CHZUSDT
         - CB_TradingBot__Whitelist__59=KLAYUSDT
         - CB_TradingBot__Whitelist__60=GMXUSDT
-        - CB_TradingBot__Whitelist__61=PAXGUSDT
         - CB_TradingBot__Whitelist__62=COMPUSDT
         - CB_TradingBot__Whitelist__63=FXSUSDT
         - CB_TradingBot__Whitelist__64=SUIUSDT

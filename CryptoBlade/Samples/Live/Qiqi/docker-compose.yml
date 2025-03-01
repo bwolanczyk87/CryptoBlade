@@ -1,5 +1,3 @@
-version: '3.4'
-
 services:
   cryptoblade:
     image: cryptoblade:latest
@@ -11,9 +9,10 @@ services:
         - ./BackTests:/app/BackTests
         - ./HistoricalData:/app/HistoricalData
     environment:
-        - CB_TradingBot__Accounts__0__ApiKey=
-        - CB_TradingBot__Accounts__0__ApiSecret=
+        - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
+        - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv
         - CB_TradingBot__BotMode=Live
+        - CB_TradingBot__AccountName=CryptoBlade_Subaccount
         - CB_TradingBot__StrategyName=Qiqi
         - CB_TradingBot__WalletExposureLong=0.2
         - CB_TradingBot__WalletExposureShort=0.0

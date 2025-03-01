@@ -3,6 +3,6 @@
     public class ConfigConstants
     {
         public const string DefaultHistoricalDataDirectory = "HistoricalData";
-        public const string BackTestsDirectory = "BackTests";
+        public const string BackTestsDirectory = "Results";
     }
 }

@@ -11,7 +11,7 @@ services:
         - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv
         - CB_TradingBot__BotMode=Live
         - CB_TradingBot__AccountName=CryptoBlade_Subaccount
-        - CB_TradingBot__StrategyName=MfiRsiEriTrend
+        - CB_TradingBot__StrategyName=MfiRsiCandlePrecise
         - CB_TradingBot__MaxRunningStrategies=200
         - CB_TradingBot__WalletExposureLong=500.0
         - CB_TradingBot__WalletExposureShort=500.0

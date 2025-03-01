@@ -1,0 +1,144 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 1819.6969629580796399999999704,
+  "FinalEquity": 481.4907029580796399999999704,
+  "LowestEquityToBalance": 0.091,
+  "UnrealizedPnl": -1336.71001,
+  "RealizedPnl": 819.6969629580796399999999703,
+  "AverageDailyGainPercent": 1.11481639432000,
+  "MaxDrawDown": 0.0021582309771800845285127123,
+  "TotalDays": 54,
+  "ExpectedDays": 54,
+  "LossProfitRatio": 0.039762029910958438839110003,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 1,
+  "AdgNormalizedRootMeanSquareError": 0.09940551589695168,
+  "TotalFundingRateProfitOrLoss": 2.2408987212796399999999999999,
+  "OpenPositionWithOrders": [],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "OPUSDT",
+      "ProfitOrLoss": 0.1333279428967000000000000000
+    },
+    {
+      "Symbol": "GMTUSDT",
+      "ProfitOrLoss": 0.0485500580935000000000000000
+    },
+    {
+      "Symbol": "ORDIUSDT",
+      "ProfitOrLoss": 0.1635706863744000000000000000
+    },
+    {
+      "Symbol": "STXUSDT",
+      "ProfitOrLoss": -2.3705714036060000000000000000
+    },
+    {
+      "Symbol": "XLMUSDT",
+      "ProfitOrLoss": -0.3315937032581000000000000000
+    },
+    {
+      "Symbol": "STORJUSDT",
+      "ProfitOrLoss": 0.0980220574412000000000000000
+    },
+    {
+      "Symbol": "MASKUSDT",
+      "ProfitOrLoss": 0.0326577709640000000000000000
+    },
+    {
+      "Symbol": "DOGEUSDT",
+      "ProfitOrLoss": 2.7270785678294000000000000000
+    },
+    {
+      "Symbol": "CELOUSDT",
+      "ProfitOrLoss": -0.0001096000000000000000000000
+    },
+    {
+      "Symbol": "TRBUSDT",
+      "ProfitOrLoss": -0.0001635020000000000000000000
+    },
+    {
+      "Symbol": "ADAUSDT",
+      "ProfitOrLoss": -0.1750792923830000000000000000
+    },
+    {
+      "Symbol": "AGLDUSDT",
+      "ProfitOrLoss": 0.0428100592864000000000000000
+    },
+    {
+      "Symbol": "TRXUSDT",
+      "ProfitOrLoss": -0.2336071138864000000000000000
+    },
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": 0.0394200307904000000000000000
+    },
+    {
+      "Symbol": "NEARUSDT",
+      "ProfitOrLoss": -0.0144230387310000000000000000
+    },
+    {
+      "Symbol": "TUSDT",
+      "ProfitOrLoss": 0.0028090535430000000000000000
+    },
+    {
+      "Symbol": "LDOUSDT",
+      "ProfitOrLoss": 1.3103073492385000000000000000
+    },
+    {
+      "Symbol": "GMXUSDT",
+      "ProfitOrLoss": 0.0000957420000000000000000000
+    },
+    {
+      "Symbol": "FILUSDT",
+      "ProfitOrLoss": 0.0035261257930000000000000000
+    },
+    {
+      "Symbol": "MTLUSDT",
+      "ProfitOrLoss": -0.0010871830990000000000000000
+    },
+    {
+      "Symbol": "MANAUSDT",
+      "ProfitOrLoss": 0.0001032440000000000000000000
+    },
+    {
+      "Symbol": "UNIUSDT",
+      "ProfitOrLoss": 0.0688169313820000000000000000
+    },
+    {
+      "Symbol": "ZECUSDT",
+      "ProfitOrLoss": 0.0027132644160000000000000000
+    },
+    {
+      "Symbol": "DYDXUSDT",
+      "ProfitOrLoss": 0.0024099454200000000000000000
+    },
+    {
+      "Symbol": "1000PEPEUSDT",
+      "ProfitOrLoss": 0.0267685333701000000000000000
+    },
+    {
+      "Symbol": "ATOMUSDT",
+      "ProfitOrLoss": -0.0080646918940000000000000000
+    },
+    {
+      "Symbol": "OGNUSDT",
+      "ProfitOrLoss": 0.0002504368500000000000000000
+    },
+    {
+      "Symbol": "APTUSDT",
+      "ProfitOrLoss": -0.0056026152024600000000000000
+    },
+    {
+      "Symbol": "FLOWUSDT",
+      "ProfitOrLoss": 0.2547144099999999999999999999
+    },
+    {
+      "Symbol": "COMPUSDT",
+      "ProfitOrLoss": 0.0000472893120000000000000000
+    },
+    {
+      "Symbol": "XRPUSDT",
+      "ProfitOrLoss": 0.4232013663390000000000000000
+    }
+  ]
+}

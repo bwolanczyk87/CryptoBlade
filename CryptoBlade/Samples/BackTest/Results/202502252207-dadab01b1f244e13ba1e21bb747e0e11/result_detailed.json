@@ -1,0 +1,421 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 1121.0429073724163309855999992,
+  "FinalEquity": 1120.9731233724163309855999992,
+  "LowestEquityToBalance": 0.713,
+  "UnrealizedPnl": -0.069902,
+  "RealizedPnl": 121.04290737241633098559999924,
+  "AverageDailyGainPercent": 0.498016082215000,
+  "MaxDrawDown": 0.0004049464657970799560142196,
+  "TotalDays": 23,
+  "ExpectedDays": 23,
+  "LossProfitRatio": 0.0083410683415243590011954165,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 0.005822065706612414,
+  "AdgNormalizedRootMeanSquareError": 0.05161894407342337,
+  "TotalFundingRateProfitOrLoss": 0.0416942238335900000000000000,
+  "OpenPositionWithOrders": [
+    {
+      "Position": {
+        "Symbol": "MASKUSDT",
+        "Side": 0,
+        "Quantity": 0.2000000000000000000000000000,
+        "AveragePrice": 2.214,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T08:25:00",
+        "UpdateTime": "2025-02-23T08:25:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0051600000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "fbd6c7ab-c686-4fbd-a63e-9fb48be73de9",
+          "Symbol": "MASKUSDT",
+          "Price": 2.2140,
+          "Quantity": 0.2000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 2.2140,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.2000000000000000000000000000,
+          "ValueFilled": 0.4428000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T08:25:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "GRTUSDT",
+        "Side": 0,
+        "Quantity": 4.000000000000000000000000000,
+        "AveragePrice": 0.13965,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T09:10:00",
+        "UpdateTime": "2025-02-23T09:10:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0107600000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "35a5361f-2770-4d5c-91a0-f71a6b817317",
+          "Symbol": "GRTUSDT",
+          "Price": 0.13965,
+          "Quantity": 4.000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.13965,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 4.000000000000000000000000000,
+          "ValueFilled": 0.5586000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T09:10:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "DOGEUSDT",
+        "Side": 0,
+        "Quantity": 6.0000000000000000000000000000,
+        "AveragePrice": 0.24643,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-22T23:46:00",
+        "UpdateTime": "2025-02-22T23:46:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0224400000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "112743a2-aa45-4acc-8b0d-3607cf5cce61",
+          "Symbol": "DOGEUSDT",
+          "Price": 0.246430,
+          "Quantity": 6.0000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.246430,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 6.0000000000000000000000000000,
+          "ValueFilled": 1.4785800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-22T23:46:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "XLMUSDT",
+        "Side": 0,
+        "Quantity": 3.0000000000000000000000000000,
+        "AveragePrice": 0.33232,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T10:22:00",
+        "UpdateTime": "2025-02-23T10:22:00"
+      },
+      "UnrealizedProfitOrLoss": 0.0018300000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "6fe78339-6569-4b52-9923-0669056dc2cf",
+          "Symbol": "XLMUSDT",
+          "Price": 0.33232,
+          "Quantity": 3.0000000000000000000000000000,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.33232,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 3.0000000000000000000000000000,
+          "ValueFilled": 0.9969600000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T10:22:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "TRBUSDT",
+        "Side": 1,
+        "Quantity": 0.0300000000000000000000000000,
+        "AveragePrice": 37.277,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T20:05:00",
+        "UpdateTime": "2025-02-23T20:05:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0072300000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "ffa2e818-7db3-41b2-9889-322d81295439",
+          "Symbol": "TRBUSDT",
+          "Price": 37.277,
+          "Quantity": 0.0300000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 37.277,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0300000000000000000000000000,
+          "ValueFilled": 1.1183100000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T20:05:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "LDOUSDT",
+        "Side": 1,
+        "Quantity": 0.6000000000000000000000000000,
+        "AveragePrice": 1.6808,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T22:44:00",
+        "UpdateTime": "2025-02-23T22:44:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0099600000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "cf3c5f2a-ee79-4c78-942f-28a8acdfff9e",
+          "Symbol": "LDOUSDT",
+          "Price": 1.680800,
+          "Quantity": 0.6000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 1.680800,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.6000000000000000000000000000,
+          "ValueFilled": 1.0084800000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:44:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "APTUSDT",
+        "Side": 1,
+        "Quantity": 0.2400000000000000000000000000,
+        "AveragePrice": 6.060725,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T05:07:00",
+        "UpdateTime": "2025-02-23T11:05:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0126420000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "8fcd77f8-524c-461f-b187-899680e3f65f",
+          "Symbol": "APTUSDT",
+          "Price": 6.01380,
+          "Quantity": 0.180000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 6.01380,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.180000000000000000000000000,
+          "ValueFilled": 1.0824840000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T05:07:00"
+        },
+        {
+          "OrderId": "73231c2a-98c7-4c8a-88bb-35cdfb411903",
+          "Symbol": "APTUSDT",
+          "Price": 6.19480,
+          "Quantity": 0.0300000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 6.19480,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0300000000000000000000000000,
+          "ValueFilled": 0.1858440000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T11:04:00"
+        },
+        {
+          "OrderId": "79dcaf91-f4eb-4d4a-b871-cd37ffa84a9f",
+          "Symbol": "APTUSDT",
+          "Price": 6.20820,
+          "Quantity": 0.0300000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 6.20820,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 0.0300000000000000000000000000,
+          "ValueFilled": 0.1862460000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T11:05:00"
+        }
+      ]
+    },
+    {
+      "Position": {
+        "Symbol": "DOGEUSDT",
+        "Side": 1,
+        "Quantity": 6.0000000000000000000000000000,
+        "AveragePrice": 0.2421,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-23T22:46:00",
+        "UpdateTime": "2025-02-23T22:46:00"
+      },
+      "UnrealizedProfitOrLoss": -0.0035400000000000000000000000,
+      "FilledOrders": [
+        {
+          "OrderId": "a2dc235d-e996-4208-a2f8-671578e58552",
+          "Symbol": "DOGEUSDT",
+          "Price": 0.242100,
+          "Quantity": 6.0000000000000000000000000000,
+          "Side": 1,
+          "PositionMode": 2,
+          "Status": 5,
+          "AveragePrice": 0.242100,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 6.0000000000000000000000000000,
+          "ValueFilled": 1.4526000000000000000000000000,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-23T22:46:00"
+        }
+      ]
+    }
+  ],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "ETHWUSDT",
+      "ProfitOrLoss": -0.0007566233425000000000000000
+    },
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": 0.0166161464815000000000000000
+    },
+    {
+      "Symbol": "OPUSDT",
+      "ProfitOrLoss": -0.0002370317454000000000000000
+    },
+    {
+      "Symbol": "DOGEUSDT",
+      "ProfitOrLoss": -0.0014385064200000000000000000
+    },
+    {
+      "Symbol": "NEOUSDT",
+      "ProfitOrLoss": 0.0045476637756000000000000000
+    },
+    {
+      "Symbol": "MASKUSDT",
+      "ProfitOrLoss": 0.0010075439081000000000000000
+    },
+    {
+      "Symbol": "GMXUSDT",
+      "ProfitOrLoss": -0.0002262084344000000000000000
+    },
+    {
+      "Symbol": "LINAUSDT",
+      "ProfitOrLoss": 0.0004999582600000000000000000
+    },
+    {
+      "Symbol": "TRXUSDT",
+      "ProfitOrLoss": 0.0025534515226000000000000000
+    },
+    {
+      "Symbol": "XLMUSDT",
+      "ProfitOrLoss": 0.0094377414909000000000000000
+    },
+    {
+      "Symbol": "ZECUSDT",
+      "ProfitOrLoss": -0.0000175620090000000000000000
+    },
+    {
+      "Symbol": "LDOUSDT",
+      "ProfitOrLoss": -0.0001601423654000000000000000
+    },
+    {
+      "Symbol": "1000PEPEUSDT",
+      "ProfitOrLoss": 0.0023869805793000000000000000
+    },
+    {
+      "Symbol": "UNIUSDT",
+      "ProfitOrLoss": 0.0001833320970000000000000000
+    },
+    {
+      "Symbol": "ORDIUSDT",
+      "ProfitOrLoss": 0.0007628665209000000000000000
+    },
+    {
+      "Symbol": "ADAUSDT",
+      "ProfitOrLoss": 0.0005127789340000000000000000
+    },
+    {
+      "Symbol": "FLOWUSDT",
+      "ProfitOrLoss": -0.0000525800000000000000000000
+    },
+    {
+      "Symbol": "NEARUSDT",
+      "ProfitOrLoss": 0.0012319090560000000000000000
+    },
+    {
+      "Symbol": "AGLDUSDT",
+      "ProfitOrLoss": -0.0113989226298000000000000000
+    },
+    {
+      "Symbol": "DYDXUSDT",
+      "ProfitOrLoss": 0.0102687298440000000000000000
+    },
+    {
+      "Symbol": "TRBUSDT",
+      "ProfitOrLoss": -0.0003125550000000000000000000
+    },
+    {
+      "Symbol": "APTUSDT",
+      "ProfitOrLoss": -0.0057828370606700000000000000
+    },
+    {
+      "Symbol": "GMTUSDT",
+      "ProfitOrLoss": 0.0003510385600000000000000000
+    },
+    {
+      "Symbol": "STXUSDT",
+      "ProfitOrLoss": 0.0000731126329000000000000000
+    },
+    {
+      "Symbol": "CELOUSDT",
+      "ProfitOrLoss": -0.0000989598000000000000000000
+    },
+    {
+      "Symbol": "GRTUSDT",
+      "ProfitOrLoss": -0.0001605981184400000000000000
+    },
+    {
+      "Symbol": "ATOMUSDT",
+      "ProfitOrLoss": 0.0030861748360000000000000000
+    },
+    {
+      "Symbol": "MTLUSDT",
+      "ProfitOrLoss": 0.0000887506625000000000000000
+    },
+    {
+      "Symbol": "STORJUSDT",
+      "ProfitOrLoss": 0.0089900494020000000000000000
+    },
+    {
+      "Symbol": "AXSUSDT",
+      "ProfitOrLoss": -0.0001613532960000000000000000
+    },
+    {
+      "Symbol": "RDNTUSDT",
+      "ProfitOrLoss": 0.0001432910279000000000000000
+    },
+    {
+      "Symbol": "OGNUSDT",
+      "ProfitOrLoss": -0.0002434155360000000000000000
+    }
+  ]
+}

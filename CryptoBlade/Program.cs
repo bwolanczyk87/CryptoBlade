@@ -37,11 +37,6 @@ namespace CryptoBlade
             debugView = string.Join(Environment.NewLine, debugViewLines);
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
-            var exchangeAccount =
-                tradingBotOptions!.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal));
-            string apiKey = exchangeAccount?.ApiKey ?? string.Empty;
-            string apiSecret = exchangeAccount?.ApiSecret ?? string.Empty;
-            bool hasApiCredentials = !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiSecret);
 
             // Add services to the container.
             builder.Services.AddRazorPages();
@@ -77,9 +72,6 @@ namespace CryptoBlade
             var lf = app.Services.GetRequiredService<ILoggerFactory>();
             ApplicationLogging.LoggerFactory = lf;
             LogVersionAndConfiguration(debugView);
-
-            if (!hasApiCredentials)
-                app.Logger.LogWarning("No API credentials found!.");
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
