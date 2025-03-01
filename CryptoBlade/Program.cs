@@ -228,16 +228,6 @@ namespace CryptoBlade
                 builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
             }
 
-
-            if (tradingMode == TradingMode.Readonly || tradingMode == TradingMode.Dynamic)
-            {
-                builder.Services.AddSingleton<ITradeStrategyManager, DynamicTradingStrategyManager>();
-            }
-            else if (tradingMode == TradingMode.Normal)
-            {
-                builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
-            }
-
             var mainAccount = tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal)) ?? 
                 throw new InvalidOperationException("No account found with the name specified in the configuration.");
 
