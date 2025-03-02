@@ -1,25 +1,25 @@
 ﻿using Bybit.Net.Enums;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Strategies.Policies;
-using CryptoBlade.Strategies.Wallet;
 using Bybit.Net.Objects.Models.V5;
-using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
-using CryptoExchange.Net.CommonObjects;
+using CryptoBlade.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CryptoBlade.Exchanges
 {
     public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
     {
+        private readonly IOptions<TradingBotOptions> m_options;
         private readonly IBybitSocketClient m_bybitSocketLinearClient;
         private readonly IBybitSocketClient m_bybitSocketClient;
-        private const string c_asset = Assets.QuoteAsset;
 
-        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient, IBybitSocketClient? bybitSocketLinearClient)
+        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient, IBybitSocketClient? bybitSocketLinearClient, IOptions<TradingBotOptions> options)
         {
             m_bybitSocketClient = bybitSocketClient;
             m_bybitSocketLinearClient = bybitSocketLinearClient ?? bybitSocketClient;
+            m_options = options;
         }
 
         public async Task<IUpdateSubscription> SubscribeToWalletUpdatesAsync(Action<Strategies.Wallet.Balance> handler, CancellationToken cancel = default)
@@ -34,7 +34,7 @@ namespace CryptoBlade.Exchanges
                         {
                             if (bybitBalance.AccountType == AccountType.Unified)
                             {
-                                var asset = bybitBalance.Assets.FirstOrDefault(x => string.Equals(x.Asset, c_asset, StringComparison.OrdinalIgnoreCase));
+                                var asset = bybitBalance.Assets.FirstOrDefault(x => string.Equals(x.Asset, m_options.Value.QuoteAsset, StringComparison.OrdinalIgnoreCase));
                                 if (asset != null)
                                 {
                                     var contractBalance = asset.ToBalance();

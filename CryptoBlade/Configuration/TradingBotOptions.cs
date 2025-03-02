@@ -8,6 +8,7 @@ namespace CryptoBlade.Configuration
         public BotMode BotMode { get; set; } = BotMode.Backtest;
         public ExchangeAccount[] Accounts { get; set; } = Array.Empty<ExchangeAccount>();
         public string AccountName { get; set; } = string.Empty;
+        public string QuoteAsset { get; set; } = "USDT";
         public int MaxRunningStrategies { get; set; } = 15;
         public int DcaOrdersCount { get; set; } = 1000;
         public DynamicBotCount DynamicBotCount { get; set; } = new DynamicBotCount();

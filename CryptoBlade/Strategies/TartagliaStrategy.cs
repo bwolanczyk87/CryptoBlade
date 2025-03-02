@@ -1,4 +1,5 @@
 ﻿using Accord.Statistics.Models.Regression.Linear;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -13,11 +14,12 @@ namespace CryptoBlade.Strategies
     {
         private readonly IOptions<TartagliaStrategyOptions> m_options;
 
-        public TartagliaStrategy(IOptions<TartagliaStrategyOptions> options, 
+        public TartagliaStrategy(IOptions<TartagliaStrategyOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol,
             IWalletManager walletManager,
             ICbFuturesRestClient cbFuturesRestClient) 
-            : base(options, symbol, GetRequiredTimeFrames(Math.Max(options.Value.ChannelLengthLong, options.Value.ChannelLengthShort)), walletManager, cbFuturesRestClient)
+            : base(options, botOptions, symbol, GetRequiredTimeFrames(Math.Max(options.Value.ChannelLengthLong, options.Value.ChannelLengthShort)), walletManager, cbFuturesRestClient)
         {
             m_options = options;
         }

@@ -1,4 +1,5 @@
 ﻿using Bybit.Net.Clients;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,7 +34,9 @@ namespace CryptoBlade.Tests.Exchanges
             {
                 PlaceOrderAttempts = 5
             });
+            var tradingBotOptions = Options.Create(new TradingBotOptions());
             var cbRestClient = new BybitCbFuturesRestClient(cbRestClientOptions,
+                tradingBotOptions,
                 bybit,
                 m_loggerFactory.CreateLogger<BybitCbFuturesRestClient>());
             var start = DateTime.UtcNow.Date.AddDays(-1);

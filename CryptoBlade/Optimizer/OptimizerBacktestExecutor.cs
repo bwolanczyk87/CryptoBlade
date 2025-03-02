@@ -40,6 +40,7 @@ namespace CryptoBlade.Optimizer
                 PlaceOrderAttempts = options.Value.PlaceOrderAttempts,
             });
             BybitCbFuturesRestClient bybitCbFuturesRestClient = new BybitCbFuturesRestClient(bybitCbFuturesRestClientOptions,
+                options,
                 new BybitRestClient(),
                 ApplicationLogging.CreateLogger<BybitCbFuturesRestClient>());
             BackTestExchange backTestExchange = new BackTestExchange(
@@ -48,7 +49,7 @@ namespace CryptoBlade.Optimizer
                 m_historicalDataStorage,
                 bybitCbFuturesRestClient);
             WalletManager walletManager = new WalletManager(ApplicationLogging.CreateLogger<WalletManager>(), backTestExchange, backTestExchange);
-            TradingStrategyFactory tradingStrategyFactory = new TradingStrategyFactory(walletManager, backTestExchange);
+            TradingStrategyFactory tradingStrategyFactory = new TradingStrategyFactory(walletManager, backTestExchange, options);
             OptimizerApplicationHostApplicationLifetime backtestLifeTime = new OptimizerApplicationHostApplicationLifetime(cancel);
             TaskCompletionSource<bool> backtestDone = new TaskCompletionSource<bool>();
             backtestLifeTime.ApplicationStoppedEvent += _ => backtestDone.TrySetResult(true);

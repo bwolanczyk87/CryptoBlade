@@ -1,6 +1,7 @@
 ﻿using Bybit.Net.Enums;
 using Bybit.Net.Enums.V5;
 using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Configuration;
 using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
@@ -21,17 +22,19 @@ namespace CryptoBlade.Exchanges
         private readonly Category m_category;
         private readonly ILogger<BybitCbFuturesRestClient> m_logger;
         private readonly IOptions<BybitCbFuturesRestClientOptions> m_options;
+        private readonly IOptions<TradingBotOptions> m_trading_bot_options;
 
         public BybitCbFuturesRestClient(IOptions<BybitCbFuturesRestClientOptions> options,
+            IOptions<TradingBotOptions> tradingBotOptions,
             IBybitRestClient bybitRestClient,
             ILogger<BybitCbFuturesRestClient> logger)
         {
             m_options = options;
+            m_trading_bot_options = tradingBotOptions;
             m_category = Category.Linear;
             m_bybitRestClient = bybitRestClient;
             m_logger = logger;
         }
-
 
         public async Task<bool> SetLeverageAsync(SymbolInfo symbol,
             CancellationToken cancel = default)
@@ -401,7 +404,7 @@ namespace CryptoBlade.Exchanges
                 if (b.AccountType == AccountType.Unified)
                 {
                     var asset = b.Assets.FirstOrDefault(x =>
-                        string.Equals(x.Asset, Assets.QuoteAsset, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(x.Asset, m_trading_bot_options.Value.QuoteAsset, StringComparison.OrdinalIgnoreCase));
                     if (asset != null)
                     {
                         var contract = asset.ToBalance();
@@ -431,7 +434,7 @@ namespace CryptoBlade.Exchanges
                     if (!symbolsResult.GetResultOrError(out var data, out var error))
                         throw new InvalidOperationException(error.Message);
                     var s = data.List
-                        .Where(x => string.Equals(Assets.QuoteAsset, x.QuoteAsset))
+                        .Where(x => string.Equals(m_trading_bot_options.Value.QuoteAsset, x.QuoteAsset))
                         .Select(x => x.ToSymbolInfo());
                     symbolInfo.AddRange(s);
                     if (string.IsNullOrWhiteSpace(data.NextPageCursor))
@@ -535,7 +538,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var ordersResult = await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                         m_category,
-                        settleAsset: Assets.QuoteAsset,
+                        settleAsset: m_trading_bot_options.Value.QuoteAsset,
                         cursor: cursor,
                         ct: cancel);
                     if (!ordersResult.GetResultOrError(out var data, out var error))
@@ -562,7 +565,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var positionResult = await m_bybitRestClient.V5Api.Trading.GetPositionsAsync(
                         m_category,
-                        settleAsset: Assets.QuoteAsset,
+                        settleAsset: m_trading_bot_options.Value.QuoteAsset,
                         cursor: cursor,
                         ct: cancel);
                     if (!positionResult.GetResultOrError(out var data, out var error))

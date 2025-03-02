@@ -1,4 +1,5 @@
-﻿using CryptoBlade.Exchanges;
+﻿using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
@@ -9,9 +10,11 @@ namespace CryptoBlade.Strategies.Common
     {
         private readonly IOptions<RecursiveStrategyBaseOptions> m_options;
 
-        protected RecursiveStrategyBase(IOptions<RecursiveStrategyBaseOptions> options, string symbol,
+        protected RecursiveStrategyBase(IOptions<RecursiveStrategyBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
+            string symbol,
             TimeFrameWindow[] requiredTimeFrames, IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient) : base(options, symbol, requiredTimeFrames, walletManager,
+            ICbFuturesRestClient cbFuturesRestClient) : base(options, botOptions, symbol, requiredTimeFrames, walletManager,
             cbFuturesRestClient)
         {
             m_options = options;

@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Accord.Math;
 using Accord.Statistics.Models.Regression.Linear;
 using Skender.Stock.Indicators;
+using CryptoBlade.Configuration;
 
 namespace CryptoBlade.Strategies
 {
@@ -19,9 +20,9 @@ namespace CryptoBlade.Strategies
         private readonly IOptions<MonaStrategyOptions> m_options;
         private const int c_candlePeriod = 15;
 
-        public MonaStrategy(IOptions<MonaStrategyOptions> options,
+        public MonaStrategy(IOptions<MonaStrategyOptions> options, IOptions<TradingBotOptions> botOptions,
             string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient)
-            : base(options, symbol, GetRequiredTimeFrames(options.Value.ClusteringLength, options.Value.MfiRsiLookback), walletManager, restClient)
+            : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value.ClusteringLength, options.Value.MfiRsiLookback), walletManager, restClient)
         {
             m_options = options;
         }

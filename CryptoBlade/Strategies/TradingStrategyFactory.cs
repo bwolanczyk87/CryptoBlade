@@ -11,11 +11,13 @@ namespace CryptoBlade.Strategies
     {
         private readonly IWalletManager m_walletManager;
         private readonly ICbFuturesRestClient m_restClient;
+        private readonly IOptions<TradingBotOptions> m_botOptions;
 
-        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient)
+        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions)
         {
             m_walletManager = walletManager;
             m_restClient = restClient;
+            m_botOptions = botOptions;
         }
 
         public ITradingStrategy CreateStrategy(TradingBotOptions config, string symbol)
@@ -55,7 +57,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinReentryPositionDistanceLong = config.Strategies.AutoHedge.MinReentryPositionDistanceLong;
                     strategyOptions.MinReentryPositionDistanceShort = config.Strategies.AutoHedge.MinReentryPositionDistanceShort;
                 });
-            return new AutoHedgeStrategy(options, symbol, m_walletManager, m_restClient);
+            return new AutoHedgeStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMfiRsiCandlePreciseStrategy(TradingBotOptions config, string symbol)
@@ -66,7 +68,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinimumPriceDistance = config.MinimumPriceDistance;
                     strategyOptions.MinimumVolume = config.MinimumVolume;
                 });
-            return new MfiRsiCandlePreciseTradingStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MfiRsiCandlePreciseTradingStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMfiRsiEriTrendPreciseStrategy(TradingBotOptions config, string symbol)
@@ -81,7 +83,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MfiRsiLookbackPeriod = config.Strategies.MfiRsiEriTrend.MfiRsiLookbackPeriod;
                     strategyOptions.UseEriOnly = config.Strategies.MfiRsiEriTrend.UseEriOnly;
                 });
-            return new MfiRsiEriTrendTradingStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MfiRsiEriTrendTradingStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateLinearRegressionStrategy(TradingBotOptions config, string symbol)
@@ -94,7 +96,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.ChannelLength = config.Strategies.LinearRegression.ChannelLength;
                     strategyOptions.StandardDeviation = config.Strategies.LinearRegression.StandardDeviation;
                 });
-            return new LinearRegressionStrategy(options, symbol, m_walletManager, m_restClient);
+            return new LinearRegressionStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateTartagliaStrategy(TradingBotOptions config, string symbol)
@@ -111,7 +113,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinReentryPositionDistanceLong = config.Strategies.Tartaglia.MinReentryPositionDistanceLong;
                     strategyOptions.MinReentryPositionDistanceShort = config.Strategies.Tartaglia.MinReentryPositionDistanceShort;
                 });
-            return new TartagliaStrategy(options, symbol, m_walletManager, m_restClient);
+            return new TartagliaStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMonaStrategy(TradingBotOptions config, string symbol)
@@ -127,7 +129,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.ClusteringLength = config.Strategies.Mona.ClusteringLength;
                     strategyOptions.MfiRsiLookback = config.Strategies.Mona.MfiRsiLookback;
                 });
-            return new MonaStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MonaStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateQiqiStrategy(TradingBotOptions config, string symbol)
@@ -143,7 +145,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.TakeProfitPercentLong = config.Strategies.Qiqi.TakeProfitPercentLong;
                     strategyOptions.TakeProfitPercentShort = config.Strategies.Qiqi.TakeProfitPercentShort;
                 });
-            return new QiqiStrategy(options, symbol, m_walletManager, m_restClient);
+            return new QiqiStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private IOptions<TOptions> CreateRecursiveTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)

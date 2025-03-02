@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using Accord.Statistics.Models.Regression.Linear;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -13,11 +14,12 @@ namespace CryptoBlade.Strategies
     {
         private readonly IOptions<LinearRegressionStrategyOptions> m_options;
 
-        public LinearRegressionStrategy(IOptions<LinearRegressionStrategyOptions> options, 
+        public LinearRegressionStrategy(IOptions<LinearRegressionStrategyOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol,
             IWalletManager walletManager,
             ICbFuturesRestClient cbFuturesRestClient) 
-            : base(options, symbol, GetRequiredTimeFrames(options.Value.ChannelLength), walletManager, cbFuturesRestClient)
+            : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value.ChannelLength), walletManager, cbFuturesRestClient)
         {
             m_options = options;
         }

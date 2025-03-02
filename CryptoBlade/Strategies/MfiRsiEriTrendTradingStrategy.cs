@@ -1,4 +1,5 @@
 ﻿using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -28,9 +29,9 @@ namespace CryptoBlade.Strategies
     {
         private readonly IOptions<MfiRsiEriTrendTradingStrategyOptions> m_options;
 
-        public MfiRsiEriTrendTradingStrategy(IOptions<MfiRsiEriTrendTradingStrategyOptions> options, 
+        public MfiRsiEriTrendTradingStrategy(IOptions<MfiRsiEriTrendTradingStrategyOptions> options, IOptions<TradingBotOptions> botOptions,
             string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient) 
-            : base(options, symbol, GetRequiredTimeFrames(options.Value.MfiRsiLookbackPeriod), walletManager, restClient)
+            : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value.MfiRsiLookbackPeriod), walletManager, restClient)
         {
             m_options = options;
         }

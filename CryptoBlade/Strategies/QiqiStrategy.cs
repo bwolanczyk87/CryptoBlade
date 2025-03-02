@@ -1,4 +1,5 @@
-﻿using CryptoBlade.Exchanges;
+﻿using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
@@ -31,9 +32,10 @@ namespace CryptoBlade.Strategies
         private double?[] m_qflShortBases;
 
         public QiqiStrategy(IOptions<QiqiStrategyOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol,
             IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient) : base(options, symbol, GetRequiredTimeFrames(options), walletManager,
+            ICbFuturesRestClient cbFuturesRestClient) : base(options, botOptions, symbol, GetRequiredTimeFrames(options), walletManager,
             cbFuturesRestClient)
         {
             m_lastDailyMultiplier = new ReentryMultiplier(1.0, 1.0);

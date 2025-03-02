@@ -41,7 +41,9 @@ namespace CryptoBlade.Tests.BackTesting.Bybit
             {
                 PlaceOrderAttempts = 5
             });
+            var tradingBotOptions = Options.Create(new TradingBotOptions());
             var cbRestClient = new BybitCbFuturesRestClient(cbRestClientOptions,
+                tradingBotOptions,
                 bybit,
                 m_loggerFactory.CreateLogger<BybitCbFuturesRestClient>());
             var downloader = new BybitHistoricalDataDownloader(storage, 

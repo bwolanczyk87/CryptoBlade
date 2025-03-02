@@ -13,6 +13,7 @@ namespace CryptoBlade.Strategies.Common
     public abstract class TradingStrategyCommonBase : ITradingStrategy
     {
         private readonly IOptions<TradingStrategyCommonBaseOptions> m_options;
+        private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly Channel<Candle> m_candleBuffer;
         private const int c_defaultCandleBufferSize = 1000;
         private readonly ICbFuturesRestClient m_cbFuturesRestClient;
@@ -20,6 +21,7 @@ namespace CryptoBlade.Strategies.Common
         private readonly Random m_random = new Random();
 
         protected TradingStrategyCommonBase(IOptions<TradingStrategyCommonBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol,
             TimeFrameWindow[] requiredTimeFrames,
             IWalletManager walletManager,
@@ -42,6 +44,7 @@ namespace CryptoBlade.Strategies.Common
             WalletManager = walletManager;
             m_cbFuturesRestClient = cbFuturesRestClient;
             m_options = options;
+            m_botOptions = botOptions;
             Symbol = symbol;
             QuoteQueues = new Dictionary<TimeFrame, QuoteQueue>();
             foreach (TimeFrameWindow requiredTimeFrame in requiredTimeFrames)
@@ -158,12 +161,14 @@ namespace CryptoBlade.Strategies.Common
 
                 m_logger.LogInformation($"Leverage set to {symbol.MaxLeverage} for {symbol.Name}");
 
-                bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
-                if (!modeOk)
-                    throw new InvalidOperationException("Failed to setup position mode.");
+                if(m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
+                {
+                    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
+                    if (!modeOk)
+                        throw new InvalidOperationException("Failed to setup position mode.");
 
-                m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
-
+                    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
+                }
 
                 //bool crossModeOk = await m_cbFuturesRestClient.SwitchCrossIsolatedMarginAsync(symbol, TradeMode.CrossMargin, cancel);
                 //if (!crossModeOk)

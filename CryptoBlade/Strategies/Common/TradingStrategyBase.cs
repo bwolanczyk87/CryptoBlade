@@ -1,4 +1,5 @@
-﻿using CryptoBlade.Exchanges;
+﻿using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
@@ -11,11 +12,12 @@ namespace CryptoBlade.Strategies.Common
         private readonly IOptions<TradingStrategyBaseOptions> m_options;
 
         protected TradingStrategyBase(IOptions<TradingStrategyBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol, 
             TimeFrameWindow[] requiredTimeFrames, 
             IWalletManager walletManager,
             ICbFuturesRestClient cbFuturesRestClient) 
-            : base(options, symbol, requiredTimeFrames, walletManager, cbFuturesRestClient)
+            : base(options, botOptions, symbol, requiredTimeFrames, walletManager, cbFuturesRestClient)
         {
             m_options = options;
         }

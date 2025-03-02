@@ -2,6 +2,7 @@
 {
     public class Assets
     {
-        public const string QuoteAsset = "USDT";
+        public const string UsdtQuote = "USDT";
+        public const string UsdcQuote = "USDC";
     }
 }
