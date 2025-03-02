@@ -5,7 +5,6 @@ Bot is a command-based language designed to streamline interactions with the Cry
 
 bot {command} {options}
 
-
 This language enables the user to execute specific actions, retrieve system statuses, and manage the CryptoBlade project efficiently.
 
 ## Syntax Rules
@@ -94,6 +93,11 @@ This language enables the user to execute specific actions, retrieve system stat
   Outputs the content in JSON format.
 - **bot convert --txt**  
   Outputs the content in plain text format.
+
+### 9. **Documentation**
+#### Update and display project documentation
+- **bot save docs**  
+  Updates all relevant documentation files (BotLanguage.md, GettingStarted.md, Parameters.md, Strategies.md) with any new knowledge gained in the session. This includes modifications to strategies, parameter settings, or any new commands. Once updated, the new or updated docs can be displayed or saved as needed.
 
 ---
 

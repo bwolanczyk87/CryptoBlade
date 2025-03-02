@@ -1,201 +1,199 @@
-# CryptoBlade – Overview and Action Plan
+# CryptoBlade â€“ Overview and Action Plan
 
-## Spis Treœci
+## Table of Contents
 
-- [1. Cel Projektu](#1-cel-projektu)
-- [2. Struktura Projektu – G³ówne Modu³y i Ich Powi¹zania](#2-struktura-projektu--g³ówne-modu³y-i-ich-powi¹zania)
-  - [A. Modu³ Backtestingu](#a-modu³-backtestingu)
-  - [B. Modu³ Konfiguracji](#b-modu³-konfiguracji)
-  - [C. Modu³ Optymalizacji](#c-modu³-optymalizacji)
-  - [D. Modu³ Real-Time Tradingu](#d-modu³-real-time-tradingu)
-  - [E. Modu³ Zdrowia i Monitorowania](#e-modu³-zdrowia-i-monitorowania)
-  - [F. Modu³y Pomocnicze i Mapowania](#f-modu³y-pomocnicze-i-mapowania)
-- [3. Mapa Po³¹czeñ i Referencji](#3-mapa-po³¹czeñ-i-referencji)
-- [4. Kluczowe Procesy i Model Dzia³ania](#4-kluczowe-procesy-i-model-dzia³ania)
-  - [A. Proces Backtestingu](#a-proces-backtestingu)
-  - [B. Proces Optymalizacji Parametrów](#b-proces-optymalizacji-parametrów)
-  - [C. Proces Real-Time Tradingu](#c-proces-real-time-tradingu)
-  - [D. Proces Integracji i Wdro¿enia](#d-proces-integracji-i-wdro¿enia)
-- [5. Konkretna Lista Kroków do Podjêcia](#5-konkretna-lista-kroków-do-podjêcia)
-- [Podsumowanie](#podsumowanie)
-
----
-
-## 1. Cel Projektu
-
-**G³ówny cel:**
-- Stworzenie zautomatyzowanego systemu tradingowego, który generuje zyski na gie³dzie Bybit.
-- System oparty jest o strategie tradingowe napisane w .NET, z mo¿liwoœci¹ ich optymalizacji przy u¿yciu algorytmów genetycznych oraz backtestingu.
-- Projekt ma za zadanie wysy³aæ requesty do API gie³dy, aby na bie¿¹co otwieraæ i zamykaæ pozycje oraz zarz¹dzaæ portfelem.
+- [1. Project Goal](#1-project-goal)
+- [2. Project Structure â€“ Main Modules and Their Connections](#2-project-structure--main-modules-and-their-connections)
+  - [A. Backtesting Module](#a-backtesting-module)
+  - [B. Configuration Module](#b-configuration-module)
+  - [C. Optimization Module](#c-optimization-module)
+  - [D. Real-Time Trading Module](#d-real-time-trading-module)
+  - [E. Health and Monitoring Module](#e-health-and-monitoring-module)
+  - [F. Auxiliary Modules and Mappings](#f-auxiliary-modules-and-mappings)
+- [3. Map of Interconnections and References](#3-map-of-interconnections-and-references)
+- [4. Key Processes and Operating Model](#4-key-processes-and-operating-model)
+  - [A. Backtesting Process](#a-backtesting-process)
+  - [B. Parameter Optimization Process](#b-parameter-optimization-process)
+  - [C. Real-Time Trading Process](#c-real-time-trading-process)
+  - [D. Integration and Deployment Process](#d-integration-and-deployment-process)
+- [5. Concrete List of Action Items](#5-concrete-list-of-action-items)
+- [Summary](#summary)
 
 ---
 
-## 2. Struktura Projektu – G³ówne Modu³y i Ich Powi¹zania
+## 1. Project Goal
 
-### A. Modu³ Backtestingu
-- **Funkcje:**
-  - Pobieranie historycznych danych (candles, funding rate, ticki) z gie³d (Binance, Bybit).
-  - Przetwarzanie danych w celu symulacji strategii.
-  - Przechowywanie wyników backtestów (BacktestPerformanceResult) oraz monitorowanie efektywnoœci strategii.
-- **Kluczowe klasy:**
+**Primary objective:**
+- Create an automated trading system that generates profits on the Bybit exchange.
+- The system is based on trading strategies written in .NET, with the ability to optimize these strategies using genetic algorithms as well as to backtest them on historical data.
+- The projectâ€™s functionality includes sending requests to the exchangeâ€™s API to open and close positions continuously, while managing the portfolio on the fly.
+
+---
+
+## 2. Project Structure â€“ Main Modules and Their Connections
+
+### A. Backtesting Module
+- **Functions:**
+  - Fetch historical data (candles, funding rate, ticks) from the exchanges (Binance, Bybit).
+  - Process the data to simulate trading strategies.
+  - Store backtest results (BacktestPerformanceResult) and track strategy performance metrics.
+- **Key Classes:**
   - `BinanceHistoricalDataDownloader`, `BybitHistoricalDataDownloader`
   - `BackTestDataDownloader`, `BackTestDataProcessor`
   - `BackTestExchange`, `BackTestPerformanceTracker`
 
-### B. Modu³ Konfiguracji
-- **Funkcje:**
-  - Przechowywanie ustawieñ dla konta, strategii, backtestingu i optymalizacji.
-  - Definicje zakresów wartoœci dla optymalizacji (np. `OptimizerFloatRange`, `OptimizerIntRange`).
-- **Kluczowe elementy:**
+### B. Configuration Module
+- **Functions:**
+  - Store settings for accounts, strategies, backtesting, and optimization.
+  - Define value ranges for optimization (for example, `OptimizerFloatRange`, `OptimizerIntRange`).
+- **Key Elements:**
   - `TradingBotOptions`, `BackTest`, `CriticalMode`, `DynamicBotCount`
-  - Definicje strategii: `StrategyNames`, `StrategySelectPreference`
+  - Strategy definitions: `StrategyNames`, `StrategySelectPreference`
 
-### C. Modu³ Optymalizacji
-- **Funkcje:**
-  - Optymalizacja parametrów strategii tradingowych przy u¿yciu algorytmu genetycznego.
-  - Reprezentacja genetyczna strategii (chromosomy, geny).
-  - Zarz¹dzanie populacj¹ i wyliczanie funkcji fitness.
-- **Kluczowe klasy:**
+### C. Optimization Module
+- **Functions:**
+  - Optimize trading-strategy parameters using a genetic algorithm.
+  - Represent strategies as chromosomes/genes.
+  - Manage populations and compute a fitness function to rank solutions.
+- **Key Classes:**
   - `GeneticAlgorithmOptimizer`, `OptimizerBacktestExecutor`
-  - Reprezentacja chromosomów: `TradingBotChromosome`, `ComplexChromosome` oraz ich specyficzne implementacje (np. `TartagliaChromosome`, `QiqiChromosome`).
+  - Chromosome representations: `TradingBotChromosome`, `ComplexChromosome`, and specialized derivatives (e.g., `TartagliaChromosome`, `QiqiChromosome`).
 
-### D. Modu³ Real-Time Tradingu
-- **Funkcje:**
-  - Realizacja strategii tradingowych na ¿ywo (oraz w trybie backtest).
-  - Odbieranie danych rynkowych w czasie rzeczywistym (candles, tickery) za pomoc¹ socketów.
-  - Generowanie sygna³ów wejœcia/wyjœcia i wysy³anie requestów do API (metody `ExecuteAsync`, `ExecuteUnstuckAsync`).
-  - Zarz¹dzanie portfelem (klasa `WalletManager`).
-- **Kluczowe klasy:**
-  - `TradingStrategyBase` / `TradingStrategyCommonBase` – bazowe klasy strategii.
-  - Konkretne strategie: `AutoHedgeStrategy`, `LinearRegressionStrategy`, `TartagliaStrategy`, `MonaStrategy`, `MfiRsiEriTrendTradingStrategy`, `QiqiStrategy`.
-  - Mened¿ery strategii: `DefaultTradingStrategyManager`, `DynamicTradingStrategyManager`, `TradingHostedService`.
+### D. Real-Time Trading Module
+- **Functions:**
+  - Execute trading strategies in real time (and in backtest mode).
+  - Receive live market data (candles, tickers) via sockets.
+  - Generate entry/exit signals and send requests to the exchange API (methods like `ExecuteAsync` and `ExecuteUnstuckAsync`).
+  - Manage the portfolio (class `WalletManager`).
+- **Key Classes:**
+  - `TradingStrategyBase` / `TradingStrategyCommonBase` â€“ base classes for strategies.
+  - Concrete strategies: `AutoHedgeStrategy`, `LinearRegressionStrategy`, `TartagliaStrategy`, `MonaStrategy`, `MfiRsiEriTrendTradingStrategy`, `QiqiStrategy`.
+  - Strategy managers: `DefaultTradingStrategyManager`, `DynamicTradingStrategyManager`, `TradingHostedService`.
 
-### E. Modu³ Zdrowia i Monitorowania
-- **Funkcje:**
-  - Monitorowanie stanu systemu (health checki dla backtestingu i egzekucji strategii).
-- **Kluczowe klasy:**
+### E. Health and Monitoring Module
+- **Functions:**
+  - Monitor system status (health checks for backtesting and strategy execution).
+- **Key Classes:**
   - `BacktestExecutionHealthCheck`, `TradeExecutionHealthCheck`
 
-### F. Modu³y Pomocnicze i Mapowania
-- **Funkcje:**
-  - Mapowanie danych z API (Binance, Bybit) do wewnêtrznych modeli (np. `Candle`, `FundingRate`, `Order`, `Position`, `Ticker`).
-  - Zestaw narzêdzi pomocniczych: obliczenia wskaŸników technicznych, operacje na danych rynkowych.
-  - Definicje modeli danych u¿ywanych w ca³ym systemie.
-  
----
-
-## 3. Mapa Po³¹czeñ i Referencji
-
-- **Backtesting** wykorzystuje:
-  - Klasy pobieraj¹ce dane (`BinanceHistoricalDataDownloader`, `BybitHistoricalDataDownloader`).
-  - Interfejsy do przechowywania danych (`IHistoricalDataStorage`).
-  - Wyniki symulacji przekazywane s¹ do modu³u optymalizacji (np. przez `StrategyFitness`).
-
-- **Optymalizacja:**
-  - Bazuje na strategiach tradingowych – optymalizuje ich parametry przy u¿yciu algorytmów genetycznych.
-  - Korzysta z danych backtestowych do oceny funkcji fitness.
-
-- **Real-Time Trading:**
-  - Integracja z API gie³d poprzez REST i Socket (klasy implementuj¹ce `ICbFuturesRestClient` i `ICbFuturesSocketClient`).
-  - Strategia tradingowa przetwarza dane z rynków (przez `QuoteQueue` i subskrypcje) oraz generuje sygna³y do otwierania/zamykania pozycji.
-  - Zarz¹dzanie portfelem przez `WalletManager`.
-
-- **Mapowanie i Narzêdzia Pomocnicze:**
-  - Umo¿liwiaj¹ spójn¹ komunikacjê miêdzy modu³ami, zapewniaj¹c standaryzacjê modeli danych oraz operacji obliczeniowych.
+### F. Auxiliary Modules and Mappings
+- **Functions:**
+  - Map API data (Binance, Bybit) into internal models (e.g. `Candle`, `FundingRate`, `Order`, `Position`, `Ticker`).
+  - Provide helper utilities: calculations for technical indicators, market data processing.
+  - Define data models used throughout the system.
 
 ---
 
-## 4. Kluczowe Procesy i Model Dzia³ania
+## 3. Map of Interconnections and References
 
-### A. Proces Backtestingu
-- **Cel:** Symulacja strategii tradingowych na danych historycznych.
-- **Proces:**
-  1. Pobieranie danych historycznych (candles, funding rates) z gie³d.
-  2. Przechowywanie danych w systemie (np. `ProtoHistoricalDataStorage`).
-  3. Przetwarzanie danych i symulacja strategii (klasa `BackTestExchange`).
-  4. Generowanie raportów wynikowych (klasa `BackTestPerformanceTracker`).
-- **Obszary ulepszeñ:** Optymalizacja algorytmów przetwarzania danych, poprawa spójnoœci danych, lepsze indeksowanie.
+- **Backtesting** uses:
+  - Data-fetching classes (`BinanceHistoricalDataDownloader`, `BybitHistoricalDataDownloader`).
+  - Interfaces for data storage (`IHistoricalDataStorage`).
+  - Results are passed to the optimization module (e.g., through `StrategyFitness`).
 
-### B. Proces Optymalizacji Parametrów
-- **Cel:** Wyznaczenie optymalnych parametrów strategii tradingowych.
-- **Proces:**
-  1. Reprezentacja parametrów jako geny (chromosomy).
-  2. Uruchamianie backtestu dla ró¿nych konfiguracji (poprzez `OptimizerBacktestExecutor`).
-  3. Ocena fitness (klasa `StrategyFitness`).
-  4. Ewolucja populacji poprzez krzy¿owanie, mutacjê i selekcjê.
-- **Obszary ulepszeñ:** Udoskonalenie funkcji fitness, optymalizacja parametrów mutacji/krzy¿owania.
+- **Optimization**:
+  - Relies on the trading strategies and optimizes their parameters via genetic algorithms.
+  - Uses backtest data to evaluate a strategyâ€™s fitness.
 
-### C. Proces Real-Time Tradingu
-- **Cel:** Realizacja strategii tradingowych w czasie rzeczywistym.
-- **Proces:**
-  1. Odbiór danych rynkowych na ¿ywo (candles, tickery) za pomoc¹ socketów.
-  2. Przetwarzanie danych i generowanie sygna³ów (metody `EvaluateSignalsInnerAsync`).
-  3. Wysy³anie zleceñ do API gie³dy (metody `ExecuteAsync`, `ExecuteUnstuckAsync`).
-  4. Zarz¹dzanie portfelem (klasa `WalletManager`).
-- **Obszary ulepszeñ:** Optymalizacja logiki sygnalizacji, redukcja opóŸnieñ, usprawnienie obs³ugi b³êdów i reconnect.
+- **Real-Time Trading**:
+  - Integrates with exchange APIs via REST and sockets (classes implementing `ICbFuturesRestClient` and `ICbFuturesSocketClient`).
+  - The trading strategy processes market data (through `QuoteQueue` and subscription) and generates signals to open/close positions.
+  - Portfolio management is handled by `WalletManager`.
 
-### D. Proces Integracji i Wdro¿enia
-- **Cel:** Uruchomienie systemu tradingowego 24h na lokalnym œrodowisku.
-- **Proces:**
-  1. Budowanie projektu przy u¿yciu Dockerfile.
-  2. Konfiguracja ustawieñ (appsettings.json) dla œrodowiska Live.
-  3. Wdro¿enie health checks i monitoringu.
-  4. Automatyczne uruchomienie i restartowanie kontenera.
-- **Obszary ulepszeñ:** Lepsza obs³uga logów, automatyczne skalowanie, integracja z narzêdziami monitoruj¹cymi.
+- **Mapping and Helper Tools**:
+  - Ensure consistent communication among modules, providing standardized data models and computational routines.
 
 ---
 
-## 5. Konkretna Lista Kroków do Podjêcia
+## 4. Key Processes and Operating Model
 
-1. **Audyt i Refaktoryzacja Kodów:**
-   - Przejrzyj modu³y pobierania i przetwarzania danych (BackTestDataDownloader, HistoricalDataStorage).
-   - Zweryfikuj logikê sygnalizacji w strategiach (LinearRegression, Tartaglia, Mona, MfiRsiEriTrend, Qiqi).
+### A. Backtesting Process
+- **Goal**: Simulate trading strategies on historical data.
+- **Process**:
+  1. Fetch historical data (candles, funding rates) from the exchange.
+  2. Store the data in the system (e.g. `ProtoHistoricalDataStorage`).
+  3. Process the data and simulate the strategy (class `BackTestExchange`).
+  4. Generate performance reports (class `BackTestPerformanceTracker`).
+- **Potential Improvements**: Optimize data-processing algorithms, improve data consistency, implement better indexing.
 
-2. **Poprawki w Konfiguracji:**
-   - Upewnij siê, ¿e `appsettings.json` zawiera poprawne dane konta (ApiKey/ApiSecret) oraz odpowiedni tryb (Live, Backtest, Optimizer).
-   - Zweryfikuj i ujednoliæ ustawienia strategii i optymalizatora.
+### B. Parameter Optimization Process
+- **Goal**: Determine optimal parameters for trading strategies.
+- **Process**:
+  1. Represent parameters as genes (chromosomes).
+  2. Run backtests for different configurations (via `OptimizerBacktestExecutor`).
+  3. Evaluate fitness (class `StrategyFitness`).
+  4. Evolve the population through crossover, mutation, and selection.
+- **Potential Improvements**: Enhance the fitness function to better reflect risk and performance; fine-tune mutation/crossover parameters.
 
-3. **Integracja Kontroli Jakoœci i Monitoringu:**
-   - SprawdŸ dzia³anie endpointów health check (np. `/healthz`).
-   - Upewnij siê, ¿e system logowania (ApplicationLogging) jest odpowiednio skonfigurowany.
+### C. Real-Time Trading Process
+- **Goal**: Execute trading strategies in real time.
+- **Process**:
+  1. Receive market data live (candles, tickers) via sockets.
+  2. Process data and generate signals (`EvaluateSignalsInnerAsync`).
+  3. Send orders to the exchangeâ€™s API (`ExecuteAsync`, `ExecuteUnstuckAsync`).
+  4. Manage the portfolio (class `WalletManager`).
+- **Potential Improvements**: Optimize signaling logic, reduce latency, improve error handling and reconnection logic.
 
-4. **Testy Jednostkowe i Integracyjne:**
-   - Uruchom wszystkie testy (np. BackTestDataDownloaderTest, BybitHistoricalTradesDownloaderTest, GridHelpersTest, Exchange tests).
-   - Dodaj ewentualnie nowe testy integracyjne.
+### D. Integration and Deployment Process
+- **Goal**: Run the trading system 24/7 on a local or hosted environment.
+- **Process**:
+  1. Build the project using a Dockerfile.
+  2. Configure settings (`appsettings.json`) for the Live environment.
+  3. Implement health checks and monitoring endpoints.
+  4. Automate container startup and restarts.
+- **Potential Improvements**: Improve log management, enable auto-scaling, integrate with external monitoring tools.
 
-5. **Optymalizacja Modu³u Optymalizacji:**
-   - Przetestuj dzia³anie algorytmu genetycznego (przez StrategyFitness, GeneticAlgorithmOptimizer).
-   - Ulepsz funkcjê fitness, aby lepiej odwzorowywa³a ryzyko i efektywnoœæ strategii.
+---
 
-6. **Budowanie i Wdro¿enie Obrazu Docker:**
-   - Skorzystaj z przygotowanego Dockerfile:
-     - Budowanie: `docker build -t cryptoblade:latest .`
-     - Uruchomienie: `docker run -d -p 80:80 --restart always --name cryptoblade cryptoblade:latest`
-   - SprawdŸ, czy kontener dzia³a oraz endpoint `/healthz` odpowiada.
+## 5. Concrete List of Action Items
 
-7. **Automatyzacja i Monitoring:**
-   - Skonfiguruj automatyczny restart kontenera (restart policy `--restart always`).
-   - Ustaw system monitoringu logów oraz health check, aby wykrywaæ potencjalne b³êdy.
+1. **Code Audit and Refactoring**:
+   - Review modules that fetch and process data (BackTestDataDownloader, HistoricalDataStorage).
+   - Verify signaling logic in strategies (LinearRegression, Tartaglia, Mona, MfiRsiEriTrend, Qiqi).
 
-8. **Wdro¿enie do Œrodowiska Produkcyjnego/Demo:**
-   - Wypchnij kod do dedykowanej ga³êzi (np. `release/live`).
-   - Skonfiguruj CI/CD (np. GitHub Actions, Azure DevOps) do automatycznego budowania obrazu Docker i wdra¿ania.
+2. **Configuration Fixes**:
+   - Ensure `appsettings.json` contains the correct account data (ApiKey/ApiSecret) and the right mode (Live, Backtest, Optimizer).
+   - Validate and standardize your strategy/optimizer settings.
+
+3. **Quality Control and Monitoring Integration**:
+   - Check the functionality of health-check endpoints (e.g., `/healthz`).
+   - Confirm that your logging system (`ApplicationLogging`) is appropriately configured.
+
+4. **Unit and Integration Testing**:
+   - Run all tests (e.g., BackTestDataDownloaderTest, BybitHistoricalTradesDownloaderTest, GridHelpersTest, and exchange tests).
+   - Possibly add new integration tests.
+
+5. **Optimization Module Enhancements**:
+   - Validate the genetic algorithm approach (via StrategyFitness, GeneticAlgorithmOptimizer).
+   - Improve the fitness function to better reflect risk and efficiency.
+
+6. **Building and Deploying the Docker Image**:
+   - Use the provided Dockerfile:
+     - Build with: `docker build -t cryptoblade:latest .`
+     - Run with: `docker run -d -p 80:80 --restart always --name cryptoblade cryptoblade:latest`
+   - Check whether the container responds at `/healthz`.
+
+7. **Automation and Monitoring**:
+   - Configure automatic container restarts (e.g., `--restart always`).
+   - Set up log monitoring and health checks to detect potential errors.
+
+8. **Production/Demo Environment Deployment**:
+   - Push code to a dedicated branch (e.g., `release/live`).
+   - Configure CI/CD (GitHub Actions, Azure DevOps) for automatic Docker image builds and deployments.
 
 ---
 
-## Podsumowanie
+## Summary
 
-Projekt CryptoBlade jest z³o¿onym systemem tradingowym integruj¹cym:
-- Backtesting danych historycznych.
-- Real-Time Trading z dynamicznym zarz¹dzaniem portfelem.
-- Optymalizacjê parametrów strategii przy u¿yciu algorytmów genetycznych.
-- Monitorowanie i zdrowotne endpointy.
+CryptoBlade is a comprehensive trading system integrating:
+- Historical data backtesting,
+- Real-time trading with dynamic portfolio management,
+- Strategy parameter optimization via genetic algorithms,
+- Monitoring and health endpoints.
 
-Aby osi¹gn¹æ g³ówny cel (generowanie zysków na gie³dzie Bybit), nale¿y:
-1. Dokonaæ przegl¹du i refaktoryzacji kluczowych modu³ów.
-2. Ujednoliciæ konfiguracjê oraz przetestowaæ system przy u¿yciu testów jednostkowych i integracyjnych.
-3. Zbudowaæ obraz Docker i wdro¿yæ system do ci¹g³ej pracy (24h) z automatycznym restartem oraz monitoringiem.
+To achieve the main goal (generating profits on Bybit), you should:
+1. Audit and refactor the key modules.
+2. Standardize configuration and run thorough testing.
+3. Build a Docker image and deploy the system for continuous operation (24/7) with automated restarts and monitoring.
 
-Realizacja powy¿szych kroków pozwoli na wdro¿enie stabilnego, dzia³aj¹cego systemu tradingowego, który na bie¿¹co analizuje rynek i automatycznie wykonuje zlecenia, maksymalizuj¹c zyski.
-
----
+Completing these steps will allow you to deploy a stable, working trading system that continuously analyzes the market and executes orders automatically, aiming to maximize profit.
