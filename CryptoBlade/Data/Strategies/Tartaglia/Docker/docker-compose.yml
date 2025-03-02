@@ -1,5 +1,6 @@
 services:
   cryptoblade:
+    container_name: Cryptoblade_Tartaglia
     image: cryptoblade:latest
     labels:
         - "autoheal=true"
@@ -12,7 +13,7 @@ services:
         - CB_TradingBot__Accounts__1__ApiSecret=w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv
         - CB_TradingBot__BotMode=Backtest
         - CB_TradingBot__AccountName=CryptoBlade_Demo
-        - CB_TradingBot__StrategyName=AutoHedge
+        - CB_TradingBot__StrategyName=Tartaglia
         - CB_TradingBot__MaxRunningStrategies=20
         - CB_TradingBot__WalletExposureLong=2.0
         - CB_TradingBot__WalletExposureShort=2.0

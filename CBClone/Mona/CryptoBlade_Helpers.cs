@@ -1,10 +1,30 @@
-﻿using System.Security.Cryptography;
-using CryptoBlade.Strategies.Policies;
-using CryptoBlade.Models;
-using Accord.Statistics.Models.Regression.Linear;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Helpers
+// ****************
 
-namespace CryptoBlade.Helpers {
-/// <summary>
+// *** INDEX OF INCLUDED FILES ***
+1. ApplicationLogging.cs
+2. Assets.cs
+3. ConfigHelpers.cs
+4. GridHelpers.cs
+5. GridPosition.cs
+6. LinearChannelPrice.cs
+7. SubscriptionReconnectHelper.cs
+8. TradeSignalHelpers.cs
+9. TradingHelpers.cs
+// *******************************
+
+using Accord.Statistics.Models.Regression.Linear;
+using CryptoBlade.Models;
+using CryptoBlade.Strategies.Policies;
+using System.Security.Cryptography;
+
+// ==== FILE #1: ApplicationLogging.cs ====
+namespace CryptoBlade.Helpers
+{
+    /// <summary>
     /// Shared logger
     /// </summary>
     public static class ApplicationLogging
@@ -13,13 +33,30 @@ namespace CryptoBlade.Helpers {
         public static ILogger<T> CreateLogger<T>() => LoggerFactory.CreateLogger<T>();
         public static ILogger CreateLogger(string categoryName) => LoggerFactory.CreateLogger(categoryName);
     }
+}
 
-public class Assets
+// -----------------------------
+
+// ==== FILE #2: Assets.cs ====
+namespace CryptoBlade.Helpers
+{
+    public class Assets
     {
         public const string QuoteAsset = "USDT";
     }
+}
 
-public static class ConfigHelpers
+// -----------------------------
+
+// ==== FILE #3: ConfigHelpers.cs ====
+namespace CryptoBlade.Helpers {
+using System.Text;
+using System.Text.Json;
+using CryptoBlade.Configuration;
+
+namespace CryptoBlade.Helpers
+{
+    public static class ConfigHelpers
     {
         public static bool IsBackTest(this TradingBotOptions options)
         {
@@ -43,8 +80,15 @@ public static class ConfigHelpers
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
     }
+}
+}
 
-/// <summary>
+// -----------------------------
+
+// ==== FILE #4: GridHelpers.cs ====
+namespace CryptoBlade.Helpers
+{
+    /// <summary>
     /// Helper methods taken from https://github.com/enarjord/passivbot
     /// </summary>
     public static class GridHelpers
@@ -591,12 +635,33 @@ public static class ConfigHelpers
             return Math.Ceiling(value / step) * step;
         }
     }
+}
 
-public readonly record struct GridPosition(double Qty, double Price);
+// -----------------------------
 
-public readonly record struct LinearChannelPrice(double? ExpectedPrice, double? StandardDeviation);
+// ==== FILE #5: GridPosition.cs ====
+namespace CryptoBlade.Helpers
+{
+    public readonly record struct GridPosition(double Qty, double Price);
+}
 
-public static class SubscriptionReconnectHelper
+// -----------------------------
+
+// ==== FILE #6: LinearChannelPrice.cs ====
+namespace CryptoBlade.Helpers
+{
+    public readonly record struct LinearChannelPrice(double? ExpectedPrice, double? StandardDeviation);
+}
+
+// -----------------------------
+
+// ==== FILE #7: SubscriptionReconnectHelper.cs ====
+namespace CryptoBlade.Helpers {
+using CryptoExchange.Net.Sockets;
+
+namespace CryptoBlade.Helpers
+{
+    public static class SubscriptionReconnectHelper
     {
         public static void AutoReconnect(this UpdateSubscription subscription, ILogger logger)
         {
@@ -617,8 +682,21 @@ public static class SubscriptionReconnectHelper
             };
         }
     }
+}
+}
 
-public static class TradeSignalHelpers
+// -----------------------------
+
+// ==== FILE #8: TradeSignalHelpers.cs ====
+namespace CryptoBlade.Helpers {
+using CryptoBlade.Strategies.Common;
+using Microsoft.VisualBasic;
+using ScottPlot;
+using Skender.Stock.Indicators;
+
+namespace CryptoBlade.Helpers
+{
+    public static class TradeSignalHelpers
     {
         public static decimal VolumeInQuoteCurrency(Quote quote)
         {
@@ -804,8 +882,20 @@ public static class TradeSignalHelpers
             return fractalUp;
         }
     }
+}
+}
 
-public static class TradingHelpers
+// -----------------------------
+
+// ==== FILE #9: TradingHelpers.cs ====
+namespace CryptoBlade.Helpers {
+using CryptoBlade.Models;
+using CryptoBlade.Strategies.Wallet;
+using Skender.Stock.Indicators;
+
+namespace CryptoBlade.Helpers
+{
+    public static class TradingHelpers
     {
         public static decimal? CalculateQuantity(this SymbolInfo symbolInfo,
             IWalletManager walletManager,
@@ -1021,4 +1111,5 @@ public static class TradingHelpers
             return nrmse;
         }
     }
+}
 }

@@ -1,9 +1,35 @@
-﻿using ProtoBuf;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Models
+// ****************
+
+// *** INDEX OF INCLUDED FILES ***
+1. Candle.cs
+2. FundingRate.cs
+3. Order.cs
+4. OrderPositionMode.cs
+5. OrderSide.cs
+6. OrderStatus.cs
+7. OrderUpdate.cs
+8. Position.cs
+9. PositionMode.cs
+10. PositionSide.cs
+11. QuoteQueue.cs
+12. SymbolInfo.cs
+13. Ticker.cs
+14. TimeFrame.cs
+15. TradeMode.cs
+// *******************************
+
 using Bybit.Net.Enums;
 using CryptoBlade.Mapping;
+using ProtoBuf;
 
-namespace CryptoBlade.Models {
-[ProtoContract]
+// ==== FILE #1: Candle.cs ====
+namespace CryptoBlade.Models
+{
+    [ProtoContract]
     public class Candle
     {
         [ProtoMember(1)]
@@ -26,8 +52,14 @@ namespace CryptoBlade.Models {
             return $"{TimeFrame} {StartTime} O:{Open} H:{High} L:{Low} C:{Close} V:{Volume}";
         }
     }
+}
 
-[ProtoContract]
+// -----------------------------
+
+// ==== FILE #2: FundingRate.cs ====
+namespace CryptoBlade.Models
+{
+    [ProtoContract]
     public class FundingRate
     {
         [ProtoMember(1)]
@@ -36,8 +68,18 @@ namespace CryptoBlade.Models {
         [ProtoMember(2)]
         public decimal Rate { get; set; }
     }
+}
 
-public class Order
+// -----------------------------
+
+// ==== FILE #3: Order.cs ====
+namespace CryptoBlade.Models {
+using CryptoExchange.Net.Attributes;
+using System;
+
+namespace CryptoBlade.Models
+{
+    public class Order
     {
         public string OrderId { get; set; } = string.Empty;
 
@@ -88,21 +130,40 @@ public class Order
             };
         }
     }
+}
+}
 
-public enum OrderPositionMode
+// -----------------------------
+
+// ==== FILE #4: OrderPositionMode.cs ====
+namespace CryptoBlade.Models
+{
+    public enum OrderPositionMode
     {
         OneWay,
         BothSideBuy,
         BothSideSell
     }
+}
 
-public enum OrderSide
+// -----------------------------
+
+// ==== FILE #5: OrderSide.cs ====
+namespace CryptoBlade.Models
+{
+    public enum OrderSide
     {
         Buy,
         Sell
     }
+}
 
-public enum OrderStatus
+// -----------------------------
+
+// ==== FILE #6: OrderStatus.cs ====
+namespace CryptoBlade.Models
+{
+    public enum OrderStatus
     {
         Created,
         New,
@@ -116,8 +177,14 @@ public enum OrderStatus
         Deactivated,
         Active
     }
+}
 
-public class OrderUpdate
+// -----------------------------
+
+// ==== FILE #7: OrderUpdate.cs ====
+namespace CryptoBlade.Models
+{
+    public class OrderUpdate
     {
         public string Symbol { get; set; } = string.Empty;
 
@@ -125,8 +192,14 @@ public class OrderUpdate
 
         public string OrderId { get; set; } = string.Empty;
     }
+}
 
-public class Position
+// -----------------------------
+
+// ==== FILE #8: Position.cs ====
+namespace CryptoBlade.Models
+{
+    public class Position
     {
         public string Symbol { get; set; } = string.Empty;
 
@@ -156,21 +229,42 @@ public class Position
             };
         }
     }
+}
 
-public enum PositionMode
+// -----------------------------
+
+// ==== FILE #9: PositionMode.cs ====
+namespace CryptoBlade.Models
+{
+    public enum PositionMode
     {
         Hedge,
         OneWay,
     }
+}
 
-public enum PositionSide
+// -----------------------------
+
+// ==== FILE #10: PositionSide.cs ====
+namespace CryptoBlade.Models
+{
+    public enum PositionSide
     {
         Buy,
         Sell,
         None
     }
+}
 
-public class QuoteQueue
+// -----------------------------
+
+// ==== FILE #11: QuoteQueue.cs ====
+namespace CryptoBlade.Models {
+using Skender.Stock.Indicators;
+
+namespace CryptoBlade.Models
+{
+    public class QuoteQueue
     {
         private readonly Queue<Quote> m_queue;
         private readonly int m_maxSize;
@@ -230,10 +324,23 @@ public class QuoteQueue
             }
         }
     }
+}
+}
 
-public readonly record struct SymbolInfo(string Name, decimal PriceScale, string QuoteAsset, string BaseAsset, decimal? MinOrderQty, decimal? QtyStep, decimal? MaxLeverage, DateTime LaunchTime);
+// -----------------------------
 
-public class Ticker
+// ==== FILE #12: SymbolInfo.cs ====
+namespace CryptoBlade.Models
+{
+    public readonly record struct SymbolInfo(string Name, decimal PriceScale, string QuoteAsset, string BaseAsset, decimal? MinOrderQty, decimal? QtyStep, decimal? MaxLeverage, DateTime LaunchTime);
+}
+
+// -----------------------------
+
+// ==== FILE #13: Ticker.cs ====
+namespace CryptoBlade.Models
+{
+    public class Ticker
     {
         public decimal BestAskPrice { get; set; }
 
@@ -245,8 +352,14 @@ public class Ticker
 
         public DateTime Timestamp { get; set; }
     }
+}
 
-public enum TimeFrame
+// -----------------------------
+
+// ==== FILE #14: TimeFrame.cs ====
+namespace CryptoBlade.Models
+{
+    public enum TimeFrame
     {
         OneMinute,
         FiveMinutes,
@@ -258,8 +371,14 @@ public enum TimeFrame
         OneWeek,
         OneMonth
     }
+}
 
-public enum TradeMode
+// -----------------------------
+
+// ==== FILE #15: TradeMode.cs ====
+namespace CryptoBlade.Models
+{
+    public enum TradeMode
     {
         CrossMargin,
         Isolated

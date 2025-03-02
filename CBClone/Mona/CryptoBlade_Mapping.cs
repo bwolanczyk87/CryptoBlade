@@ -1,8 +1,26 @@
-﻿using Binance.Net.Enums;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Mapping
+// ****************
+
+// *** INDEX OF INCLUDED FILES ***
+1. BinanceMappingHelpers.cs
+2. MappingHelpers.cs
+// *******************************
+
+using Binance.Net.Enums;
 using CryptoBlade.Models;
 
+// ==== FILE #1: BinanceMappingHelpers.cs ====
 namespace CryptoBlade.Mapping {
-public static class BinanceMappingHelpers
+using Binance.Net.Interfaces;
+using Binance.Net.Objects.Models.Futures;
+using CryptoBlade.Models;
+
+namespace CryptoBlade.Mapping
+{
+    public static class BinanceMappingHelpers
     {
         public static KlineInterval ToBinanceKlineInterval(this TimeFrame timeFrame)
         {
@@ -54,8 +72,20 @@ public static class BinanceMappingHelpers
             };
         }
     }
+}
+}
 
-public static class MappingHelpers
+// -----------------------------
+
+// ==== FILE #2: MappingHelpers.cs ====
+namespace CryptoBlade.Mapping {
+using CryptoBlade.Strategies.Wallet;
+using Microsoft.AspNetCore.Mvc.Localization;
+using Skender.Stock.Indicators;
+
+namespace CryptoBlade.Mapping
+{
+    public static class MappingHelpers
     {
         public static Bybit.Net.Enums.KlineInterval ToKlineInterval(this TimeFrame timeFrame)
         {
@@ -401,4 +431,5 @@ public static class MappingHelpers
             };
         }
     }
+}
 }

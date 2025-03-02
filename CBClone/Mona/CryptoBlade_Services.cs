@@ -1,12 +1,38 @@
-﻿using CryptoBlade.Configuration;
-using Bert.RateLimiters;
-using CryptoBlade.Strategies.Common;
-using CryptoBlade.Optimizer;
-using System.Threading.Channels;
-using CryptoBlade.Strategies.Wallet;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Services
+// ****************
 
+// *** INDEX OF INCLUDED FILES ***
+1. DefaultTradingStrategyManager.cs
+2. DynamicTradingStrategyManager.cs
+3. ITradeStrategyManager.cs
+4. NullTradeStrategyManager.cs
+5. OptimizerHostedService.cs
+6. TradeStrategyManagerBase.cs
+7. TradingHostedService.cs
+// *******************************
+
+using Bert.RateLimiters;
+using CryptoBlade.Configuration;
+using CryptoBlade.Optimizer;
+using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Wallet;
+using System.Threading.Channels;
+
+// ==== FILE #1: DefaultTradingStrategyManager.cs ====
 namespace CryptoBlade.Services {
-public class DefaultTradingStrategyManager : TradeStrategyManagerBase
+using CryptoBlade.Exchanges;
+using CryptoBlade.Models;
+using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Wallet;
+using Microsoft.Extensions.Options;
+
+namespace CryptoBlade.Services
+{
+    public class DefaultTradingStrategyManager : TradeStrategyManagerBase
     {
         private readonly ILogger<DefaultTradingStrategyManager> m_logger;
         private readonly IOptions<TradingBotOptions> m_options;
@@ -125,8 +151,23 @@ public class DefaultTradingStrategyManager : TradeStrategyManagerBase
             }
         }
     }
+}
+}
 
-public class DynamicTradingStrategyManager : TradeStrategyManagerBase
+// -----------------------------
+
+// ==== FILE #2: DynamicTradingStrategyManager.cs ====
+namespace CryptoBlade.Services {
+using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
+using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Wallet;
+using Microsoft.Extensions.Options;
+
+namespace CryptoBlade.Services
+{
+    public class DynamicTradingStrategyManager : TradeStrategyManagerBase
     {
         private readonly record struct UnstuckingSymbols(HashSet<string> LongUnstucking, HashSet<string> ShortUnstucking);
         private readonly ILogger<DynamicTradingStrategyManager> m_logger;
@@ -508,16 +549,30 @@ public class DynamicTradingStrategyManager : TradeStrategyManagerBase
             }
         }
     }
+}
+}
 
-public interface ITradeStrategyManager
+// -----------------------------
+
+// ==== FILE #3: ITradeStrategyManager.cs ====
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+namespace CryptoBlade.Services
+{
+    public interface ITradeStrategyManager
     {
         DateTime LastExecution { get; }
         Task<ITradingStrategy[]> GetStrategiesAsync(CancellationToken cancel);
         Task StartStrategiesAsync(CancellationToken cancel);
         Task StopStrategiesAsync(CancellationToken cancel);
     }
+}
 
-public class NullTradeStrategyManager : ITradeStrategyManager
+// -----------------------------
+
+// ==== FILE #4: NullTradeStrategyManager.cs ====
+namespace CryptoBlade.Services
+{
+    public class NullTradeStrategyManager : ITradeStrategyManager
     {
         public DateTime LastExecution => DateTime.UtcNow;
         
@@ -536,8 +591,14 @@ public class NullTradeStrategyManager : ITradeStrategyManager
             return Task.CompletedTask;
         }
     }
+}
 
-public class OptimizerHostedService : IHostedService
+// -----------------------------
+
+// ==== FILE #5: OptimizerHostedService.cs ====
+namespace CryptoBlade.Services
+{
+    public class OptimizerHostedService : IHostedService
     {
         private readonly IOptimizer m_optimizer;
 
@@ -556,8 +617,26 @@ public class OptimizerHostedService : IHostedService
             await m_optimizer.StopAsync(cancellationToken);
         }
     }
+}
 
-public abstract class TradeStrategyManagerBase : ITradeStrategyManager
+// -----------------------------
+
+// ==== FILE #6: TradeStrategyManagerBase.cs ====
+namespace CryptoBlade.Services {
+using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
+using CryptoBlade.Models;
+using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Wallet;
+using Microsoft.Extensions.Options;
+using Nito.AsyncEx;
+using OrderStatus = CryptoBlade.Models.OrderStatus;
+using PositionSide = CryptoBlade.Models.PositionSide;
+
+namespace CryptoBlade.Services
+{
+    public abstract class TradeStrategyManagerBase : ITradeStrategyManager
     {
         protected readonly record struct SymbolCandle(string Symbol, Candle Candle);
         protected readonly record struct SymbolTicker(string Symbol, Ticker Ticker);
@@ -1095,8 +1174,15 @@ public abstract class TradeStrategyManagerBase : ITradeStrategyManager
 
         protected record struct ExecuteUnstuckParams(bool UnstuckLong, bool UnstuckShort, bool ForceUnstuckLong, bool ForceUnstuckShort, bool ForceKill);
     }
+}
+}
 
-public class TradingHostedService : IHostedService
+// -----------------------------
+
+// ==== FILE #7: TradingHostedService.cs ====
+namespace CryptoBlade.Services
+{
+    public class TradingHostedService : IHostedService
     {
         private readonly ITradeStrategyManager m_strategyManager;
         private readonly IWalletManager m_walletManager;

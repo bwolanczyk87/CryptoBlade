@@ -1,11 +1,40 @@
-﻿using Binance.Net.Interfaces.Clients;
-using Bybit.Net.Enums;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Exchanges
+// ****************
+
+// *** INDEX OF INCLUDED FILES ***
+1. BinanceCbFuturesRestClient.cs
+2. BybitCbFuturesRestClient.cs
+3. BybitCbFuturesRestClientOptions.cs
+4. BybitCbFuturesSocketClient.cs
+5. BybitSocketClientMain.cs
+6. BybitSocketClientSecondary.cs
+7. BybitUpdateSubscription.cs
+8. IBybitSocketClientMain.cs
+9. IBybitSocketClientSecondary.cs
+10. ICbFuturesRestClient.cs
+11. ICbFuturesSocketClient.cs
+12. IUpdateSubscription.cs
+// *******************************
+
+using Binance.Net.Interfaces.Clients;
 using Bybit.Net.Clients;
+using Bybit.Net.Enums;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 
+// ==== FILE #1: BinanceCbFuturesRestClient.cs ====
 namespace CryptoBlade.Exchanges {
-public class BinanceCbFuturesRestClient : ICbFuturesRestClient
+using CryptoBlade.Mapping;
+using CryptoBlade.Models;
+using CryptoBlade.Strategies.Wallet;
+using PositionMode = CryptoBlade.Models.PositionMode;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BinanceCbFuturesRestClient : ICbFuturesRestClient
     {
         private readonly IBinanceRestClient m_binanceRestClient;
         private readonly ILogger<BinanceCbFuturesRestClient> m_logger;
@@ -132,8 +161,30 @@ public class BinanceCbFuturesRestClient : ICbFuturesRestClient
             return fundingRates;
         }
     }
+}
+}
 
-public class BybitCbFuturesRestClient : ICbFuturesRestClient
+// -----------------------------
+
+// ==== FILE #2: BybitCbFuturesRestClient.cs ====
+namespace CryptoBlade.Exchanges {
+using Bybit.Net.Enums.V5;
+using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Helpers;
+using CryptoBlade.Mapping;
+using CryptoBlade.Models;
+using CryptoBlade.Strategies.Policies;
+using Microsoft.Extensions.Options;
+using Order = CryptoBlade.Models.Order;
+using OrderSide = Bybit.Net.Enums.OrderSide;
+using OrderStatus = Bybit.Net.Enums.V5.OrderStatus;
+using Position = CryptoBlade.Models.Position;
+using PositionMode = CryptoBlade.Models.PositionMode;
+using TradeMode = CryptoBlade.Models.TradeMode;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BybitCbFuturesRestClient : ICbFuturesRestClient
     {
         private readonly IBybitRestClient m_bybitRestClient;
         private readonly Category m_category;
@@ -725,13 +776,36 @@ public class BybitCbFuturesRestClient : ICbFuturesRestClient
             return rates;
         }
     }
+}
+}
 
-public class BybitCbFuturesRestClientOptions
+// -----------------------------
+
+// ==== FILE #3: BybitCbFuturesRestClientOptions.cs ====
+namespace CryptoBlade.Exchanges
+{
+    public class BybitCbFuturesRestClientOptions
     {
         public int PlaceOrderAttempts { get; set; }
     }
+}
 
-public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
+// -----------------------------
+
+// ==== FILE #4: BybitCbFuturesSocketClient.cs ====
+namespace CryptoBlade.Exchanges {
+using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Strategies.Policies;
+using CryptoBlade.Strategies.Wallet;
+using Bybit.Net.Objects.Models.V5;
+using CryptoBlade.Helpers;
+using CryptoBlade.Mapping;
+using CryptoBlade.Models;
+using CryptoExchange.Net.CommonObjects;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
     {
         private readonly IBybitSocketClient m_bybitSocketLinearClient;
         private readonly IBybitSocketClient m_bybitSocketClient;
@@ -851,18 +925,48 @@ public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
             return new BybitUpdateSubscription(tickerSubscription);
         }
     }
+}
+}
 
-public class BybitSocketClientMain : BybitSocketClient, IBybitSocketClientMain
+// -----------------------------
+
+// ==== FILE #5: BybitSocketClientMain.cs ====
+namespace CryptoBlade.Exchanges {
+using Bybit.Net.Objects.Options;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BybitSocketClientMain : BybitSocketClient, IBybitSocketClientMain
     {
         public BybitSocketClientMain(Action<BybitSocketOptions> optionsDelegate) : base(optionsDelegate) { }
     }
+}
+}
 
-public class BybitSocketClientSecondary : BybitSocketClient, IBybitSocketClientSecondary
+// -----------------------------
+
+// ==== FILE #6: BybitSocketClientSecondary.cs ====
+namespace CryptoBlade.Exchanges {
+using Bybit.Net.Objects.Options;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BybitSocketClientSecondary : BybitSocketClient, IBybitSocketClientSecondary
     {
         public BybitSocketClientSecondary(Action<BybitSocketOptions> optionsDelegate) : base(optionsDelegate) { }
     }
+}
+}
 
-public class BybitUpdateSubscription : IUpdateSubscription
+// -----------------------------
+
+// ==== FILE #7: BybitUpdateSubscription.cs ====
+namespace CryptoBlade.Exchanges {
+using CryptoExchange.Net.Sockets;
+
+namespace CryptoBlade.Exchanges
+{
+    public class BybitUpdateSubscription : IUpdateSubscription
     {
         private readonly UpdateSubscription m_subscription;
 
@@ -881,16 +985,41 @@ public class BybitUpdateSubscription : IUpdateSubscription
             await m_subscription.CloseAsync();
         }
     }
+}
+}
 
-public interface IBybitSocketClientMain
+// -----------------------------
+
+// ==== FILE #8: IBybitSocketClientMain.cs ====
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+namespace CryptoBlade.Exchanges
+{
+    public interface IBybitSocketClientMain
     {
     }
+}
 
-public interface IBybitSocketClientSecondary
+// -----------------------------
+
+// ==== FILE #9: IBybitSocketClientSecondary.cs ====
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+namespace CryptoBlade.Exchanges
+{
+    public interface IBybitSocketClientSecondary
     {
     }
+}
 
-public interface ICbFuturesRestClient
+// -----------------------------
+
+// ==== FILE #10: ICbFuturesRestClient.cs ====
+namespace CryptoBlade.Exchanges {
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+using CryptoBlade.Strategies.Wallet;
+
+namespace CryptoBlade.Exchanges
+{
+    public interface ICbFuturesRestClient
     {
         Task<bool> SetLeverageAsync(
             SymbolInfo symbol,
@@ -975,8 +1104,19 @@ public interface ICbFuturesRestClient
         Task<FundingRate[]> GetFundingRatesAsync(string symbol, DateTime start, DateTime end,
             CancellationToken cancel = default);
     }
+}
+}
 
-public interface ICbFuturesSocketClient
+// -----------------------------
+
+// ==== FILE #11: ICbFuturesSocketClient.cs ====
+namespace CryptoBlade.Exchanges {
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+using CryptoBlade.Strategies.Wallet;
+
+namespace CryptoBlade.Exchanges
+{
+    public interface ICbFuturesSocketClient
     {
         Task<IUpdateSubscription> SubscribeToWalletUpdatesAsync(Action<Balance> handler,
             CancellationToken cancel = default);
@@ -993,8 +1133,16 @@ public interface ICbFuturesSocketClient
             Action<string, Ticker> handler,
             CancellationToken cancel = default);
     }
+}
+}
 
-public interface IUpdateSubscription
+// -----------------------------
+
+// ==== FILE #12: IUpdateSubscription.cs ====
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+namespace CryptoBlade.Exchanges
+{
+    public interface IUpdateSubscription
     {
         void AutoReconnect(ILogger logger);
         Task CloseAsync();

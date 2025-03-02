@@ -1,12 +1,19 @@
 {
-    "Accounts": [
-      {
-        "Name": "CryptoBlade",
-        "ApiKey": "",
-        "ApiSecret": "",
-        "Exchange": 0
-      }
-    ],
+  "Accounts":  [
+                   {
+                       "Name":  "CryptoBlade",
+                       "ApiKey":  "",
+                       "ApiSecret":  "",
+                       "Exchange":  0
+                   },
+                   {
+                      "Name": "CryptoBlade_Subaccount",
+                      "ApiKey": "",
+                      "ApiSecret": "",
+                      "Exchange": "Bybit",
+                      "IsDemo": false
+                    }
+               ],
     "AccountName": "CryptoBlade",
     "BotMode": "Live",
     "StrategyName": "MfiRsiEriTrend",

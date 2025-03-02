@@ -1,22 +1,15 @@
 {
-  "Accounts":  [
-                   {
-                       "Name":  "CryptoBlade",
-                       "ApiKey":  "",
-                       "ApiSecret":  "",
-                       "Exchange":  0
-                   },
-                   {
-                      "Name": "CryptoBlade_Subaccount",
-                      "ApiKey": "",
-                      "ApiSecret": "",
-                      "Exchange": "Bybit",
-                      "IsDemo": false
-                    }
-               ],
+    "Accounts": [
+      {
+        "Name": "CryptoBlade",
+        "ApiKey": "",
+        "ApiSecret": "",
+        "Exchange": 0
+      }
+    ],
     "AccountName": "CryptoBlade",
-    "BotMode": "Backtest",
-    "StrategyName": "MfiRsiCandlePrecise",
+    "BotMode": "Live",
+    "StrategyName": "Mona",
     "TradingMode": "Normal",
     "MaxRunningStrategies": 10,
     "DcaOrdersCount": 1000,
@@ -64,6 +57,13 @@
       "ForceKillTheWorst": false
     },
     "Strategies": {
+      "Mona": {
+        "MinReentryPositionDistanceLong": 0.025,
+        "MinReentryPositionDistanceShort": 0.025,
+        "ClusteringLength": 480,
+        "BandwidthCoefficient": 0.3,
+        "MfiRsiLookback": 2
+      }
     },
     "CriticalMode": {
       "EnableCriticalModeLong": true,

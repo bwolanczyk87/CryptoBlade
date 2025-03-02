@@ -10,10 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Scripts\**" />
-    <Content Remove="Scripts\**" />
-    <EmbeddedResource Remove="Scripts\**" />
-    <None Remove="Scripts\**" />
+    <Compile Include="Scripts\RunContainer.ps1" />
   </ItemGroup>
 
   <ItemGroup>

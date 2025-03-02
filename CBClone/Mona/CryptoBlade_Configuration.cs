@@ -1,15 +1,48 @@
-﻿using GeneticSharp;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.Configuration
+// ****************
+
+// *** INDEX OF INCLUDED FILES ***
+1. BackTest.cs
+2. BotMode.cs
+3. ConfigConstants.cs
+4. CriticalMode.cs
+5. DataSource.cs
+6. DynamicBotCount.cs
+7. Exchange.cs
+8. ExchangeAccount.cs
+9. FitnessOptions.cs
+10. GeneticAlgorithmOptions.cs
+11. Mona.cs
+12. MutationStrategy.cs
+13. OptimizerOptions.cs
+14. RecursiveStrategyOptimizerOptions.cs
+15. RecursiveStrategyOptions.cs
+16. SelectionStrategy.cs
+17. StrategyOptions.cs
+18. SymbolTradingMode.cs
+19. TradingBotOptimizerOptions.cs
+20. TradingBotOptions.cs
+21. TradingMode.cs
+22. Unstucking.cs
+// *******************************
+
 using CryptoBlade.Optimizer;
+using GeneticSharp;
 using System.Text.Json;
 
-namespace CryptoBlade.Configuration {
-public class BackTest
+// ==== FILE #1: BackTest.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class BackTest
     {
         public DateTime Start { get; set; }
 
         public DateTime End { get; set; }
 
-        public decimal InitialBalance { get; set; } = 5000;
+        public decimal InitialBalance { get; set; } = 1000;
 
         public TimeSpan StartupCandleData { get; set; } = TimeSpan.FromDays(1);
 
@@ -17,25 +50,43 @@ public class BackTest
 
         public string ResultDetailedFileName { get; set; } = "result_detailed.json";
 
-        public int InitialUntradableDays { get; set; } = 30;
+        public int InitialUntradableDays { get; set; } = 0;
 
-        public DataSource DataSource { get; set; } = DataSource.Bybit;
+        public DataSource DataSource { get; set; } = DataSource.Binance;
     }
+}
 
-public enum BotMode
+// -----------------------------
+
+// ==== FILE #2: BotMode.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum BotMode
     {
         Live,
         Backtest,
         Optimizer
     }
+}
 
-public class ConfigConstants
+// -----------------------------
+
+// ==== FILE #3: ConfigConstants.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class ConfigConstants
     {
-        public const string DefaultHistoricalDataDirectory = "HistoricalData";
-        public const string BackTestsDirectory = "BackTests";
+        public const string DefaultHistoricalDataDirectory = "../HistoricalData";
+        public const string BackTestsDirectory = "Results";
     }
+}
 
-public class CriticalMode
+// -----------------------------
+
+// ==== FILE #4: CriticalMode.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class CriticalMode
     {
         public bool EnableCriticalModeLong { get; set; }
 
@@ -45,14 +96,26 @@ public class CriticalMode
 
         public decimal WalletExposureThresholdShort { get; set; } = 0.3m;
     }
+}
 
-public enum DataSource
+// -----------------------------
+
+// ==== FILE #5: DataSource.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum DataSource
     {
         Bybit,
         Binance,
     }
+}
 
-public class DynamicBotCount
+// -----------------------------
+
+// ==== FILE #6: DynamicBotCount.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class DynamicBotCount
     {
         public decimal TargetLongExposure { get; set; } = 1.0m;
 
@@ -66,13 +129,25 @@ public class DynamicBotCount
 
         public TimeSpan Step { get; set; } = TimeSpan.FromMinutes(5);
     }
+}
 
-public enum Exchange
+// -----------------------------
+
+// ==== FILE #7: Exchange.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum Exchange
     {
         Bybit,
     }
+}
 
-public class ExchangeAccount
+// -----------------------------
+
+// ==== FILE #8: ExchangeAccount.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class ExchangeAccount
     {
         public string Name { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
@@ -85,8 +160,14 @@ public class ExchangeAccount
             return !string.IsNullOrWhiteSpace(ApiKey) && !string.IsNullOrWhiteSpace(ApiSecret);
         }
     }
+}
 
-public class FitnessOptions
+// -----------------------------
+
+// ==== FILE #9: FitnessOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class FitnessOptions
     {
         public double RunningDaysPreference { get; set; } = 0.1;
         public double AvgDailyGainPreference { get; set; } = 0.7;
@@ -96,8 +177,14 @@ public class FitnessOptions
         public double MaxAvgDailyGainPercent { get; set; } = 5.0;
         public double MinAvgDailyGainPercent { get; set; } = -5.0;
     }
+}
 
-public class GeneticAlgorithmOptions
+// -----------------------------
+
+// ==== FILE #10: GeneticAlgorithmOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class GeneticAlgorithmOptions
     {
         public int GenerationCount { get; set; } = 200;
         public float MutationProbability { get; set; } = 0.01f;
@@ -110,8 +197,14 @@ public class GeneticAlgorithmOptions
         public float MaxMutationProbability { get; set; } = 0.8f;
         public FitnessOptions FitnessOptions { get; set; } = new FitnessOptions();
     }
+}
 
-public class Mona
+// -----------------------------
+
+// ==== FILE #11: Mona.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class Mona
     {
         public decimal MinReentryPositionDistanceLong { get; set; } = 0.02m;
 
@@ -123,14 +216,26 @@ public class Mona
 
         public int MfiRsiLookback { get; set; } = 5;
     }
+}
 
-public enum MutationStrategy
+// -----------------------------
+
+// ==== FILE #12: MutationStrategy.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum MutationStrategy
     {
         FlipBitMutation,
         UniformMutation,
     }
+}
 
-public class OptimizerOptions
+// -----------------------------
+
+// ==== FILE #13: OptimizerOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class OptimizerOptions
     {
         public GeneticAlgorithmOptions GeneticAlgorithm { get; set; } = new GeneticAlgorithmOptions();
         public TartagliaOptimizerOptions Tartaglia { get; set; } = new TartagliaOptimizerOptions();
@@ -143,8 +248,14 @@ public class OptimizerOptions
         public bool EnableHistoricalDataCaching { get; set; } = true;
         public int ParallelTasks { get; set; } = 10;
     }
+}
 
-public class RecursiveStrategyOptimizerOptions
+// -----------------------------
+
+// ==== FILE #14: RecursiveStrategyOptimizerOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class RecursiveStrategyOptimizerOptions
     {
         public OptimizerFloatRange DDownFactorLong { get; set; } = new OptimizerFloatRange(0.1f, 3.0f, 3);
 
@@ -162,8 +273,14 @@ public class RecursiveStrategyOptimizerOptions
 
         public OptimizerFloatRange ReentryPositionPriceDistanceWalletExposureWeightingShort { get; set; } = new OptimizerFloatRange(0.0f, 3.0f, 3);
     }
+}
 
-public class RecursiveStrategyOptions
+// -----------------------------
+
+// ==== FILE #15: RecursiveStrategyOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class RecursiveStrategyOptions
     {
         public double DDownFactorLong { get; set; } = 2.0;
 
@@ -181,14 +298,26 @@ public class RecursiveStrategyOptions
 
         public double ReentryPositionPriceDistanceWalletExposureWeightingShort { get; set; } = 2.11;
     }
+}
 
-public enum SelectionStrategy
+// -----------------------------
+
+// ==== FILE #16: SelectionStrategy.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum SelectionStrategy
     {
         TournamentSelection,
         RankSelection,
     }
+}
 
-public class StrategyOptions
+// -----------------------------
+
+// ==== FILE #17: StrategyOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class StrategyOptions
     {
         public AutoHedge AutoHedge { get; set; } = new AutoHedge();
         public LinearRegression LinearRegression { get; set; } = new LinearRegression();
@@ -198,14 +327,26 @@ public class StrategyOptions
         public RecursiveStrategyOptions Recursive { get; set; } = new RecursiveStrategyOptions();
         public Qiqi Qiqi { get; set; } = new Qiqi();
     }
+}
 
-public class SymbolTradingMode
+// -----------------------------
+
+// ==== FILE #18: SymbolTradingMode.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class SymbolTradingMode
     {
         public string Symbol { get; set; } = string.Empty;
         public TradingMode TradingMode { get; set; } = TradingMode.Normal;
     }
+}
 
-public class TradingBotOptimizerOptions
+// -----------------------------
+
+// ==== FILE #19: TradingBotOptimizerOptions.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class TradingBotOptimizerOptions
     {
         public OptimizerFloatRange WalletExposureLong { get; set; } = new OptimizerFloatRange(0, 3, 2);
         public OptimizerFloatRange WalletExposureShort { get; set; } = new OptimizerFloatRange(0, 3, 2);
@@ -235,8 +376,17 @@ public class TradingBotOptimizerOptions
         public OptimizerFloatRange CriticalModelWalletExposureThresholdShort { get; set; } = new OptimizerFloatRange(0.0f, 3.0f, 2);
         public OptimizerFloatRange SpotRebalancingRatio { get; set; } = new OptimizerFloatRange(0.0f, 1.0f, 2);
     }
+}
 
-public class TradingBotOptions
+// -----------------------------
+
+// ==== FILE #20: TradingBotOptions.cs ====
+namespace CryptoBlade.Configuration {
+using CryptoBlade.Strategies;
+
+namespace CryptoBlade.Configuration
+{
+    public class TradingBotOptions
     {
         public BotMode BotMode { get; set; } = BotMode.Backtest;
         public ExchangeAccount[] Accounts { get; set; } = Array.Empty<ExchangeAccount>();
@@ -273,16 +423,29 @@ public class TradingBotOptions
         public CriticalMode CriticalMode { get; set; } = new CriticalMode();
         public OptimizerOptions Optimizer { get; set; } = new OptimizerOptions();
     }
+}
+}
 
-public enum TradingMode
+// -----------------------------
+
+// ==== FILE #21: TradingMode.cs ====
+namespace CryptoBlade.Configuration
+{
+    public enum TradingMode
     {
         Normal,
         Dynamic,
         Readonly,
         DynamicBackTest,
     }
+}
 
-public class Unstucking
+// -----------------------------
+
+// ==== FILE #22: Unstucking.cs ====
+namespace CryptoBlade.Configuration
+{
+    public class Unstucking
     {
         public bool Enabled { get; set; } = true;
         public decimal SlowUnstuckThresholdPercent { get; set; } = -0.1m;

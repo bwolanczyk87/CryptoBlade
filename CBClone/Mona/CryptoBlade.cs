@@ -1,7 +1,42 @@
-﻿using System.Reflection;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade
+// ****************
 
+// *** INDEX OF INCLUDED FILES ***
+1. Program.cs
+// *******************************
+
+using System.Reflection;
+
+// ==== FILE #1: Program.cs ====
 namespace CryptoBlade {
-public class Program
+using Binance.Net.Clients;
+using Bybit.Net;
+using CryptoBlade.BackTesting;
+using CryptoBlade.Configuration;
+using CryptoBlade.Exchanges;
+using CryptoBlade.HealthChecks;
+using CryptoBlade.Helpers;
+using CryptoBlade.Services;
+using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Wallet;
+using CryptoExchange.Net.Authentication;
+using CryptoExchange.Net.Objects;
+using Microsoft.Extensions.Options;
+using Bybit.Net.Clients;
+using CryptoBlade.BackTesting.Binance;
+using CryptoBlade.BackTesting.Bybit;
+using CryptoBlade.Optimizer;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection;
+using Bybit.Net.Interfaces.Clients;
+
+namespace CryptoBlade
+{
+    public class Program
     {
         public static void Main(string[] args)
         {
@@ -15,11 +50,6 @@ public class Program
             debugView = string.Join(Environment.NewLine, debugViewLines);
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
-            var exchangeAccount =
-                tradingBotOptions!.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal));
-            string apiKey = exchangeAccount?.ApiKey ?? string.Empty;
-            string apiSecret = exchangeAccount?.ApiSecret ?? string.Empty;
-            bool hasApiCredentials = !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiSecret);
 
             // Add services to the container.
             builder.Services.AddRazorPages();
@@ -55,9 +85,6 @@ public class Program
             var lf = app.Services.GetRequiredService<ILoggerFactory>();
             ApplicationLogging.LoggerFactory = lf;
             LogVersionAndConfiguration(debugView);
-
-            if (!hasApiCredentials)
-                app.Logger.LogWarning("No API credentials found!.");
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
@@ -214,16 +241,6 @@ public class Program
                 builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
             }
 
-
-            if (tradingMode == TradingMode.Readonly || tradingMode == TradingMode.Dynamic)
-            {
-                builder.Services.AddSingleton<ITradeStrategyManager, DynamicTradingStrategyManager>();
-            }
-            else if (tradingMode == TradingMode.Normal)
-            {
-                builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
-            }
-
             var mainAccount = tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal)) ?? 
                 throw new InvalidOperationException("No account found with the name specified in the configuration.");
 
@@ -307,4 +324,5 @@ public class Program
             });
         }
     }
+}
 }

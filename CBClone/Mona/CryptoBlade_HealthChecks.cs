@@ -1,16 +1,38 @@
-﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
-using CryptoBlade.Services;
+﻿// *** METADATA ***
+// Version: 1.0.0
+// Generated: 2025-03-02 01:56:03 UTC
+// Module: CryptoBlade.HealthChecks
+// ****************
 
-namespace CryptoBlade.HealthChecks {
-public class BacktestExecutionHealthCheck : IHealthCheck
+// *** INDEX OF INCLUDED FILES ***
+1. BacktestExecutionHealthCheck.cs
+2. TradeExecutionHealthCheck.cs
+// *******************************
+
+using CryptoBlade.Services;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+// ==== FILE #1: BacktestExecutionHealthCheck.cs ====
+namespace CryptoBlade.HealthChecks
+{
+    public class BacktestExecutionHealthCheck : IHealthCheck
     {
         public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = new CancellationToken())
         {
             return Task.FromResult(new HealthCheckResult(HealthStatus.Healthy, "Backtest is healthy."));
         }
     }
+}
 
-public class TradeExecutionHealthCheck : IHealthCheck
+// -----------------------------
+
+// ==== FILE #2: TradeExecutionHealthCheck.cs ====
+namespace CryptoBlade.HealthChecks {
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+namespace CryptoBlade.HealthChecks
+{
+    public class TradeExecutionHealthCheck : IHealthCheck
     {
         private readonly ITradeStrategyManager m_tradeStrategyManager;
 
@@ -32,4 +54,5 @@ public class TradeExecutionHealthCheck : IHealthCheck
             return Task.FromResult(new HealthCheckResult(status, message));
         }
     }
+}
 }
