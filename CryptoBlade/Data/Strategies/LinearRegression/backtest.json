@@ -28,8 +28,8 @@
       "MaxDynamicStrategyOpenPerStep": 10,
       "Step": "00:01:00"
     },
-    "WalletExposureLong": 2.0,
-    "WalletExposureShort": 2.0,
+    "WalletExposureLong": 100.0,
+    "WalletExposureShort": 100.0,
     "MinimumVolume": 15000.0,
     "MinimumPriceDistance": 0.015,
     "ForceMinQty": false,
