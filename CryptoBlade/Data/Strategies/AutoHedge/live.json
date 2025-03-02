@@ -70,9 +70,9 @@
                                          "MinReentryPositionDistanceShort":  0.02,
                                          "MinimumVolume":  15000.0,
                                          "MinimumPriceDistance":  0.015,
-                                         "QtyFactorShort": 1.0,
-                                         "DDownFactorShort": 2.0,
-                                         "InitialQtyPctShort": 0.005
+                                         "QtyFactorShort":  1.0,
+                                         "DDownFactorShort":  2.0,
+                                         "InitialQtyPctShort":  0.005
                                      }
                    },
     "CriticalMode":  {

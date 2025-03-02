@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_Mona
+    container_name: cryptoblade_mona
     image: cryptoblade:latest
     labels:
         - "autoheal=true"

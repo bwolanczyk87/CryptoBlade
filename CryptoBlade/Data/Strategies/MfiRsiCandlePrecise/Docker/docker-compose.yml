@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_MfiRsiCandlePrecise
+    container_name: cryptoblade_mfirsicandleprecise
     image: cryptoblade:latest
     labels:
         - "autoheal=true"

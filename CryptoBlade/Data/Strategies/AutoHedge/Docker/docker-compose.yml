@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_AutoHedge
+    container_name: cryptoblade_autohedge
     image: cryptoblade:latest
     labels:
         - "autoheal=true"
@@ -49,10 +49,13 @@ services:
         - CB_TradingBot__QtyFactorLong=2.0
         - CB_TradingBot__QtyFactorShort=0.3
         - CB_TradingBot__SpotRebalancingRatio=0.0
+        - CB_TradingBot__Strategies__AutoHedge__DDownFactorShort=2.0
+        - CB_TradingBot__Strategies__AutoHedge__InitialQtyPctShort=0.005
         - CB_TradingBot__Strategies__AutoHedge__MinimumPriceDistance=0.015
         - CB_TradingBot__Strategies__AutoHedge__MinimumVolume=15000.0
         - CB_TradingBot__Strategies__AutoHedge__MinReentryPositionDistanceLong=0.015
         - CB_TradingBot__Strategies__AutoHedge__MinReentryPositionDistanceShort=0.02
+        - CB_TradingBot__Strategies__AutoHedge__QtyFactorShort=1.0
         - CB_TradingBot__StrategyName=AutoHedge
         - CB_TradingBot__StrategySelectPreference=0
         - CB_TradingBot__TakerFeeRate=0.00055
@@ -64,8 +67,8 @@ services:
         - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.2
         - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
         - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.3
-        - CB_TradingBot__WalletExposureLong=2.0
-        - CB_TradingBot__WalletExposureShort=2.0
+        - CB_TradingBot__WalletExposureLong=200.0
+        - CB_TradingBot__WalletExposureShort=200.0
         - CB_TradingBot__Whitelist__0=ARBUSDT
         - CB_TradingBot__Whitelist__1=OPUSDT
         - CB_TradingBot__Whitelist__10=INJUSDT

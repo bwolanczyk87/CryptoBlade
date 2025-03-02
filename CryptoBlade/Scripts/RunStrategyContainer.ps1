@@ -8,22 +8,18 @@
 
     Parametry:
       - Code             : trzycyfrowy kod (np. "123")
-      - StrategiesCount  : (opcjonalnie) liczba strategii losowanych z dostępnej listy (domyślnie 0)
       - Demo             : (opcjonalnie) flaga bool, jeśli $true – tryb demo (kopiujemy wszystkie konta i ustawiamy konto demo), domyślnie $false
 
     Użycie:
-        .\deploy.ps1 -Code "123" [-StrategiesCount 2] [-Demo $true]
+        .\deploy.ps1 -Code "123" [-Demo $true]
 #>
 
 param (
     [Parameter(Mandatory = $true)]
     [string]$Code,
 
-    [Parameter(Mandatory = $true)]
-    [int]$StrategiesCount,
-
-    [Parameter(Mandatory = $true)]
-    [bool]$Demo
+    [Parameter(Mandatory = $false)]
+    [bool]$Demo = $true
 )
 
 # Walidacja kodu
@@ -116,22 +112,12 @@ $BotMode = $botModeMap[$botModeDigit]
 $TradingMode = $tradingModeMap[$tradingModeDigit]
 
 # Wybór strategii:
-if ($StrategiesCount -gt 0) {
-    $availableStrategies = $strategyMap.Values
-    if ($StrategiesCount -gt $availableStrategies.Count) {
-        $StrategiesCount = $availableStrategies.Count
-    }
-    $selectedStrategies = Get-Random -InputObject $availableStrategies -Count $StrategiesCount
-    $StrategyName = $selectedStrategies -join ","
-    Write-Host "Wybrane losowo strategie: $StrategyName"
-} else {
-    $strategyDigit = $Code.Substring(0,1)
-    if (-not $strategyMap.ContainsKey($strategyDigit)) {
-        Write-Error "Niepoprawny kod – brak mapowania dla strategii."
-        exit 1
-    }
-    $StrategyName = $strategyMap[$strategyDigit]
+$strategyDigit = $Code.Substring(0,1)
+if (-not $strategyMap.ContainsKey($strategyDigit)) {
+    Write-Error "Niepoprawny kod – brak mapowania dla strategii."
+    exit 1
 }
+$StrategyName = $strategyMap[$strategyDigit]
 
 Write-Host "Dekodowano:" -ForegroundColor Cyan
 Write-Host "  Strategia: $StrategyName"
@@ -258,7 +244,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\Docker"
 Write-Host "Uruchamianie docker compose up..."
-docker compose up -d
+docker compose -p "cryptoblade_$($StrategyName.ToLower())" up -d
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1

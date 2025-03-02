@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_LinearRegression
+    container_name: cryptoblade_linearregression
     image: cryptoblade:latest
     labels:
         - "autoheal=true"

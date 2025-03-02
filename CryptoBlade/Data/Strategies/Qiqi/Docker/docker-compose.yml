@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_Qiqi
+    container_name: cryptoblade_qiqi
     image: cryptoblade:latest
     labels:
         - "autoheal=true"

@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_MfiRsiEriTrend
+    container_name: cryptoblade_mfirsieritrend
     image: cryptoblade:latest
     labels:
         - "autoheal=true"

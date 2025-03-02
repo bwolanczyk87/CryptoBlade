@@ -1,6 +1,6 @@
 services:
   cryptoblade:
-    container_name: Cryptoblade_Tartaglia
+    container_name: cryptoblade_tartaglia
     image: cryptoblade:latest
     labels:
         - "autoheal=true"
