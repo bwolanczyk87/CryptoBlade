@@ -35,6 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Data\BacktestResults\" />
+    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Result\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 
