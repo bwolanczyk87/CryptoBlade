@@ -125,9 +125,9 @@ Write-Host "  BotMode: $BotMode"
 Write-Host "  TradingMode: $TradingMode"
 
 # Wybór pliku JSON na podstawie BotMode – zakładamy, że plik znajduje się w:
-# "$PSScriptRoot\..\Data\Strategies\<primaryStrategy>\<botmode>.json"
+# "$PSScriptRoot\..\Data\Strategies\<primaryStrategy>\<botmode>\<botmode>.json"
 $primaryStrategy = ($StrategyName -split ",")[0].Trim()
-$jsonFile = "$PSScriptRoot\..\Data\Strategies\$primaryStrategy\$($BotMode.ToLower()).json"
+$jsonFile = "$PSScriptRoot\..\Data\Strategies\$primaryStrategy\$BotMode\$($BotMode.ToLower()).json"
 Write-Host "Sprawdzam ścieżkę: $jsonFile"
 if (-not (Test-Path $jsonFile)) {
     Write-Error "Plik $jsonFile nie istnieje!"
@@ -218,7 +218,7 @@ $envLines = $flattened.GetEnumerator() | Sort-Object Key | ForEach-Object {
 
 # Aktualizacja pliku docker-compose.yml – ścieżka:
 # "$PSScriptRoot\..\Data\Strategies\$StrategyName\Docker\docker-compose.yml"
-$composeFile = "$PSScriptRoot\..\Data\Strategies\$StrategyName\Docker\docker-compose.yml"
+$composeFile = "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker\docker-compose.yml"
 if (-not (Test-Path $composeFile)) {
     Write-Error "Plik docker-compose.yml nie został znaleziony!"
     exit 1
@@ -242,9 +242,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\Docker"
+Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."
-docker compose -p "cryptoblade_$($StrategyName.ToLower())" up -d
+docker compose -p "cryptoblade_$($StrategyName.ToLower())_$($BotMode.ToLower())" up -d
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1

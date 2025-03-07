@@ -10,9 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
     <Compile Remove="Scripts\**" />
+    <Content Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
     <Content Remove="Scripts\**" />
+    <EmbeddedResource Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
     <EmbeddedResource Remove="Scripts\**" />
+    <None Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
     <None Remove="Scripts\**" />
   </ItemGroup>
 
@@ -36,7 +40,20 @@
 
   <ItemGroup>
     <Folder Include="Data\BacktestResults\" />
-    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Result\" />
+    <Folder Include="Data\Strategies\AutoHedge\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\AutoHedge\Backtest\Results\" />
+    <Folder Include="Data\Strategies\LinearRegression\Backtest\Results\" />
+    <Folder Include="Data\Strategies\LinearRegression\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Backtest\Results\" />
+    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\MfiRsiEriTrend\Backtest\Results\" />
+    <Folder Include="Data\Strategies\MfiRsiEriTrend\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Mona\Backtest\Results\" />
+    <Folder Include="Data\Strategies\Mona\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Qiqi\Backtest\Results\" />
+    <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Tartaglia\Backtest\Results\" />
+    <Folder Include="Data\Strategies\Tartaglia\Optimizer\Results\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 

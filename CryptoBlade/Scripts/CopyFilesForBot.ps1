@@ -89,13 +89,13 @@ if (![string]::IsNullOrEmpty($StrategyName)) {
 }
 
 #######################################################
-# Krok 1.5: Przetwarzanie folderów BackTests (Samples\BackTest\BackTests)
+# Krok 1.5: Przetwarzanie folderów Results (Data\Strategies\${StrategyName}\BackTests\Results)
 #######################################################
 # Utwórz puste mapy na scalone dane z appsettings.json i result.json
 $combinedAppSettings = @{}
 $combinedResults = @{}
 
-$backTestsRoot = Join-Path $SourceDir "Samples\BackTest\BackTests"
+$backTestsRoot = Join-Path $SourceDir "Data\Strategies\${StrategyName}\BackTests\Results"
 if (Test-Path $backTestsRoot) {
     # Pobierz wszystkie foldery (nazwy dynamiczne, np. timestamp)
     $backTestFolders = Get-ChildItem -Path $backTestsRoot -Directory
