@@ -54,6 +54,7 @@ services:
         - CB_TradingBot__StrategyName=AutoHedge
         - CB_TradingBot__StrategySelectPreference=0
         - CB_TradingBot__TakerFeeRate=0.00055
+        - CB_TradingBot__TradingMode=DynamicBackTest
         - CB_TradingBot__Unstucking__Enabled=False
         - CB_TradingBot__Unstucking__ForceKillTheWorst=False
         - CB_TradingBot__Unstucking__ForceUnstuckPercentStep=0.1

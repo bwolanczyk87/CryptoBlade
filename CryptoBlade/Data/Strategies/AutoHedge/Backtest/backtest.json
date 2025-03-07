@@ -18,7 +18,7 @@
     "AccountName":  "CryptoBlade",
     "BotMode":  "Backtest",
     "StrategyName":  "AutoHedge",
-    "TradingMode":  "Normal",
+    "TradingMode":  "DynamicBackTest",
     "MaxRunningStrategies":  10,
     "DcaOrdersCount":  1000,
     "DynamicBotCount":  {

@@ -1,0 +1,87 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 1197.7900888914833000000000000,
+  "FinalEquity": 1205.8547388914832999999999999,
+  "LowestEquityToBalance": 0.868,
+  "UnrealizedPnl": 7.1315499999999999999999998667,
+  "RealizedPnl": 197.79008889148330000000000000,
+  "AverageDailyGainPercent": 0.624279401343000,
+  "MaxDrawDown": 0.0005821983112761389786737163,
+  "TotalDays": 29,
+  "ExpectedDays": 29,
+  "LossProfitRatio": 0.009159598641204225641541898,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 0.03636569782646214,
+  "AdgNormalizedRootMeanSquareError": 0.07019157551355466,
+  "TotalFundingRateProfitOrLoss": -0.2134537785167000000000000000,
+  "OpenPositionWithOrders": [
+    {
+      "Position": {
+        "Symbol": "ARBUSDT",
+        "Side": 0,
+        "Quantity": 4665.5,
+        "AveragePrice": 0.4160714285714285714285714286,
+        "TradeMode": 0,
+        "CreateTime": "2025-02-21T19:15:00",
+        "UpdateTime": "2025-02-24T22:58:00"
+      },
+      "UnrealizedProfitOrLoss": 7.1315499999999999999999998667,
+      "FilledOrders": [
+        {
+          "OrderId": "f3968fb1-e356-4601-aa0b-99799d44aab5",
+          "Symbol": "ARBUSDT",
+          "Price": 0.468100,
+          "Quantity": 666.5,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.468100,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 666.5,
+          "ValueFilled": 311.9886500,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-21T19:15:00"
+        },
+        {
+          "OrderId": "5c35ed47-0506-4240-a128-03d7a92e027e",
+          "Symbol": "ARBUSDT",
+          "Price": 0.410700,
+          "Quantity": 1999.5,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.410700,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1999.5,
+          "ValueFilled": 821.1946500,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-24T22:57:00"
+        },
+        {
+          "OrderId": "61a4eb8a-15fe-4cb3-9993-f4ce155aeef5",
+          "Symbol": "ARBUSDT",
+          "Price": 0.404100,
+          "Quantity": 1999.5,
+          "Side": 0,
+          "PositionMode": 1,
+          "Status": 5,
+          "AveragePrice": 0.404100,
+          "QuantityRemaining": 0,
+          "ValueRemaining": 0,
+          "QuantityFilled": 1999.5,
+          "ValueFilled": 807.9979500,
+          "ReduceOnly": false,
+          "CreateTime": "2025-02-24T22:58:00"
+        }
+      ]
+    }
+  ],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": -0.2134537785167000000000000000
+    }
+  ]
+}

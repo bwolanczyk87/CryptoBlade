@@ -138,7 +138,12 @@ if (-not (Test-Path $jsonFile)) {
 $jsonContent = Get-Content $jsonFile -Raw | ConvertFrom-Json
 $jsonContent.StrategyName = $StrategyName
 $jsonContent.BotMode = $BotMode
-$jsonContent.TradingMode = $TradingMode
+
+if ($BotMode -eq "Backtest") {
+    $jsonContent.TradingMode = "DynamicBackTest"
+} else {
+    $jsonContent.TradingMode = $TradingMode
+}
 
 # Kopiowanie ApiKey/ApiSecret z appsettings.json – plik znajduje się w katalogu nadrzędnym
 $appSettingsFile = "$PSScriptRoot\..\appsettings.json"
