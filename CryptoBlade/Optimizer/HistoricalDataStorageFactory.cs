@@ -8,7 +8,7 @@ namespace CryptoBlade.Optimizer
     {
         public static IHistoricalDataStorage CreateHistoricalDataStorage(IOptions<TradingBotOptions> options)
         {
-            const string historicalDataDirectory = ConfigConstants.DefaultHistoricalDataDirectory;
+            const string historicalDataDirectory = ConfigPaths.DefaultHistoricalDataDirectory;
             IOptions<ProtoHistoricalDataStorageOptions> protoHistoricalDataStorageOptions = Options.Create(new ProtoHistoricalDataStorageOptions
             {
                 Directory = historicalDataDirectory,

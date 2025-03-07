@@ -33,7 +33,7 @@ namespace CryptoBlade.Tests.BackTesting.Bybit
         {
             var options = Options.Create(new ProtoHistoricalDataStorageOptions
             {
-                Directory = ConfigConstants.DefaultHistoricalDataDirectory,
+                Directory = ConfigPaths.DefaultHistoricalDataDirectory,
             });
             var storage = new ProtoHistoricalDataStorage(options);
             var bybit = new BybitRestClient();

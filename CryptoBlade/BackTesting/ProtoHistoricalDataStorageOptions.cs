@@ -4,6 +4,6 @@ namespace CryptoBlade.BackTesting
 {
     public class ProtoHistoricalDataStorageOptions
     {
-        public string Directory { get; set; } = ConfigConstants.DefaultHistoricalDataDirectory;
+        public string Directory { get; set; } = ConfigPaths.DefaultHistoricalDataDirectory;
     }
 }

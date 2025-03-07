@@ -22,7 +22,7 @@ namespace CryptoBlade.Optimizer
 
         public async Task<BacktestPerformanceResult> ExecuteAsync(IOptions<TradingBotOptions> options, CancellationToken cancel)
         {
-            const string historicalDataDirectory = ConfigConstants.DefaultHistoricalDataDirectory;
+            const string historicalDataDirectory = ConfigPaths.DefaultHistoricalDataDirectory;
             IOptions<BackTestExchangeOptions> backTestExchangeOptions = Options.Create(new BackTestExchangeOptions
             {
                 Symbols = options.Value.Whitelist,
@@ -60,13 +60,9 @@ namespace CryptoBlade.Optimizer
                 tradingStrategyFactory,
                 walletManager,
                 backtestLifeTime);
-            IOptions<BackTestPerformanceTrackerOptions> backTestPerformanceTrackerOptions = Options.Create(new BackTestPerformanceTrackerOptions
-            {
-                BackTestsDirectory = ConfigConstants.BackTestsDirectory,
-            });
             ExternalBackTestIdProvider externalBackTestIdProvider = new ExternalBackTestIdProvider(options.Value.CalculateMd5());
             BackTestPerformanceTracker backTestPerformanceTracker = new BackTestPerformanceTracker(
-                backTestPerformanceTrackerOptions, options,
+                options,
                 backTestExchange,
                 externalBackTestIdProvider,
                 ApplicationLogging.CreateLogger<BackTestPerformanceTracker>());

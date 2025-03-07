@@ -15,7 +15,6 @@ namespace CryptoBlade.BackTesting
     {
         private readonly record struct BalanceInTime(Balance Balance, decimal TotalBalance, DateTime Time);
         private readonly record struct ScatterPlotPoint(double X, double Y);
-        private readonly IOptions<BackTestPerformanceTrackerOptions> m_options;
         private readonly BackTestExchange m_backTestExchange;
         private IUpdateSubscription? m_nextStepSubscription;
         private IUpdateSubscription? m_fundingRateSubscription;
@@ -34,8 +33,7 @@ namespace CryptoBlade.BackTesting
         private bool m_resultsSaved;
         private readonly Dictionary<string, decimal> m_fundingRateProfitOrLoss;
         
-        public BackTestPerformanceTracker(IOptions<BackTestPerformanceTrackerOptions> options,
-            IOptions<TradingBotOptions> tradingBotOptions,
+        public BackTestPerformanceTracker(IOptions<TradingBotOptions> tradingBotOptions,
             BackTestExchange backTestExchange, 
             IBackTestIdProvider backTestIdProvider,
             ILogger<BackTestPerformanceTracker> logger)
@@ -44,7 +42,6 @@ namespace CryptoBlade.BackTesting
             m_lowestEquityToBalance = 1.0m;
             m_backTestExchange = backTestExchange;
             m_logger = logger;
-            m_options = options;
             m_lock = new AsyncLock();
             m_tradingBotOptions = tradingBotOptions;
             m_testId = backTestIdProvider.GetTestId();
@@ -284,7 +281,7 @@ namespace CryptoBlade.BackTesting
                 FundingRateProfitOrLosses = fundingRateProfitOrLosses
             };
             Result = result;
-            var directory = Path.Combine(m_options.Value.BackTestsDirectory, m_testId);
+            var directory = Path.Combine(ConfigPaths.GetBackTestResultDirectory(m_tradingBotOptions.Value.StrategyName), m_testId);
             Directory.CreateDirectory(directory);
             string filePath = Path.Combine(directory, m_tradingBotOptions.Value.BackTest.ResultFileName);
 
@@ -407,7 +404,7 @@ namespace CryptoBlade.BackTesting
                 }
             }
 
-            var directory = Path.Combine(m_options.Value.BackTestsDirectory, m_testId);
+            var directory = Path.Combine(ConfigPaths.GetBackTestResultDirectory(m_tradingBotOptions.Value.StrategyName), m_testId);
             Directory.CreateDirectory(directory);
             string filePath = Path.Combine(directory, "balance_and_equity_sampled.png");
             plt.SavePng(filePath, 2900, 1800);

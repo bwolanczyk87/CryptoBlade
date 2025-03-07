@@ -132,7 +132,7 @@ namespace CryptoBlade
                     cbRestClient);
                 return exchange;
             });
-            const string historicalDataDirectory = ConfigConstants.DefaultHistoricalDataDirectory;
+            const string historicalDataDirectory = ConfigPaths.DefaultHistoricalDataDirectory;
             builder.Services.AddOptions<BackTestExchangeOptions>().Configure(x =>
             {
                 x.Start = tradingBotOptions.BackTest.Start;
@@ -185,10 +185,6 @@ namespace CryptoBlade
             builder.Services.AddSingleton<ICbFuturesSocketClient>(sp => sp.GetRequiredService<BackTestExchange>());
             builder.Services.AddSingleton<IBackTestRunner>(sp => sp.GetRequiredService<BackTestExchange>());
             builder.Services.AddHostedService<BackTestPerformanceTracker>();
-            builder.Services.AddOptions<BackTestPerformanceTrackerOptions>().Configure(x =>
-            {
-                x.BackTestsDirectory = ConfigConstants.BackTestsDirectory;
-            });
         }
 
         private static BybitCbFuturesRestClient CreateUnauthorizedBybitClient(IOptions<TradingBotOptions> tradingBotOptions)

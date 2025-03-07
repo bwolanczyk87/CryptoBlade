@@ -141,7 +141,7 @@ namespace CryptoBlade.Optimizer
                 default:
                     throw new ArgumentOutOfRangeException("Invalid strategy name");
             }
-            const string optimizerDirectory = "OptimizerResults";
+            string optimizerDirectory = ConfigPaths.GetOptimizerResultDirectory(m_options.Value.StrategyName);
             var resultsDir = m_options.Value.Optimizer.SessionId;
             if (!Directory.Exists(optimizerDirectory))
                 Directory.CreateDirectory(optimizerDirectory);
@@ -196,7 +196,7 @@ namespace CryptoBlade.Optimizer
                 var serializablePopulation = (SerializablePopulation)ga.Population;
                 serializablePopulation.SerializePopulation(generationPopulationFile);
                 var md5Options = clonedOptions.Value.CalculateMd5();
-                var backtestResults = Path.Combine(ConfigConstants.BackTestsDirectory, md5Options);
+                var backtestResults = Path.Combine(ConfigPaths.GetBackTestResultDirectory(m_options.Value.StrategyName), md5Options);
                 var backtestFiles = Directory.GetFiles(backtestResults);
                 foreach (var backtestFile in backtestFiles)
                 {
@@ -244,7 +244,7 @@ namespace CryptoBlade.Optimizer
             IOptions<ProtoHistoricalDataStorageOptions> protoHistoricalDataStorageOptions = Options.Create(
                 new ProtoHistoricalDataStorageOptions
                 {
-                    Directory = ConfigConstants.DefaultHistoricalDataDirectory,
+                    Directory = ConfigPaths.DefaultHistoricalDataDirectory,
                 });
             ProtoHistoricalDataStorage historicalDataStorage =
                 new ProtoHistoricalDataStorage(protoHistoricalDataStorageOptions);

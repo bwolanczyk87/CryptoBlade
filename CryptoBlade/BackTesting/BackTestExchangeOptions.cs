@@ -18,6 +18,6 @@ namespace CryptoBlade.BackTesting
 
         public decimal TakerFeeRate { get; set; } = 0.00055m;
 
-        public string HistoricalDataDirectory { get; set; } = ConfigConstants.DefaultHistoricalDataDirectory;
+        public string HistoricalDataDirectory { get; set; } = ConfigPaths.DefaultHistoricalDataDirectory;
     }
 }

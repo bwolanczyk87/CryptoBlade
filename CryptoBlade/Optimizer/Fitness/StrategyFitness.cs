@@ -44,7 +44,7 @@ namespace CryptoBlade.Optimizer.Fitness
         private BacktestPerformanceResult? TryToLoadExistingResult(TradingBotOptions options)
         {
             var md5Options = options.CalculateMd5();
-            var backtestResultPath = Path.Combine(ConfigConstants.BackTestsDirectory, md5Options);
+            var backtestResultPath = Path.Combine(ConfigPaths.GetBackTestResultDirectory(options.StrategyName), md5Options);
             if (Directory.Exists(backtestResultPath))
             {
                 var resultFile = Path.Combine(backtestResultPath, options.BackTest.ResultFileName);
