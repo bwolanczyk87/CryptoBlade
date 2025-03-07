@@ -6,22 +6,25 @@ services:
         - "autoheal=true"
     ports:
         - 8092:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/AutoHedge/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
-        - CB_TradingBot__AccountName=CryptoBlade
-        - CB_TradingBot__Accounts__0__ApiKey=
-        - CB_TradingBot__Accounts__0__ApiSecret=
-        - CB_TradingBot__Accounts__0__Exchange=0
+        - CB_TradingBot__AccountName=CryptoBlade_Demo
+        - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
+        - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv
+        - CB_TradingBot__Accounts__0__Exchange=Bybit
         - CB_TradingBot__Accounts__0__IsDemo=True
-        - CB_TradingBot__Accounts__0__Name=CryptoBlade
-        - CB_TradingBot__Accounts__1__ApiKey=
-        - CB_TradingBot__Accounts__1__ApiSecret=
-        - CB_TradingBot__Accounts__1__Exchange=0
+        - CB_TradingBot__Accounts__0__Name=CryptoBlade_Demo
+        - CB_TradingBot__Accounts__1__ApiKey=URvF5Qbv7PBnHWs0k3
+        - CB_TradingBot__Accounts__1__ApiSecret=w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv
+        - CB_TradingBot__Accounts__1__Exchange=Bybit
         - CB_TradingBot__Accounts__1__IsDemo=False
         - CB_TradingBot__Accounts__1__Name=CryptoBlade_Subaccount
-        - CB_TradingBot__BackTest__End=2023-08-19T00:00:00
+        - CB_TradingBot__BackTest__End=2025-03-07T00:00:00
         - CB_TradingBot__BackTest__InitialBalance=1000
         - CB_TradingBot__BackTest__InitialUntradableDays=0
-        - CB_TradingBot__BackTest__Start=2023-01-01T00:00:00
+        - CB_TradingBot__BackTest__Start=2025-02-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__CriticalMode__EnableCriticalModeLong=True
         - CB_TradingBot__CriticalMode__EnableCriticalModeShort=True
@@ -67,52 +70,7 @@ services:
         - CB_TradingBot__WalletExposureShort=2.0
         - CB_TradingBot__Whitelist__0=ARBUSDT
         - CB_TradingBot__Whitelist__1=OPUSDT
-        - CB_TradingBot__Whitelist__10=INJUSDT
-        - CB_TradingBot__Whitelist__11=ETHWUSDT
-        - CB_TradingBot__Whitelist__12=TUSDT
-        - CB_TradingBot__Whitelist__13=DOGEUSDT
-        - CB_TradingBot__Whitelist__14=SOLUSDT
-        - CB_TradingBot__Whitelist__15=BCHUSDT
-        - CB_TradingBot__Whitelist__16=LINKUSDT
-        - CB_TradingBot__Whitelist__17=GRTUSDT
-        - CB_TradingBot__Whitelist__18=MANAUSDT
-        - CB_TradingBot__Whitelist__19=1000PEPEUSDT
         - CB_TradingBot__Whitelist__2=XRPUSDT
-        - CB_TradingBot__Whitelist__20=STXUSDT
-        - CB_TradingBot__Whitelist__21=LDOUSDT
-        - CB_TradingBot__Whitelist__22=COMPUSDT
-        - CB_TradingBot__Whitelist__23=XLMUSDT
-        - CB_TradingBot__Whitelist__24=ETCUSDT
-        - CB_TradingBot__Whitelist__25=STORJUSDT
-        - CB_TradingBot__Whitelist__26=CELOUSDT
-        - CB_TradingBot__Whitelist__27=APTUSDT
-        - CB_TradingBot__Whitelist__28=ADAUSDT
-        - CB_TradingBot__Whitelist__29=RDNTUSDT
         - CB_TradingBot__Whitelist__3=LINAUSDT
-        - CB_TradingBot__Whitelist__30=FLOWUSDT
-        - CB_TradingBot__Whitelist__31=AVAXUSDT
-        - CB_TradingBot__Whitelist__32=ATOMUSDT
-        - CB_TradingBot__Whitelist__33=FILUSDT
-        - CB_TradingBot__Whitelist__34=MTLUSDT
-        - CB_TradingBot__Whitelist__35=MKRUSDT
-        - CB_TradingBot__Whitelist__36=XMRUSDT
-        - CB_TradingBot__Whitelist__37=MASKUSDT
-        - CB_TradingBot__Whitelist__38=NEOUSDT
-        - CB_TradingBot__Whitelist__39=AGLDUSDT
         - CB_TradingBot__Whitelist__4=TRXUSDT
-        - CB_TradingBot__Whitelist__40=TRBUSDT
-        - CB_TradingBot__Whitelist__41=ZECUSDT
-        - CB_TradingBot__Whitelist__42=UNIUSDT
-        - CB_TradingBot__Whitelist__43=CVXUSDT
-        - CB_TradingBot__Whitelist__44=ZENUSDT
-        - CB_TradingBot__Whitelist__45=DYDXUSDT
-        - CB_TradingBot__Whitelist__46=AXSUSDT
-        - CB_TradingBot__Whitelist__47=GMXUSDT
-        - CB_TradingBot__Whitelist__48=OGNUSDT
-        - CB_TradingBot__Whitelist__49=ENSUSDT
-        - CB_TradingBot__Whitelist__5=NEARUSDT
-        - CB_TradingBot__Whitelist__6=SUIUSDT
-        - CB_TradingBot__Whitelist__7=GMTUSDT
-        - CB_TradingBot__Whitelist__8=ORDIUSDT
-        - CB_TradingBot__Whitelist__9=MATICUSDT
 

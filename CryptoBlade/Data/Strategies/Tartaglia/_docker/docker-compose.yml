@@ -6,6 +6,9 @@ services:
         - "autoheal=true"
     ports:
         - 8096:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/Tartaglia/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__AccountName=CryptoBlade_Demo
         - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm

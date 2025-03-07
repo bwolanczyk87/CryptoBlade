@@ -6,6 +6,9 @@ services:
         - "autoheal=true"
     ports:
         - 8094:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/Mona/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
         - CB_TradingBot__Accounts__0__ApiSecret=WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv

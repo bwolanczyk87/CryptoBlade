@@ -6,6 +6,9 @@ services:
         - "autoheal=true"
     ports:
         - 8092:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/MfiRsiCandlePrecise/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__AccountName=CryptoBlade_Demo
         - CB_TradingBot__Accounts__0__ApiKey=LOYP26XvTB3ZbrLtdm
