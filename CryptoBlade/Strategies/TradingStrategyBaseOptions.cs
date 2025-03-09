@@ -1,5 +1,6 @@
 ﻿using CryptoBlade.Configuration;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Strategies
 {
@@ -18,5 +19,11 @@ namespace CryptoBlade.Strategies
         public bool EnableRecursiveQtyFactorLong { get; set; }
         
         public bool EnableRecursiveQtyFactorShort { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolMaturityPreference { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolVolumePreference { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolVolatilityPreference { get; set; }
     }
 }

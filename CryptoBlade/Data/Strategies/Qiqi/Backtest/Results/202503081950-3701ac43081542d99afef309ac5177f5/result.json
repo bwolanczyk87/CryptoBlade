@@ -1,0 +1,24 @@
+{
+  "InitialBalance": 1000,
+  "FinalBalance": 1197.7900888914833000000000000,
+  "FinalEquity": 1205.8547388914832999999999999,
+  "LowestEquityToBalance": 0.868,
+  "UnrealizedPnl": 7.1315499999999999999999998667,
+  "RealizedPnl": 197.79008889148330000000000000,
+  "AverageDailyGainPercent": 0.624279401343000,
+  "MaxDrawDown": 0.0005821983112761389786737163,
+  "TotalDays": 29,
+  "ExpectedDays": 29,
+  "LossProfitRatio": 0.009159598641204225641541898,
+  "SpotBalance": 0,
+  "EquityBalanceNormalizedRooMeanSquareError": 0.03636569782646214,
+  "AdgNormalizedRootMeanSquareError": 0.07019157551355466,
+  "TotalFundingRateProfitOrLoss": -0.2134537785167000000000000000,
+  "OpenPositionWithOrders": [],
+  "FundingRateProfitOrLosses": [
+    {
+      "Symbol": "ARBUSDT",
+      "ProfitOrLoss": -0.2134537785167000000000000000
+    }
+  ]
+}

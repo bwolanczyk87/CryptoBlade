@@ -73,6 +73,9 @@
     "WalletExposureThresholdLong": 0.3,
     "WalletExposureThresholdShort": 0.3
   },
+  "SymbolVolumePreference": [ "MEDIUM", "HIGH" ],
+  "SymbolVolatilityPreference": [ "MEDIUM", "HIGH" ],
+  "SymbolMaturityPreference": [ "MEDIUM", "HIGH" ],
   "Whitelist": [
     "ARBUSDT",
     "OPUSDT",

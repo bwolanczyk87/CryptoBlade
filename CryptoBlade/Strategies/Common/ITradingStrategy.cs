@@ -1,4 +1,5 @@
 ﻿using CryptoBlade.Models;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Strategies.Common
 {
@@ -49,6 +50,12 @@ namespace CryptoBlade.Strategies.Common
         decimal? CurrentExposureLong { get;  }
         
         decimal? CurrentExposureShort { get; }
+
+        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; }
+
+        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; }
+
+        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; }
 
         Task UpdateTradingStateAsync(Position? longPosition, Position? shortPosition, Order[] openOrders, CancellationToken cancel);
 

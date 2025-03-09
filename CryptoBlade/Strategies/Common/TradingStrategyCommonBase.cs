@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
 using System.Threading.Channels;
 using CryptoBlade.Mapping;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Strategies.Common
 {
@@ -73,6 +74,7 @@ namespace CryptoBlade.Strategies.Common
 
         public string Symbol { get; }
         public SymbolInfo SymbolInfo { get; private set; }
+        public SymbolClassification SymbolClassification { get; }
         public decimal? DynamicQtyShort { get; protected set; }
         public decimal? DynamicQtyLong { get; protected set; }
         public decimal? MaxQtyShort { get; protected set; }
