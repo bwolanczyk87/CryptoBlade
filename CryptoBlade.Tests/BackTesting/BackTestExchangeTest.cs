@@ -10,6 +10,7 @@ using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
+using CryptoBlade.Strategies.Symbols;
 using Microsoft.Extensions.Options;
 using Xunit.Abstractions;
 
@@ -35,7 +36,7 @@ namespace CryptoBlade.Tests.BackTesting
             {
                 Start = start,
                 End = end,
-                Symbols = symbols,
+                Whitelist = symbols,
             });
 
             var options = Options.Create(new ProtoHistoricalDataStorageOptions
@@ -59,7 +60,9 @@ namespace CryptoBlade.Tests.BackTesting
                 cbRestClient);
             BackTestDataDownloader backTestDataDownloader =
                 new BackTestDataDownloader(downloader);
-            var exchange = new BackTestExchange(exchangeOptions, backTestDataDownloader, storage, cbRestClient);
+            TradingSymbolsManager tradingSymbolsManager = new TradingSymbolsManager(
+                ApplicationLogging.CreateLogger<TradingSymbolsManager>());
+            var exchange = new BackTestExchange(exchangeOptions, backTestDataDownloader, storage, cbRestClient, tradingSymbolsManager);
             await exchange.PrepareDataAsync();
             List<IUpdateSubscription> subscriptions = new List<IUpdateSubscription>();
             

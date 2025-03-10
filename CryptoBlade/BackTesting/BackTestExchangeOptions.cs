@@ -1,4 +1,5 @@
 ﻿using CryptoBlade.Configuration;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.BackTesting
 {
@@ -10,7 +11,9 @@ namespace CryptoBlade.BackTesting
 
         public TimeSpan StartupCandleData { get; set; } = TimeSpan.FromDays(1);
 
-        public string[] Symbols { get; set; } = Array.Empty<string>();
+        public string[] Whitelist { get; set; } = Array.Empty<string>();
+
+        public string[] Blacklist { get; set; } = Array.Empty<string>();
 
         public decimal InitialBalance { get; set; } = 5000;
 
@@ -19,5 +22,11 @@ namespace CryptoBlade.BackTesting
         public decimal TakerFeeRate { get; set; } = 0.00055m;
 
         public string HistoricalDataDirectory { get; set; } = ConfigPaths.DefaultHistoricalDataDirectory;
+
+        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+
+        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+
+        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
     }
 }

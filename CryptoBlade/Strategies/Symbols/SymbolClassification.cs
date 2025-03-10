@@ -2,16 +2,10 @@
 {
     public class SymbolClassification
     {
-        public DateTime LunchTime { get; set; }
+        public SymbolClassificationLevel MaturityLevel { get; set; }
 
-        public decimal? Volume24H { get; set; }
+        public SymbolClassificationLevel VolumeLevel { get; set; }
 
-        public decimal? Volatility { get; set; }
-
-        public SymbolClassificationLevel Maturity { get; set; }
-
-        public SymbolClassificationLevel VolumeCategory { get; set; }
-
-        public SymbolClassificationLevel VolatilityCategory { get; set; }
+        public SymbolClassificationLevel VolatilityLevel { get; set; }
     }
 }

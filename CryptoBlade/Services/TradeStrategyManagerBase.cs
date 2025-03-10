@@ -4,6 +4,7 @@ using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
@@ -18,6 +19,7 @@ namespace CryptoBlade.Services
         protected readonly record struct SymbolTicker(string Symbol, Ticker Ticker);
         private readonly ILogger<TradeStrategyManagerBase> m_logger;
         private readonly Dictionary<string, ITradingStrategy> m_strategies;
+        private readonly ITradingSymbolsManager m_symbolsManager;
         private readonly ITradingStrategyFactory m_strategyFactory;
         private readonly ICbFuturesRestClient m_restClient;
         private readonly ICbFuturesSocketClient m_socketClient;
@@ -33,6 +35,7 @@ namespace CryptoBlade.Services
 
         protected TradeStrategyManagerBase(IOptions<TradingBotOptions> options,
             ILogger<TradeStrategyManagerBase> logger,
+            ITradingSymbolsManager symbolsManager,
             ITradingStrategyFactory strategyFactory,
             ICbFuturesRestClient restClient,
             ICbFuturesSocketClient socketClient, 
@@ -45,6 +48,7 @@ namespace CryptoBlade.Services
             m_socketClient = socketClient;
             m_restClient = restClient;
             m_logger = logger;
+            m_symbolsManager = symbolsManager;
             m_strategies = new Dictionary<string, ITradingStrategy>();
             m_subscriptions = new List<IUpdateSubscription>();
             m_strategyExecutionChannel = Channel.CreateUnbounded<string>();
@@ -76,10 +80,10 @@ namespace CryptoBlade.Services
 
         public virtual async Task StartStrategiesAsync(CancellationToken cancel)
         {
-            await CreateStrategiesAsync();
             m_cancelSource = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             CancellationToken ctsCancel = m_cancelSource.Token;
             m_initTask = Task.Run(async () => await InitStrategiesAsync(ctsCancel), ctsCancel);
+            await m_initTask;
         }
 
         protected virtual async Task StrategyExecutionDataDelayAsync(CancellationToken cancel)
@@ -185,26 +189,27 @@ namespace CryptoBlade.Services
 
         private async Task InitStrategiesAsync(CancellationToken cancel)
         {
-            await PreInitializationPhaseAsync(cancel);
-            var symbolInfo = await GetSymbolInfoAsync(cancel);
-            Dictionary<string, SymbolInfo> symbolInfoDict = symbolInfo
-                .DistinctBy(x => x.Name)
-                .ToDictionary(x => x.Name, x => x);
-            List<string> missingSymbols = m_strategies.Select(x => x.Key)
-                .Where(x => !symbolInfoDict.ContainsKey(x))
-                .ToList();
-            // log missing symbols
-            foreach (var symbol in missingSymbols)
-                m_logger.LogWarning($"Symbol {symbol} is missing from the exchange.");
+            var tadingSymbolsInfo = await m_symbolsManager.GetTradingSymbolsAsync(
+                m_restClient,
+                m_options.Value.Whitelist.ToList(), 
+                m_options.Value.Blacklist.ToList(),
+                new SymbolPreferences
+                {
+                    Maturity = m_options.Value.SymbolMaturityPreference,
+                    Volume = m_options.Value.SymbolVolumePreference,
+                    Volatility = m_options.Value.SymbolVolatilityPreference
+                },
+                ConfigPaths.DefaultHistoricalDataDirectory,
+                cancel);    
 
-            foreach (string missingSymbol in missingSymbols)
-                m_strategies.Remove(missingSymbol);
+            await PreInitializationPhaseAsync(cancel);
+            await CreateStrategiesAsync(tadingSymbolsInfo);
 
             foreach (ITradingStrategy strategy in m_strategies.Values)
             {
                 await DelayBetweenEachSymbol(cancel);
-                if (symbolInfoDict.TryGetValue(strategy.Symbol, out var info))
-                    await strategy.SetupSymbolAsync(info, cancel);
+                var symbol = tadingSymbolsInfo.Where(x => x.Name == strategy.Symbol).First();
+                await strategy.SetupSymbolAsync(symbol, cancel);
             }
             
             var symbols = m_strategies.Values.Select(x => x.Symbol).ToArray();
@@ -287,13 +292,6 @@ namespace CryptoBlade.Services
             }
         }
 
-        private async Task<SymbolInfo[]> GetSymbolInfoAsync(CancellationToken cancel)
-        {
-            var symbolData = await m_restClient.GetSymbolInfoAsync(cancel);
-
-            return symbolData;
-        }
-
         public async Task StopStrategiesAsync(CancellationToken cancel)
         {
             m_logger.LogInformation("Stopping strategies...");
@@ -325,20 +323,13 @@ namespace CryptoBlade.Services
             m_logger.LogInformation("Strategies stopped.");
         }
 
-        private Task CreateStrategiesAsync()
+        private Task CreateStrategiesAsync(List<SymbolInfo> symbols)
         {
-            var config = m_options.Value;
-            List<string> finalSymbolList = config.Whitelist
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Except(config.Blacklist.Where(x => !string.IsNullOrWhiteSpace(x)))
-                .Distinct()
-                .ToList();
-            foreach (string symbol in finalSymbolList)
+            foreach (var symbol in symbols)
             {
-                var strategy = m_strategyFactory.CreateStrategy(config, symbol);
+                var strategy = m_strategyFactory.CreateStrategy(m_options.Value, symbol.Name);
                 m_strategies[strategy.Symbol] = strategy;
             }
-
             return Task.CompletedTask;
         }
 

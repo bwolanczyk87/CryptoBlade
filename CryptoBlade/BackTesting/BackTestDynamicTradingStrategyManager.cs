@@ -1,6 +1,7 @@
 ﻿using CryptoBlade.Configuration;
 using CryptoBlade.Services;
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -15,10 +16,11 @@ namespace CryptoBlade.BackTesting
         public BackTestDynamicTradingStrategyManager(IOptions<TradingBotOptions> options, 
             ILogger<DynamicTradingStrategyManager> logger,
             BackTestExchange backTestExchange,
+            ITradingSymbolsManager tradingSymbolsManager,
             ITradingStrategyFactory strategyFactory,
             IWalletManager walletManager, 
             IHostApplicationLifetime hostApplicationLifetime) 
-            : base(options, logger, strategyFactory, backTestExchange, backTestExchange, walletManager)
+            : base(options, logger, tradingSymbolsManager, strategyFactory, backTestExchange, backTestExchange, walletManager)
         {
             m_backTestExchange = backTestExchange;
             m_hostApplicationLifetime = hostApplicationLifetime;

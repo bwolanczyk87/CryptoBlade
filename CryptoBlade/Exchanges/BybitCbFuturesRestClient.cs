@@ -6,6 +6,7 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
+using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
@@ -435,8 +436,15 @@ namespace CryptoBlade.Exchanges
                         throw new InvalidOperationException(error.Message);
                     var s = data.List
                         .Where(x => string.Equals(m_trading_bot_options.Value.QuoteAsset, x.QuoteAsset))
-                        .Select(x => x.ToSymbolInfo());
-                    symbolInfo.AddRange(s);
+                        .Select(async x =>
+                        {
+                            var symbol = x.ToSymbolInfo();
+                            symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
+                            symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
+                            return symbol;
+                        });
+                    var symbolInfoTasks = await Task.WhenAll(s);
+                    symbolInfo.AddRange(symbolInfoTasks);
                     if (string.IsNullOrWhiteSpace(data.NextPageCursor))
                         break;
                     cursor = data.NextPageCursor;
@@ -446,6 +454,21 @@ namespace CryptoBlade.Exchanges
             });
 
             return symbolData;
+        }
+
+        public async Task<decimal?> GetSymbolVolumeAsync(string symbol, CancellationToken cancel = default)
+        {
+            var ticker = await GetTickerAsync(symbol, cancel);
+            if (ticker == null)
+                return null;
+
+            return ticker.Volume24H;
+        }
+
+        public async Task<decimal?> GetSymbolVolatility(string symbol, CancellationToken cancel = default)
+        {
+            var candles = await GetKlinesAsync(symbol, TimeFrame.OneDay, 31, cancel);
+            return TradingHelpers.CalculateVolatility(candles);
         }
 
         public async Task<Candle[]> GetKlinesAsync(

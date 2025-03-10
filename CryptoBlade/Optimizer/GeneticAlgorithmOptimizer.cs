@@ -11,6 +11,7 @@ using CryptoBlade.Optimizer.Strategies.MfiRsiEriTrend;
 using CryptoBlade.Optimizer.Strategies.Qiqi;
 using CryptoBlade.Optimizer.Strategies.Tartaglia;
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Symbols;
 using GeneticSharp;
 using Microsoft.Extensions.Options;
 
@@ -23,14 +24,17 @@ namespace CryptoBlade.Optimizer
         private Task? m_executionTask;
         private readonly ILogger<GeneticAlgorithmOptimizer> m_logger;
         private readonly IHostApplicationLifetime m_applicationLifetime;
+        private readonly ITradingSymbolsManager m_tradingSymbolsManager;
 
         public GeneticAlgorithmOptimizer(IOptions<TradingBotOptions> options,
             ILogger<GeneticAlgorithmOptimizer> logger,
-            IHostApplicationLifetime applicationLifetime)
+            IHostApplicationLifetime applicationLifetime,
+            ITradingSymbolsManager symbolsManager)
         {
             m_options = options;
             m_logger = logger;
             m_applicationLifetime = applicationLifetime;
+            m_tradingSymbolsManager = symbolsManager;
         }
 
         public Task RunAsync(CancellationToken cancel)
@@ -86,7 +90,7 @@ namespace CryptoBlade.Optimizer
                     throw new ArgumentOutOfRangeException("Invalid mutation strategy");
             }
             var historicalDataStorage = HistoricalDataStorageFactory.CreateHistoricalDataStorage(m_options);
-            var fitness = new StrategyFitness(m_options, historicalDataStorage, cancel, m_logger);
+            var fitness = new StrategyFitness(m_options, historicalDataStorage, m_tradingSymbolsManager, cancel, m_logger);
             IChromosome chromosome;
             switch (m_options.Value.StrategyName)
             {

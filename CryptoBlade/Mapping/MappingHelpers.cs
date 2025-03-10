@@ -118,6 +118,7 @@ namespace CryptoBlade.Mapping
                 BestBidPrice = ticker.BestBidPrice,
                 FundingRate = ticker.FundingRate,
                 Timestamp = DateTime.UtcNow,
+                Volume24H = ticker.Volume24h
             };
         }
 
@@ -181,7 +182,7 @@ namespace CryptoBlade.Mapping
                 MinOrderQty = symbol.LotSizeFilter?.MinOrderQuantity,
                 QtyStep = symbol.LotSizeFilter?.QuantityStep,
                 MaxLeverage = symbol.LeverageFilter?.MaxLeverage,
-                LaunchTime = symbol.LaunchTime,
+                LaunchTime = symbol.LaunchTime
             };
         }
 

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Configuration
 {
@@ -40,5 +41,8 @@ namespace CryptoBlade.Configuration
         public StrategyOptions Strategies { get; set; } = new StrategyOptions();
         public CriticalMode CriticalMode { get; set; } = new CriticalMode();
         public OptimizerOptions Optimizer { get; set; } = new OptimizerOptions();
+        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
     }
 }

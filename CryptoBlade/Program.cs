@@ -20,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection;
 using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade
 {
@@ -103,11 +104,13 @@ namespace CryptoBlade
             builder.Services.AddHostedService<OptimizerHostedService>();
             builder.Services.AddSingleton<IOptimizer, GeneticAlgorithmOptimizer>();
             builder.Services.AddSingleton<IWalletManager, NullWalletManager>();
+            builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
             builder.Services.AddSingleton<ITradeStrategyManager, NullTradeStrategyManager>();
         }
 
         private static void AddBackTestDependencies(WebApplicationBuilder builder, IHealthChecksBuilder healthChecksBuilder)
-        {
+        { 
+            builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
             builder.Services.AddSingleton<ITradingStrategyFactory, TradingStrategyFactory>();
             builder.Services.AddSingleton<IBackTestIdProvider, BackTestIdProvider>();
             healthChecksBuilder.AddCheck<BacktestExecutionHealthCheck>("Backtest");
@@ -124,12 +127,14 @@ namespace CryptoBlade
                 var backtestDownloader = sp.GetRequiredService<IBackTestDataDownloader>();
                 var historicalDataStorage = sp.GetRequiredService<IHistoricalDataStorage>();
                 var cbRestClient = CreateUnauthorizedBybitClient(Options.Create(tradingBotOptions));
+                var symbolManager = sp.GetRequiredService<ITradingSymbolsManager>();
 
                 var exchange = new BackTestExchange(
                     options, 
                     backtestDownloader, 
                     historicalDataStorage,
-                    cbRestClient);
+                    cbRestClient,
+                    symbolManager);
                 return exchange;
             });
             const string historicalDataDirectory = ConfigPaths.DefaultHistoricalDataDirectory;
@@ -139,10 +144,14 @@ namespace CryptoBlade
                 x.End = tradingBotOptions.BackTest.End;
                 x.InitialBalance = tradingBotOptions.BackTest.InitialBalance;
                 x.StartupCandleData = tradingBotOptions.BackTest.StartupCandleData;
-                x.Symbols = tradingBotOptions.Whitelist;
+                x.Whitelist = tradingBotOptions.Whitelist;
+                x.Blacklist = tradingBotOptions.Blacklist;
                 x.MakerFeeRate = tradingBotOptions.MakerFeeRate;
                 x.TakerFeeRate = tradingBotOptions.TakerFeeRate;
                 x.HistoricalDataDirectory = historicalDataDirectory;
+                x.SymbolMaturityPreference = tradingBotOptions.SymbolMaturityPreference;
+                x.SymbolVolumePreference = tradingBotOptions.SymbolVolumePreference;
+                x.SymbolVolatilityPreference = tradingBotOptions.SymbolVolatilityPreference;
             });
             builder.Services.AddOptions<TradingBotOptions>().Configure(x =>
                 x = tradingBotOptions
@@ -214,6 +223,7 @@ namespace CryptoBlade
 
         private static void AddLiveDependencies(WebApplicationBuilder builder, IHealthChecksBuilder healthChecksBuilder)
         {
+            builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
             builder.Services.AddSingleton<ITradingStrategyFactory, TradingStrategyFactory>();
             healthChecksBuilder.AddCheck<TradeExecutionHealthCheck>("TradeExecution");
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();

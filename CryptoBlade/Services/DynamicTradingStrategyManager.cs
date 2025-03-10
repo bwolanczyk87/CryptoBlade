@@ -3,6 +3,7 @@ using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 
@@ -17,12 +18,13 @@ namespace CryptoBlade.Services
         private readonly RollingWindowThrottler m_strategyLongThrottler;
 
         public DynamicTradingStrategyManager(IOptions<TradingBotOptions> options, 
-            ILogger<DynamicTradingStrategyManager> logger, 
+            ILogger<DynamicTradingStrategyManager> logger,
+            ITradingSymbolsManager symbolsManager,
             ITradingStrategyFactory strategyFactory, 
             ICbFuturesRestClient restClient,
             ICbFuturesSocketClient socketClient, 
             IWalletManager walletManager) 
-            : base(options, logger, strategyFactory, restClient, socketClient, walletManager)
+            : base(options, logger, symbolsManager, strategyFactory, restClient, socketClient, walletManager)
         {
             m_options = options;
             m_logger = logger;

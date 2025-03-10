@@ -51,12 +51,6 @@ namespace CryptoBlade.Strategies.Common
         
         decimal? CurrentExposureShort { get; }
 
-        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; }
-
-        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; }
-
-        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; }
-
         Task UpdateTradingStateAsync(Position? longPosition, Position? shortPosition, Order[] openOrders, CancellationToken cancel);
 
         Task SetupSymbolAsync(SymbolInfo symbol, CancellationToken cancel);

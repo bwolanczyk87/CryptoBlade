@@ -11,5 +11,7 @@
         public decimal? FundingRate { get; set; }
 
         public DateTime Timestamp { get; set; }
+
+        public decimal Volume24H { get; set; }
     }
 }

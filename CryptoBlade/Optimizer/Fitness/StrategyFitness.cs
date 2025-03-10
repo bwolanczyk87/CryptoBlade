@@ -3,6 +3,7 @@ using CryptoBlade.BackTesting;
 using CryptoBlade.Configuration;
 using CryptoBlade.Helpers;
 using CryptoBlade.Optimizer.Strategies;
+using CryptoBlade.Strategies.Symbols;
 using GeneticSharp;
 using Microsoft.Extensions.Options;
 
@@ -11,16 +12,19 @@ namespace CryptoBlade.Optimizer.Fitness
     public class StrategyFitness : IFitness
     {
         private readonly IHistoricalDataStorage m_historicalDataStorage;
+        private readonly ITradingSymbolsManager m_tradingSymbolsManager;
         private readonly IOptions<TradingBotOptions> m_initialOptions;
         private readonly CancellationToken m_cancel;
         private readonly ILogger m_logger;
 
         public StrategyFitness(IOptions<TradingBotOptions> initialOptions,
             IHistoricalDataStorage historicalDataStorage,
+            ITradingSymbolsManager tradingSymbolsManager,
             CancellationToken cancel,
             ILogger logger)
         {
             m_historicalDataStorage = historicalDataStorage;
+            m_tradingSymbolsManager = tradingSymbolsManager;
             m_initialOptions = initialOptions;
             m_cancel = cancel;
             m_logger = logger;
@@ -28,7 +32,7 @@ namespace CryptoBlade.Optimizer.Fitness
 
         public double Evaluate(IChromosome chromosome)
         {
-            OptimizerBacktestExecutor backtestExecutor = new OptimizerBacktestExecutor(m_historicalDataStorage);
+            OptimizerBacktestExecutor backtestExecutor = new OptimizerBacktestExecutor(m_historicalDataStorage, m_tradingSymbolsManager);
             var clonedOptions = Options.Create(m_initialOptions.Value.Clone());
             ITradingBotChromosome tradingBotChromosome = (ITradingBotChromosome)chromosome;
             tradingBotChromosome.ApplyGenesToTradingBotOptions(clonedOptions.Value);

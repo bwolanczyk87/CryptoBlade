@@ -6,6 +6,7 @@ using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Services;
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 
@@ -14,10 +15,12 @@ namespace CryptoBlade.Optimizer
     public class OptimizerBacktestExecutor : IBacktestExecutor
     {
         private readonly IHistoricalDataStorage m_historicalDataStorage;
+        private readonly ITradingSymbolsManager m_tradingSymbolsManager;
 
-        public OptimizerBacktestExecutor(IHistoricalDataStorage historicalDataStorage)
+        public OptimizerBacktestExecutor(IHistoricalDataStorage historicalDataStorage, ITradingSymbolsManager symbolsManager)
         {
             m_historicalDataStorage = historicalDataStorage;
+            m_tradingSymbolsManager = symbolsManager;
         }
 
         public async Task<BacktestPerformanceResult> ExecuteAsync(IOptions<TradingBotOptions> options, CancellationToken cancel)
@@ -25,7 +28,7 @@ namespace CryptoBlade.Optimizer
             const string historicalDataDirectory = ConfigPaths.DefaultHistoricalDataDirectory;
             IOptions<BackTestExchangeOptions> backTestExchangeOptions = Options.Create(new BackTestExchangeOptions
             {
-                Symbols = options.Value.Whitelist,
+                Whitelist = options.Value.Whitelist,
                 Start = options.Value.BackTest.Start,
                 End = options.Value.BackTest.End,
                 InitialBalance = options.Value.BackTest.InitialBalance,
@@ -47,7 +50,8 @@ namespace CryptoBlade.Optimizer
                 backTestExchangeOptions,
                 backTestDataDownloader,
                 m_historicalDataStorage,
-                bybitCbFuturesRestClient);
+                bybitCbFuturesRestClient,
+                m_tradingSymbolsManager);
             WalletManager walletManager = new WalletManager(ApplicationLogging.CreateLogger<WalletManager>(), backTestExchange, backTestExchange);
             TradingStrategyFactory tradingStrategyFactory = new TradingStrategyFactory(walletManager, backTestExchange, options);
             OptimizerApplicationHostApplicationLifetime backtestLifeTime = new OptimizerApplicationHostApplicationLifetime(cancel);
@@ -57,6 +61,7 @@ namespace CryptoBlade.Optimizer
                 options,
                 ApplicationLogging.CreateLogger<DynamicTradingStrategyManager>(),
                 backTestExchange,
+                m_tradingSymbolsManager,
                 tradingStrategyFactory,
                 walletManager,
                 backtestLifeTime);

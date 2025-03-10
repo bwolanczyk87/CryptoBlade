@@ -1,6 +1,7 @@
 ﻿using Accord.Statistics.Models.Regression.Linear;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
+using CryptoExchange.Net.Interfaces;
 using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Helpers
@@ -219,6 +220,34 @@ namespace CryptoBlade.Helpers
             if (nrmse > 1)
                 nrmse = 1;
             return nrmse;
+        }
+
+        public static decimal? CalculateVolatility(Candle[] candles)
+        {
+            if (candles == null || candles.Length < 30)
+            {
+                return null;
+            }
+
+            List<Quote> quotes = candles.Select(c => new Quote
+            {
+                Date = c.StartTime,
+                Open = c.Open,
+                High = c.High,
+                Low = c.Low,
+                Close = c.Close,
+                Volume = c.Volume
+            }).ToList();
+
+            IEnumerable<AtrResult> atrResults = quotes.GetAtr();
+            AtrResult lastAtr = atrResults.LastOrDefault();
+            if (lastAtr == null || lastAtr.Atr == null)
+            {
+                return null;
+            }
+
+            decimal atrValue = (decimal)lastAtr.Atr;
+            return atrValue;
         }
     }
 }

@@ -1,8 +1,11 @@
 ﻿using System.Text.Json;
 using CryptoBlade.Exchanges;
+using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
+using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 
@@ -13,6 +16,7 @@ namespace CryptoBlade.BackTesting
         private readonly IOptions<BackTestExchangeOptions> m_options;
         private readonly IBackTestDataDownloader m_backTestDataDownloader;
         private readonly IHistoricalDataStorage m_historicalDataStorage;
+        private readonly ITradingSymbolsManager m_tradingSymbolsManager;
         private DateTime m_currentTime;
         private DateTime? m_nextTime;
         private readonly Dictionary<string, BackTestDataProcessor> m_candleProcessors;
@@ -28,11 +32,13 @@ namespace CryptoBlade.BackTesting
         private readonly Dictionary<string, HashSet<Order>> m_openOrders;
         private readonly Dictionary<string, OpenPositionWithOrders> m_longPositions;
         private readonly Dictionary<string, OpenPositionWithOrders> m_shortPositions;
+        private SymbolInfo[] m_tradingSymbols = Array.Empty<SymbolInfo>();
 
         public BackTestExchange(IOptions<BackTestExchangeOptions> options, 
             IBackTestDataDownloader backTestDataDownloader, 
             IHistoricalDataStorage historicalDataStorage, 
-            ICbFuturesRestClient cbFuturesRestClient)
+            ICbFuturesRestClient cbFuturesRestClient,
+            ITradingSymbolsManager symbolsManager)
         {
             m_lock = new AsyncLock();
             m_candleSubscriptions = new HashSet<CandleUpdateSubscription>();
@@ -45,6 +51,7 @@ namespace CryptoBlade.BackTesting
             m_backTestDataDownloader = backTestDataDownloader;
             m_historicalDataStorage = historicalDataStorage;
             m_cbFuturesRestClient = cbFuturesRestClient;
+            m_tradingSymbolsManager = symbolsManager;
             m_options = options;
             m_currentTime = m_options.Value.Start;
             m_currentBalance = new Balance(m_options.Value.InitialBalance, m_options.Value.InitialBalance, 0m, 0m);
@@ -364,38 +371,22 @@ namespace CryptoBlade.BackTesting
 
         public async Task<SymbolInfo[]> GetSymbolInfoAsync(CancellationToken cancel = default)
         {
-            // try to read from json file
-            string jsonFile = Path.Combine(m_options.Value.HistoricalDataDirectory, "symbolinfo.json");
-            SymbolInfo[]? symbolInfo = null;
-            if (File.Exists(jsonFile))
+            if (m_tradingSymbols.Length == 0)
             {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(jsonFile, cancel);
-                    symbolInfo = JsonSerializer.Deserialize<SymbolInfo[]>(json);
-                }
-                catch (Exception)
-                {
-                    File.Delete(jsonFile);
-                }
-            }
-            HashSet<string> cachedSymbols = new HashSet<string>();
-            if (symbolInfo != null)
-            {
-                foreach (var symbol in symbolInfo)
-                    cachedSymbols.Add(symbol.Name);
-            }
-
-            if (symbolInfo == null || symbolInfo.Length == 0 || !m_options.Value.Symbols.Any(x => cachedSymbols.Contains(x)))
-            {
-                symbolInfo = await m_cbFuturesRestClient.GetSymbolInfoAsync(cancel);
-                var json = JsonSerializer.Serialize(symbolInfo);
-                if(File.Exists(jsonFile))
-                    File.Delete(jsonFile);
-                await File.WriteAllTextAsync(jsonFile, json, cancel);
-            }
-
-            return symbolInfo;
+                m_tradingSymbols = (await m_tradingSymbolsManager.GetTradingSymbolsAsync(
+                    m_cbFuturesRestClient,
+                    m_options.Value.Whitelist.ToList(),
+                    m_options.Value.Blacklist.ToList(),
+                    new SymbolPreferences
+                    {
+                        Maturity = m_options.Value.SymbolMaturityPreference,
+                        Volume = m_options.Value.SymbolVolumePreference,
+                        Volatility = m_options.Value.SymbolVolatilityPreference
+                    },
+                    m_options.Value.HistoricalDataDirectory,
+                    cancel)).ToArray();
+            } 
+            return m_tradingSymbols;
         }
 
         public async Task<Candle[]> GetKlinesAsync(string symbol, TimeFrame interval, int limit, CancellationToken cancel = default)
@@ -532,7 +523,7 @@ namespace CryptoBlade.BackTesting
             start -= m_options.Value.StartupCandleData;
             start = start.Date;
             end = end.Date;
-            var symbols = m_options.Value.Symbols;
+            var symbols = (await GetSymbolInfoAsync(cancel)).Select(x => x.Name).ToArray();
             await m_backTestDataDownloader.DownloadDataForBackTestAsync(symbols, start, end, cancel);
             await LoadDataForDayAsync(m_currentTime.Date, cancel);
         }
@@ -811,13 +802,13 @@ namespace CryptoBlade.BackTesting
 
         private async Task LoadDataForDayAsync(DateTime day, CancellationToken cancel = default)
         {
-            var symbols = m_options.Value.Symbols;
+            var symbols = await GetSymbolInfoAsync(cancel);
             m_candleProcessors.Clear();
-            foreach (string symbol in symbols)
+            foreach (var symbol in symbols)
             {
-                var dayData = await m_historicalDataStorage.ReadAsync(symbol, day, cancel);
+                var dayData = await m_historicalDataStorage.ReadAsync(symbol.Name, day, cancel);
                 var processor = new BackTestDataProcessor(dayData);
-                m_candleProcessors[symbol] = processor;
+                m_candleProcessors[symbol.Name] = processor;
             }
         }
 

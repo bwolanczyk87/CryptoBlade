@@ -3,6 +3,7 @@ using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 
@@ -17,9 +18,10 @@ namespace CryptoBlade.Services
             ILogger<DefaultTradingStrategyManager> logger, 
             ITradingStrategyFactory strategyFactory,
             ICbFuturesRestClient restClient,
+            ITradingSymbolsManager symbolsManager,
             ICbFuturesSocketClient socketClient, 
             IWalletManager walletManager) 
-            : base(options, logger, strategyFactory, restClient, socketClient, walletManager)
+            : base(options, logger, symbolsManager, strategyFactory, restClient, socketClient, walletManager)
         {
             m_options = options;
             m_logger = logger;
