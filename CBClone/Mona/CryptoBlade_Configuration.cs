@@ -1,13 +1,13 @@
 ﻿// *** METADATA ***
 // Version: 1.0.0
-// Generated: 2025-03-02 01:56:03 UTC
+// Generated: 2025-03-12 17:03:21 UTC
 // Module: CryptoBlade.Configuration
 // ****************
 
 // *** INDEX OF INCLUDED FILES ***
 1. BackTest.cs
 2. BotMode.cs
-3. ConfigConstants.cs
+3. ConfigPaths.cs
 4. CriticalMode.cs
 5. DataSource.cs
 6. DynamicBotCount.cs
@@ -71,13 +71,14 @@ namespace CryptoBlade.Configuration
 
 // -----------------------------
 
-// ==== FILE #3: ConfigConstants.cs ====
+// ==== FILE #3: ConfigPaths.cs ====
 namespace CryptoBlade.Configuration
 {
-    public class ConfigConstants
+    public class ConfigPaths
     {
-        public const string DefaultHistoricalDataDirectory = "../HistoricalData";
-        public const string BackTestsDirectory = "Results";
+        public const string DefaultHistoricalDataDirectory = "Data/HistoricalData";
+        public static string GetBackTestResultDirectory(string strategyName) => $"Data/Strategies/{strategyName}/Backtest/Results";
+        public static string GetOptimizerResultDirectory(string strategyName) => $"Data/Strategies/{strategyName}/Optimizer/Results";
     }
 }
 
@@ -383,6 +384,7 @@ namespace CryptoBlade.Configuration
 // ==== FILE #20: TradingBotOptions.cs ====
 namespace CryptoBlade.Configuration {
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Configuration
 {
@@ -391,6 +393,7 @@ namespace CryptoBlade.Configuration
         public BotMode BotMode { get; set; } = BotMode.Backtest;
         public ExchangeAccount[] Accounts { get; set; } = Array.Empty<ExchangeAccount>();
         public string AccountName { get; set; } = string.Empty;
+        public string QuoteAsset { get; set; } = "USDT";
         public int MaxRunningStrategies { get; set; } = 15;
         public int DcaOrdersCount { get; set; } = 1000;
         public DynamicBotCount DynamicBotCount { get; set; } = new DynamicBotCount();
@@ -422,6 +425,9 @@ namespace CryptoBlade.Configuration
         public StrategyOptions Strategies { get; set; } = new StrategyOptions();
         public CriticalMode CriticalMode { get; set; } = new CriticalMode();
         public OptimizerOptions Optimizer { get; set; } = new OptimizerOptions();
+        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
     }
 }
 }

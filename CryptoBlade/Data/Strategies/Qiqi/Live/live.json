@@ -56,7 +56,7 @@
     "InitialUntradableDays": 0
   },
   "Unstucking": {
-    "Enabled": true,
+    "Enabled": false,
     "SlowUnstuckThresholdPercent": -0.0006,
     "SlowUnstuckPositionThresholdPercent": -0.0006,
     "ForceUnstuckThresholdPercent": -0.0006,

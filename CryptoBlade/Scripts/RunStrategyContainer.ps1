@@ -212,6 +212,7 @@ function Flatten-Json {
     return $result
 }
 
+$jsonContent = Get-Content $jsonFile -Raw | ConvertFrom-Json
 $flattened = Flatten-Json -Data $jsonContent
 
 # Generowanie linii zmiennych środowiskowych w formacie "CB_TradingBot__<Key>=<Value>"
@@ -236,6 +237,16 @@ if ($composeContent -match $pattern) {
 } else {
     $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    environment:`n$($envLines -join "`n")`n"
 }
+
+$containerName = "cryptoblade_$($StrategyName.ToLower())_$($BotMode.ToLower())"
+if ($composeContent -match "container_name:\s*\S+") {
+    # Zastępujemy istniejącą wartość
+    $composeContent = $composeContent -replace "container_name:\s*\S+", "container_name: $containerName"
+} else {
+    # Jeżeli nie ma pola container_name, wstawiamy je pod sekcją usługi (przyjmujemy, że usługa ma nazwę 'cryptoblade:')
+    $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    container_name: $containerName`n"
+}
+
 Set-Content $composeFile $composeContent
 Write-Host "Plik docker-compose.yml został zaktualizowany."
 
@@ -249,7 +260,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."
-docker compose -p "cryptoblade_$($StrategyName.ToLower())_$($BotMode.ToLower())" up -d
+docker compose -p $containerName up -d
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1

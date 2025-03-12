@@ -1,6 +1,6 @@
 ﻿// *** METADATA ***
 // Version: 1.0.0
-// Generated: 2025-03-02 01:56:03 UTC
+// Generated: 2025-03-12 17:03:21 UTC
 // Module: CryptoBlade.Mapping
 // ****************
 
@@ -198,6 +198,7 @@ namespace CryptoBlade.Mapping
                 BestBidPrice = ticker.BestBidPrice,
                 FundingRate = ticker.FundingRate,
                 Timestamp = DateTime.UtcNow,
+                Volume24H = ticker.Volume24h
             };
         }
 
@@ -261,7 +262,7 @@ namespace CryptoBlade.Mapping
                 MinOrderQty = symbol.LotSizeFilter?.MinOrderQuantity,
                 QtyStep = symbol.LotSizeFilter?.QuantityStep,
                 MaxLeverage = symbol.LeverageFilter?.MaxLeverage,
-                LaunchTime = symbol.LaunchTime,
+                LaunchTime = symbol.LaunchTime
             };
         }
 

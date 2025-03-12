@@ -21,14 +21,6 @@
   </ItemGroup>-->
 
   <ItemGroup>
-    <Content Remove="Symbols\USDC.json" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="Symbols\USDC.json" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Accord" Version="3.8.0" />
     <PackageReference Include="Accord.MachineLearning" Version="3.8.0" />
     <PackageReference Include="Bert.RateLimiters" Version="1.0.15" />
@@ -47,7 +39,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Data\BacktestResults\" />
     <Folder Include="Data\Strategies\AutoHedge\Optimizer\Results\" />
     <Folder Include="Data\Strategies\AutoHedge\Backtest\Results\" />
     <Folder Include="Data\Strategies\LinearRegression\Backtest\Results\" />

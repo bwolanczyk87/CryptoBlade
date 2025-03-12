@@ -25,11 +25,16 @@
                        "19. Trend.cs",
                        "20. BybitErrorCodes.cs",
                        "21. ExchangePolicies.cs",
-                       "22. Balance.cs",
-                       "23. IWalletManager.cs",
-                       "24. NullWalletManager.cs",
-                       "25. WalletManager.cs",
-                       "26. WalletType.cs"
+                       "22. ITradingSymbolsManager.cs",
+                       "23. SymbolClassification.cs",
+                       "24. SymbolClassificationLevel.cs",
+                       "25. SymbolPreferences.cs",
+                       "26. TradingSymbolsManager.cs",
+                       "27. Balance.cs",
+                       "28. IWalletManager.cs",
+                       "29. NullWalletManager.cs",
+                       "30. WalletManager.cs",
+                       "31. WalletType.cs"
                    ],
     "Exchanges":  [
                       "1. BinanceCbFuturesRestClient.cs",
@@ -52,7 +57,7 @@
     "Configuration":  [
                           "1. BackTest.cs",
                           "2. BotMode.cs",
-                          "3. ConfigConstants.cs",
+                          "3. ConfigPaths.cs",
                           "4. CriticalMode.cs",
                           "5. DataSource.cs",
                           "6. DynamicBotCount.cs",

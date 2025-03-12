@@ -1,6 +1,6 @@
 ﻿// *** METADATA ***
 // Version: 1.0.0
-// Generated: 2025-03-02 01:56:03 UTC
+// Generated: 2025-03-12 17:03:21 UTC
 // Module: CryptoBlade.Strategies
 // ****************
 
@@ -26,11 +26,16 @@
 19. Trend.cs
 20. BybitErrorCodes.cs
 21. ExchangePolicies.cs
-22. Balance.cs
-23. IWalletManager.cs
-24. NullWalletManager.cs
-25. WalletManager.cs
-26. WalletType.cs
+22. ITradingSymbolsManager.cs
+23. SymbolClassification.cs
+24. SymbolClassificationLevel.cs
+25. SymbolPreferences.cs
+26. TradingSymbolsManager.cs
+27. Balance.cs
+28. IWalletManager.cs
+29. NullWalletManager.cs
+30. WalletManager.cs
+31. WalletType.cs
 // *******************************
 
 using Accord.MachineLearning;
@@ -70,6 +75,7 @@ using Microsoft.Extensions.Options;
 using Accord.Math;
 using Accord.Statistics.Models.Regression.Linear;
 using Skender.Stock.Indicators;
+using CryptoBlade.Configuration;
 
 namespace CryptoBlade.Strategies
 {
@@ -78,9 +84,9 @@ namespace CryptoBlade.Strategies
         private readonly IOptions<MonaStrategyOptions> m_options;
         private const int c_candlePeriod = 15;
 
-        public MonaStrategy(IOptions<MonaStrategyOptions> options,
+        public MonaStrategy(IOptions<MonaStrategyOptions> options, IOptions<TradingBotOptions> botOptions,
             string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient)
-            : base(options, symbol, GetRequiredTimeFrames(options.Value.ClusteringLength, options.Value.MfiRsiLookback), walletManager, restClient)
+            : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value.ClusteringLength, options.Value.MfiRsiLookback), walletManager, restClient)
         {
             m_options = options;
         }
@@ -243,12 +249,12 @@ namespace CryptoBlade.Strategies
     public static class StrategyNames
     {
         public const string AutoHedge = "AutoHedge";
+        public const string LinearRegression = "LinearRegression";
         public const string MfiRsiCandlePrecise = "MfiRsiCandlePrecise";
         public const string MfiRsiEriTrend = "MfiRsiEriTrend";
-        public const string LinearRegression = "LinearRegression";
-        public const string Tartaglia = "Tartaglia";
         public const string Mona = "Mona";
         public const string Qiqi = "Qiqi";
+        public const string Tartaglia = "Tartaglia";
     }
 }
 
@@ -269,6 +275,7 @@ namespace CryptoBlade.Strategies
 // ==== FILE #6: TradingStrategyBaseOptions.cs ====
 namespace CryptoBlade.Strategies {
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Strategies
 {
@@ -287,6 +294,12 @@ namespace CryptoBlade.Strategies
         public bool EnableRecursiveQtyFactorLong { get; set; }
         
         public bool EnableRecursiveQtyFactorShort { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolMaturityPreference { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolVolumePreference { get; set; }
+
+        public SymbolClassificationLevel[]? SymbolVolatilityPreference { get; set; }
     }
 }
 }
@@ -307,11 +320,13 @@ namespace CryptoBlade.Strategies
     {
         private readonly IWalletManager m_walletManager;
         private readonly ICbFuturesRestClient m_restClient;
+        private readonly IOptions<TradingBotOptions> m_botOptions;
 
-        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient)
+        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions)
         {
             m_walletManager = walletManager;
             m_restClient = restClient;
+            m_botOptions = botOptions;
         }
 
         public ITradingStrategy CreateStrategy(TradingBotOptions config, string symbol)
@@ -351,7 +366,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinReentryPositionDistanceLong = config.Strategies.AutoHedge.MinReentryPositionDistanceLong;
                     strategyOptions.MinReentryPositionDistanceShort = config.Strategies.AutoHedge.MinReentryPositionDistanceShort;
                 });
-            return new AutoHedgeStrategy(options, symbol, m_walletManager, m_restClient);
+            return new AutoHedgeStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMfiRsiCandlePreciseStrategy(TradingBotOptions config, string symbol)
@@ -362,7 +377,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinimumPriceDistance = config.MinimumPriceDistance;
                     strategyOptions.MinimumVolume = config.MinimumVolume;
                 });
-            return new MfiRsiCandlePreciseTradingStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MfiRsiCandlePreciseTradingStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMfiRsiEriTrendPreciseStrategy(TradingBotOptions config, string symbol)
@@ -377,7 +392,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MfiRsiLookbackPeriod = config.Strategies.MfiRsiEriTrend.MfiRsiLookbackPeriod;
                     strategyOptions.UseEriOnly = config.Strategies.MfiRsiEriTrend.UseEriOnly;
                 });
-            return new MfiRsiEriTrendTradingStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MfiRsiEriTrendTradingStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateLinearRegressionStrategy(TradingBotOptions config, string symbol)
@@ -390,7 +405,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.ChannelLength = config.Strategies.LinearRegression.ChannelLength;
                     strategyOptions.StandardDeviation = config.Strategies.LinearRegression.StandardDeviation;
                 });
-            return new LinearRegressionStrategy(options, symbol, m_walletManager, m_restClient);
+            return new LinearRegressionStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateTartagliaStrategy(TradingBotOptions config, string symbol)
@@ -407,7 +422,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.MinReentryPositionDistanceLong = config.Strategies.Tartaglia.MinReentryPositionDistanceLong;
                     strategyOptions.MinReentryPositionDistanceShort = config.Strategies.Tartaglia.MinReentryPositionDistanceShort;
                 });
-            return new TartagliaStrategy(options, symbol, m_walletManager, m_restClient);
+            return new TartagliaStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateMonaStrategy(TradingBotOptions config, string symbol)
@@ -423,7 +438,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.ClusteringLength = config.Strategies.Mona.ClusteringLength;
                     strategyOptions.MfiRsiLookback = config.Strategies.Mona.MfiRsiLookback;
                 });
-            return new MonaStrategy(options, symbol, m_walletManager, m_restClient);
+            return new MonaStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private ITradingStrategy CreateQiqiStrategy(TradingBotOptions config, string symbol)
@@ -439,7 +454,7 @@ namespace CryptoBlade.Strategies
                     strategyOptions.TakeProfitPercentLong = config.Strategies.Qiqi.TakeProfitPercentLong;
                     strategyOptions.TakeProfitPercentShort = config.Strategies.Qiqi.TakeProfitPercentShort;
                 });
-            return new QiqiStrategy(options, symbol, m_walletManager, m_restClient);
+            return new QiqiStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
         private IOptions<TOptions> CreateRecursiveTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
@@ -560,7 +575,10 @@ namespace CryptoBlade.Strategies.Common
 // -----------------------------
 
 // ==== FILE #10: ITradingStrategy.cs ====
+namespace CryptoBlade.Strategies {
 // Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+using CryptoBlade.Strategies.Symbols;
+
 namespace CryptoBlade.Strategies.Common
 {
     public interface ITradingStrategy
@@ -628,11 +646,13 @@ namespace CryptoBlade.Strategies.Common
         Task EvaluateSignalsAsync(CancellationToken cancel);
     }
 }
+}
 
 // -----------------------------
 
 // ==== FILE #11: RecursiveStrategyBase.cs ====
 namespace CryptoBlade.Strategies {
+using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
@@ -643,9 +663,11 @@ namespace CryptoBlade.Strategies.Common
     {
         private readonly IOptions<RecursiveStrategyBaseOptions> m_options;
 
-        protected RecursiveStrategyBase(IOptions<RecursiveStrategyBaseOptions> options, string symbol,
+        protected RecursiveStrategyBase(IOptions<RecursiveStrategyBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
+            string symbol,
             TimeFrameWindow[] requiredTimeFrames, IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient) : base(options, symbol, requiredTimeFrames, walletManager,
+            ICbFuturesRestClient cbFuturesRestClient) : base(options, botOptions, symbol, requiredTimeFrames, walletManager,
             cbFuturesRestClient)
         {
             m_options = options;
@@ -918,6 +940,7 @@ namespace CryptoBlade.Strategies.Common
 
 // ==== FILE #16: TradingStrategyBase.cs ====
 namespace CryptoBlade.Strategies {
+using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
@@ -930,11 +953,12 @@ namespace CryptoBlade.Strategies.Common
         private readonly IOptions<TradingStrategyBaseOptions> m_options;
 
         protected TradingStrategyBase(IOptions<TradingStrategyBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol, 
             TimeFrameWindow[] requiredTimeFrames, 
             IWalletManager walletManager,
             ICbFuturesRestClient cbFuturesRestClient) 
-            : base(options, symbol, requiredTimeFrames, walletManager, cbFuturesRestClient)
+            : base(options, botOptions, symbol, requiredTimeFrames, walletManager, cbFuturesRestClient)
         {
             m_options = options;
         }
@@ -1144,12 +1168,14 @@ using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
 using System.Threading.Channels;
 using CryptoBlade.Mapping;
+using CryptoBlade.Strategies.Symbols;
 
 namespace CryptoBlade.Strategies.Common
 {
     public abstract class TradingStrategyCommonBase : ITradingStrategy
     {
         private readonly IOptions<TradingStrategyCommonBaseOptions> m_options;
+        private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly Channel<Candle> m_candleBuffer;
         private const int c_defaultCandleBufferSize = 1000;
         private readonly ICbFuturesRestClient m_cbFuturesRestClient;
@@ -1157,6 +1183,7 @@ namespace CryptoBlade.Strategies.Common
         private readonly Random m_random = new Random();
 
         protected TradingStrategyCommonBase(IOptions<TradingStrategyCommonBaseOptions> options,
+            IOptions<TradingBotOptions> botOptions,
             string symbol,
             TimeFrameWindow[] requiredTimeFrames,
             IWalletManager walletManager,
@@ -1179,6 +1206,7 @@ namespace CryptoBlade.Strategies.Common
             WalletManager = walletManager;
             m_cbFuturesRestClient = cbFuturesRestClient;
             m_options = options;
+            m_botOptions = botOptions;
             Symbol = symbol;
             QuoteQueues = new Dictionary<TimeFrame, QuoteQueue>();
             foreach (TimeFrameWindow requiredTimeFrame in requiredTimeFrames)
@@ -1207,6 +1235,7 @@ namespace CryptoBlade.Strategies.Common
 
         public string Symbol { get; }
         public SymbolInfo SymbolInfo { get; private set; }
+        public SymbolClassification SymbolClassification { get; }
         public decimal? DynamicQtyShort { get; protected set; }
         public decimal? DynamicQtyLong { get; protected set; }
         public decimal? MaxQtyShort { get; protected set; }
@@ -1295,12 +1324,14 @@ namespace CryptoBlade.Strategies.Common
 
                 m_logger.LogInformation($"Leverage set to {symbol.MaxLeverage} for {symbol.Name}");
 
-                bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
-                if (!modeOk)
-                    throw new InvalidOperationException("Failed to setup position mode.");
+                if(m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
+                {
+                    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
+                    if (!modeOk)
+                        throw new InvalidOperationException("Failed to setup position mode.");
 
-                m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
-
+                    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
+                }
 
                 //bool crossModeOk = await m_cbFuturesRestClient.SwitchCrossIsolatedMarginAsync(symbol, TradeMode.CrossMargin, cancel);
                 //if (!crossModeOk)
@@ -2002,7 +2033,263 @@ namespace CryptoBlade.Strategies.Policies
 
 // -----------------------------
 
-// ==== FILE #22: Balance.cs ====
+// ==== FILE #22: ITradingSymbolsManager.cs ====
+namespace CryptoBlade.Strategies {
+// Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
+using CryptoBlade.Models;
+
+namespace CryptoBlade.Strategies.Symbols
+{
+    public interface ITradingSymbolsManager
+    {
+        public Task<List<SymbolInfo>> GetTradingSymbolsAsync(ICbFuturesRestClient restClient, List<string> whitelist, List<string> blacklist, SymbolPreferences symbolPreferences, string historicalDataDirectory, CancellationToken cancel);
+    }
+}
+}
+
+// -----------------------------
+
+// ==== FILE #23: SymbolClassification.cs ====
+namespace CryptoBlade.Strategies.Symbols
+{
+    public class SymbolClassification
+    {
+        public SymbolClassificationLevel MaturityLevel { get; set; }
+
+        public SymbolClassificationLevel VolumeLevel { get; set; }
+
+        public SymbolClassificationLevel VolatilityLevel { get; set; }
+    }
+}
+
+// -----------------------------
+
+// ==== FILE #24: SymbolClassificationLevel.cs ====
+namespace CryptoBlade.Strategies.Symbols
+{
+    public enum SymbolClassificationLevel
+    {
+        LOW,
+        MEDIUM,
+        HIGH,
+        LARGE
+    }
+}
+
+// -----------------------------
+
+// ==== FILE #25: SymbolPreferences.cs ====
+namespace CryptoBlade.Strategies.Symbols
+{
+    public class SymbolPreferences
+    {
+        public SymbolClassificationLevel[] Maturity { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] Volume { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] Volatility { get; set; } = Array.Empty<SymbolClassificationLevel>();
+    }
+}
+
+// -----------------------------
+
+// ==== FILE #26: TradingSymbolsManager.cs ====
+namespace CryptoBlade.Strategies {
+using CryptoBlade.Models;
+using CryptoExchange.Net.Interfaces;
+using System.Text.Json;
+
+namespace CryptoBlade.Strategies.Symbols
+{
+    public class TradingSymbolsManager : ITradingSymbolsManager
+    {
+        private readonly ILogger<TradingSymbolsManager> m_logger;
+
+        public TradingSymbolsManager(ILogger<TradingSymbolsManager> logger)
+        {
+            m_logger = logger;
+        }
+
+        public async Task<List<SymbolInfo>> GetTradingSymbolsAsync(
+            ICbFuturesRestClient restClient,
+            List<string> whitelist, 
+            List<string> blacklist, 
+            SymbolPreferences symbolPreferences,
+            string historicalDataDirectory,
+            CancellationToken cancel)
+        {
+            var symbolsInfo = await GetSymbolsRealOrHistoricalInfoAsync(restClient, historicalDataDirectory, cancel);
+            List<string> preferedSymbols = new();
+
+            if (whitelist == null || !whitelist.Any())
+            {
+                preferedSymbols = GetPreferredSymbols(symbolsInfo, symbolPreferences);
+            }
+            else
+            {
+                preferedSymbols = whitelist;
+
+                Dictionary<string, SymbolInfo> symbolInfoDict = symbolsInfo
+                   .DistinctBy(x => x.Name)
+                   .ToDictionary(x => x.Name, x => x);
+
+                List<string> missingSymbols = preferedSymbols
+                .Where(x => !symbolInfoDict.ContainsKey(x))
+                .ToList();
+
+                foreach (var symbol in missingSymbols)
+                    m_logger.LogWarning($"Symbol {symbol} is missing from the exchange.");
+
+                foreach (string missingSymbol in missingSymbols)
+                    preferedSymbols.Remove(missingSymbol);
+            }
+
+            preferedSymbols = preferedSymbols
+                .Except(blacklist.Where(x => !string.IsNullOrWhiteSpace(x)))
+                .Distinct()
+                .ToList();
+
+            return symbolsInfo
+                .Where(s => preferedSymbols.Contains(s.Name)).ToList();
+        }
+
+        private async Task<SymbolInfo[]> GetSymbolsRealOrHistoricalInfoAsync(ICbFuturesRestClient restClient, string historicalDataDirectory, CancellationToken cancel = default)
+        {
+            string jsonFile = Path.Combine(historicalDataDirectory, "symbolinfo.json");
+
+            if (File.Exists(jsonFile))
+            {
+                var fileInfo = new FileInfo(jsonFile);
+                if ((DateTime.UtcNow - fileInfo.CreationTimeUtc).TotalDays <= 5)
+                {
+                    try
+                    {
+                        var existingJson = await File.ReadAllTextAsync(jsonFile, cancel);
+                        return JsonSerializer.Deserialize<SymbolInfo[]>(existingJson);
+                    }
+                    catch (Exception)
+                    {
+                        File.Delete(jsonFile);
+                    }
+                }
+                else
+                {
+                    File.Delete(jsonFile);
+                }
+            }
+
+            SymbolInfo[] symbolInfo = await restClient.GetSymbolInfoAsync(cancel);
+            var json = JsonSerializer.Serialize(symbolInfo);
+            if (File.Exists(jsonFile))
+                File.Delete(jsonFile);
+
+            await File.WriteAllTextAsync(jsonFile, json, cancel);   
+            return symbolInfo;
+        }
+
+        private static List<string> GetPreferredSymbols(SymbolInfo[] symbols, SymbolPreferences symbolPreferences)
+        {
+            var classifiedSymbols = ClassifySymbols(symbols);
+            return FilterSymbolsForStrategies(classifiedSymbols, symbolPreferences);
+        }
+
+        private static Dictionary<string, SymbolClassification> ClassifySymbols(SymbolInfo[] symbols)
+        {
+            if (!symbols.Any())
+                throw new ArgumentException("No symbols to classify");
+
+            var launchDesc = symbols
+                .OrderByDescending(s => s.LaunchTime)
+                .ToList();
+            var launchMap = ClassifyIntoFourSegments(launchDesc);
+
+            var volumeAsc = symbols
+                .Where(s => s.Volume.HasValue && s.Volume.Value > 0)
+                .OrderBy(s => s.Volume.Value)
+                .ToList();
+            var volumeMap = ClassifyIntoFourSegments(volumeAsc);
+
+            var volAsc = symbols
+                .Where(s => s.Volatility.HasValue && s.Volatility.Value > 0)
+                .OrderBy(s => s.Volatility.Value)
+                .ToList();
+            var volatilityMap = ClassifyIntoFourSegments(volAsc);
+
+
+            var result = new Dictionary<string, SymbolClassification>();
+            foreach (var si in symbols)
+            {
+                var sc = new SymbolClassification();
+
+                if (launchMap.TryGetValue(si.Name, out var lcat))
+                    sc.MaturityLevel = lcat;
+                else
+                    sc.MaturityLevel = SymbolClassificationLevel.MEDIUM;
+
+                if (volumeMap.TryGetValue(si.Name, out var vcat))
+                    sc.VolumeLevel = vcat;
+                else
+                    sc.VolumeLevel = SymbolClassificationLevel.MEDIUM;
+
+                if (volatilityMap.TryGetValue(si.Name, out var volcat))
+                    sc.VolatilityLevel = volcat;
+                else
+                    sc.VolatilityLevel = SymbolClassificationLevel.MEDIUM;
+
+                result[si.Name] = sc;
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, SymbolClassificationLevel> ClassifyIntoFourSegments(List<SymbolInfo> sortedList)
+        {
+            var dict = new Dictionary<string, SymbolClassificationLevel>();
+
+            int n = sortedList.Count;
+            if (n == 0)
+                return dict;
+
+            int groupSize = n / 4;
+
+            var lowGroup = sortedList.Take(groupSize).ToList();
+            var mediumGroup = sortedList.Skip(groupSize).Take(groupSize).ToList();
+            var highGroup = sortedList.Skip(2 * groupSize).Take(groupSize).ToList();
+            var largeGroup = sortedList.Skip(3 * groupSize).ToList();
+
+            foreach (var item in lowGroup)
+                dict[item.Name] = SymbolClassificationLevel.LOW;
+
+            foreach (var item in mediumGroup)
+                dict[item.Name] = SymbolClassificationLevel.MEDIUM;
+
+            foreach (var item in highGroup)
+                dict[item.Name] = SymbolClassificationLevel.HIGH;
+
+            foreach (var item in largeGroup)
+                dict[item.Name] = SymbolClassificationLevel.LARGE;
+
+            return dict;
+        }
+
+        private static List<string> FilterSymbolsForStrategies(Dictionary<string, SymbolClassification> classifiedSymbols, SymbolPreferences symbolPreferences)
+        {
+            var filteredSymbols = classifiedSymbols
+                .Where(s =>
+                    (symbolPreferences.Maturity?.Contains(s.Value.MaturityLevel) ?? false) &&
+                    (symbolPreferences.Volume?.Contains(s.Value.VolumeLevel) ?? false) &&
+                    (symbolPreferences.Volatility?.Contains(s.Value.VolatilityLevel) ?? false)
+                )
+                .Select(kv => kv.Key)
+                .ToList();
+
+            return filteredSymbols;
+        }
+    }
+}
+}
+
+// -----------------------------
+
+// ==== FILE #27: Balance.cs ====
 namespace CryptoBlade.Strategies.Wallet
 {
     public readonly record struct Balance(
@@ -2014,7 +2301,7 @@ namespace CryptoBlade.Strategies.Wallet
 
 // -----------------------------
 
-// ==== FILE #23: IWalletManager.cs ====
+// ==== FILE #28: IWalletManager.cs ====
 // Uwaga: Ten plik zawiera interfejs – zadbaj o pełną dokumentację!
 namespace CryptoBlade.Strategies.Wallet
 {
@@ -2030,7 +2317,7 @@ namespace CryptoBlade.Strategies.Wallet
 
 // -----------------------------
 
-// ==== FILE #24: NullWalletManager.cs ====
+// ==== FILE #29: NullWalletManager.cs ====
 namespace CryptoBlade.Strategies.Wallet
 {
     public class NullWalletManager : IWalletManager
@@ -2051,7 +2338,7 @@ namespace CryptoBlade.Strategies.Wallet
 
 // -----------------------------
 
-// ==== FILE #25: WalletManager.cs ====
+// ==== FILE #30: WalletManager.cs ====
 namespace CryptoBlade.Strategies.Wallet
 {
     public class WalletManager : IWalletManager
@@ -2110,7 +2397,7 @@ namespace CryptoBlade.Strategies.Wallet
 
 // -----------------------------
 
-// ==== FILE #26: WalletType.cs ====
+// ==== FILE #31: WalletType.cs ====
 namespace CryptoBlade.Strategies.Wallet
 {
     public enum WalletType

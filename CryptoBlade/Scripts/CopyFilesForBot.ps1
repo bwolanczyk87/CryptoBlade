@@ -44,6 +44,7 @@ if ($SourceDir[-1] -ne '\') {
 #########################################
 $filteredFiles = Get-ChildItem -Path $SourceDir -Recurse -File | Where-Object { 
     ($_.FullName -notmatch '(?i)\.sln$') -and
+    ($_.FullName -notmatch '(?i)\.vscode_launch$') -and
     ($_.FullName -notmatch '(?i)cryptoblade\.tar$') -and
     ($_.FullName -notmatch '(?i)Dockerfile$') -and
     ($_.FullName -notmatch '(?i)\\bin(\\|$)') -and
@@ -51,8 +52,7 @@ $filteredFiles = Get-ChildItem -Path $SourceDir -Recurse -File | Where-Object {
     ($_.FullName -notmatch '(?i)\\HistoricalData(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\Documentation(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\Scripts(\\|$)') -and
-    ($_.FullName -notmatch '(?i)\\BackTests(\\|$)') -and
-    ($_.FullName -notmatch '(?i)\\BackTests(\\|$)') -and
+    ($_.FullName -notmatch '(?i)\\Backtest(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\BackTesting(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\Optimizer(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\wwwroot(\\|$)') -and
@@ -345,14 +345,14 @@ Write-Host "Scalono całą dokumentację w: $mergedDocsPath"
 # Krok 7: Łączenie skryptów                      #
 ##################################################
 $scriptsPath = "C:\Users\bwola\source\repos\CryptoBlade\CryptoBlade\Scripts"
-$markdownFiles = Get-ChildItem -Path $scriptsPath -Recurse -File -Filter "*.md"
-$mergedDocs = @()
+$scripts = Get-ChildItem -Path $scriptsPath -Recurse -File -Filter "*.ps1"
+$mergedScripts = @()
 
-foreach ($doc in $markdownFiles) {
-    $content = Get-Content -Path $doc.FullName -Raw
-    $mergedDocs += "`n# ===== DOCUMENT: $($doc.Name) =====`n" + $content
+foreach ($sc in $scripts) {
+    $content = Get-Content -Path $sc.FullName -Raw
+    $mergedScripts += "`n# ===== DOCUMENT: $($sc.Name) =====`n" + $content
 }
 
-$mergedScriptsPath = Join-Path -Path $DestDir -ChildPath "Merged_Scripts.md"
+$mergedScriptsPath = Join-Path -Path $DestDir -ChildPath "Merged_Scripts.txt"
 $mergedScripts -join "`n" | Out-File -FilePath $mergedScriptsPath -Encoding utf8
-Write-Host "Scalono całą dokumentację w: $mergedScriptsPath"
+Write-Host "Scalono wszystkie skrypty w: $mergedScriptsPath"

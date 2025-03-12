@@ -1,6 +1,6 @@
 ﻿// *** METADATA ***
 // Version: 1.0.0
-// Generated: 2025-03-02 01:56:03 UTC
+// Generated: 2025-03-12 17:03:21 UTC
 // Module: CryptoBlade.Exchanges
 // ****************
 
@@ -170,10 +170,12 @@ namespace CryptoBlade.Exchanges
 namespace CryptoBlade.Exchanges {
 using Bybit.Net.Enums.V5;
 using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Configuration;
 using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
+using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
@@ -190,17 +192,19 @@ namespace CryptoBlade.Exchanges
         private readonly Category m_category;
         private readonly ILogger<BybitCbFuturesRestClient> m_logger;
         private readonly IOptions<BybitCbFuturesRestClientOptions> m_options;
+        private readonly IOptions<TradingBotOptions> m_trading_bot_options;
 
         public BybitCbFuturesRestClient(IOptions<BybitCbFuturesRestClientOptions> options,
+            IOptions<TradingBotOptions> tradingBotOptions,
             IBybitRestClient bybitRestClient,
             ILogger<BybitCbFuturesRestClient> logger)
         {
             m_options = options;
+            m_trading_bot_options = tradingBotOptions;
             m_category = Category.Linear;
             m_bybitRestClient = bybitRestClient;
             m_logger = logger;
         }
-
 
         public async Task<bool> SetLeverageAsync(SymbolInfo symbol,
             CancellationToken cancel = default)
@@ -570,7 +574,7 @@ namespace CryptoBlade.Exchanges
                 if (b.AccountType == AccountType.Unified)
                 {
                     var asset = b.Assets.FirstOrDefault(x =>
-                        string.Equals(x.Asset, Assets.QuoteAsset, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(x.Asset, m_trading_bot_options.Value.QuoteAsset, StringComparison.OrdinalIgnoreCase));
                     if (asset != null)
                     {
                         var contract = asset.ToBalance();
@@ -600,9 +604,16 @@ namespace CryptoBlade.Exchanges
                     if (!symbolsResult.GetResultOrError(out var data, out var error))
                         throw new InvalidOperationException(error.Message);
                     var s = data.List
-                        .Where(x => string.Equals(Assets.QuoteAsset, x.QuoteAsset))
-                        .Select(x => x.ToSymbolInfo());
-                    symbolInfo.AddRange(s);
+                        .Where(x => string.Equals(m_trading_bot_options.Value.QuoteAsset, x.QuoteAsset))
+                        .Select(async x =>
+                        {
+                            var symbol = x.ToSymbolInfo();
+                            symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
+                            symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
+                            return symbol;
+                        });
+                    var symbolInfoTasks = await Task.WhenAll(s);
+                    symbolInfo.AddRange(symbolInfoTasks);
                     if (string.IsNullOrWhiteSpace(data.NextPageCursor))
                         break;
                     cursor = data.NextPageCursor;
@@ -612,6 +623,21 @@ namespace CryptoBlade.Exchanges
             });
 
             return symbolData;
+        }
+
+        public async Task<decimal?> GetSymbolVolumeAsync(string symbol, CancellationToken cancel = default)
+        {
+            var ticker = await GetTickerAsync(symbol, cancel);
+            if (ticker == null)
+                return null;
+
+            return ticker.Volume24H;
+        }
+
+        public async Task<decimal?> GetSymbolVolatility(string symbol, CancellationToken cancel = default)
+        {
+            var candles = await GetKlinesAsync(symbol, TimeFrame.OneDay, 31, cancel);
+            return TradingHelpers.CalculateVolatility(candles);
         }
 
         public async Task<Candle[]> GetKlinesAsync(
@@ -704,7 +730,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var ordersResult = await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                         m_category,
-                        settleAsset: Assets.QuoteAsset,
+                        settleAsset: m_trading_bot_options.Value.QuoteAsset,
                         cursor: cursor,
                         ct: cancel);
                     if (!ordersResult.GetResultOrError(out var data, out var error))
@@ -731,7 +757,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var positionResult = await m_bybitRestClient.V5Api.Trading.GetPositionsAsync(
                         m_category,
-                        settleAsset: Assets.QuoteAsset,
+                        settleAsset: m_trading_bot_options.Value.QuoteAsset,
                         cursor: cursor,
                         ct: cancel);
                     if (!positionResult.GetResultOrError(out var data, out var error))
@@ -796,25 +822,25 @@ namespace CryptoBlade.Exchanges
 namespace CryptoBlade.Exchanges {
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Strategies.Policies;
-using CryptoBlade.Strategies.Wallet;
 using Bybit.Net.Objects.Models.V5;
-using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
-using CryptoExchange.Net.CommonObjects;
+using CryptoBlade.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CryptoBlade.Exchanges
 {
     public class BybitCbFuturesSocketClient : ICbFuturesSocketClient
     {
+        private readonly IOptions<TradingBotOptions> m_options;
         private readonly IBybitSocketClient m_bybitSocketLinearClient;
         private readonly IBybitSocketClient m_bybitSocketClient;
-        private const string c_asset = Assets.QuoteAsset;
 
-        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient, IBybitSocketClient? bybitSocketLinearClient)
+        public BybitCbFuturesSocketClient(IBybitSocketClient bybitSocketClient, IBybitSocketClient? bybitSocketLinearClient, IOptions<TradingBotOptions> options)
         {
             m_bybitSocketClient = bybitSocketClient;
             m_bybitSocketLinearClient = bybitSocketLinearClient ?? bybitSocketClient;
+            m_options = options;
         }
 
         public async Task<IUpdateSubscription> SubscribeToWalletUpdatesAsync(Action<Strategies.Wallet.Balance> handler, CancellationToken cancel = default)
@@ -829,7 +855,7 @@ namespace CryptoBlade.Exchanges
                         {
                             if (bybitBalance.AccountType == AccountType.Unified)
                             {
-                                var asset = bybitBalance.Assets.FirstOrDefault(x => string.Equals(x.Asset, c_asset, StringComparison.OrdinalIgnoreCase));
+                                var asset = bybitBalance.Assets.FirstOrDefault(x => string.Equals(x.Asset, m_options.Value.QuoteAsset, StringComparison.OrdinalIgnoreCase));
                                 if (asset != null)
                                 {
                                     var contractBalance = asset.ToBalance();

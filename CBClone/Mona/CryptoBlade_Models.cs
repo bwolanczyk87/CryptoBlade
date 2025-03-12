@@ -1,6 +1,6 @@
 ﻿// *** METADATA ***
 // Version: 1.0.0
-// Generated: 2025-03-02 01:56:03 UTC
+// Generated: 2025-03-12 17:03:21 UTC
 // Module: CryptoBlade.Models
 // ****************
 
@@ -332,7 +332,7 @@ namespace CryptoBlade.Models
 // ==== FILE #12: SymbolInfo.cs ====
 namespace CryptoBlade.Models
 {
-    public readonly record struct SymbolInfo(string Name, decimal PriceScale, string QuoteAsset, string BaseAsset, decimal? MinOrderQty, decimal? QtyStep, decimal? MaxLeverage, DateTime LaunchTime);
+    public record struct SymbolInfo(string Name, decimal PriceScale, string QuoteAsset, string BaseAsset, decimal? MinOrderQty, decimal? QtyStep, decimal? MaxLeverage, DateTime LaunchTime, decimal? Volume, decimal? Volatility);
 }
 
 // -----------------------------
@@ -351,6 +351,8 @@ namespace CryptoBlade.Models
         public decimal? FundingRate { get; set; }
 
         public DateTime Timestamp { get; set; }
+
+        public decimal Volume24H { get; set; }
     }
 }
 
