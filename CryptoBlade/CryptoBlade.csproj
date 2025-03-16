@@ -9,6 +9,10 @@
     <Version>1.4.0</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="Data\Strategies\Mona\Optimizer\notes.yml" />
+  </ItemGroup>
+
   <!--<ItemGroup>
     <Compile Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
     <Compile Remove="Scripts\**" />

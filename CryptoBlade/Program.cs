@@ -16,9 +16,6 @@ using Bybit.Net.Clients;
 using CryptoBlade.BackTesting.Binance;
 using CryptoBlade.BackTesting.Bybit;
 using CryptoBlade.Optimizer;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.DataProtection;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Strategies.Symbols;
 
