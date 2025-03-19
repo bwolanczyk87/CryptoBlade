@@ -29,7 +29,7 @@ services:
         - CB_TradingBot__BackTest__End=2025-03-17T00:00:00
         - CB_TradingBot__BackTest__InitialBalance=100
         - CB_TradingBot__BackTest__InitialUntradableDays=0
-        - CB_TradingBot__BackTest__Start=2025-09-01T00:00:00
+        - CB_TradingBot__BackTest__Start=2025-03-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__BotMode=Backtest
         - CB_TradingBot__CriticalMode__EnableCriticalModeLong=True
