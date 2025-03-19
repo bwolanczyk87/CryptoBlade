@@ -10,6 +10,9 @@ CBClone/
 /CryptoBlade/Data/Strategies/*/Optimizer/Results
 cryptoblade.tar
 
+**/docker-compose.yml
+**/docker-compose.override.yml
+
 # User-specific files
 *.rsuser
 *.suo
