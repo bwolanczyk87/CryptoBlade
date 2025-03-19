@@ -29,7 +29,7 @@ services:
         - CB_TradingBot__BackTest__End=2025-03-17T00:00:00
         - CB_TradingBot__BackTest__InitialBalance=100
         - CB_TradingBot__BackTest__InitialUntradableDays=0
-        - CB_TradingBot__BackTest__Start=2023-09-01T00:00:00
+        - CB_TradingBot__BackTest__Start=2025-09-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__BotMode=Backtest
         - CB_TradingBot__CriticalMode__EnableCriticalModeLong=True
@@ -49,7 +49,7 @@ services:
         - CB_TradingBot__MakerFeeRate=0.0006
         - CB_TradingBot__MaxAbsFundingRate=0.0002
         - CB_TradingBot__MaxRunningStrategies=200
-        - CB_TradingBot__MinimumPriceDistance=0.015
+        - CB_TradingBot__MinimumPriceDistance=0.0015
         - CB_TradingBot__MinimumVolume=15000.0
         - CB_TradingBot__MinNormalizedAverageTrueRangePeriod=1.0
         - CB_TradingBot__MinProfitRate=0.0006

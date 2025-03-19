@@ -393,7 +393,7 @@ namespace CryptoBlade.Exchanges
         {
             var symbolData = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
-                List<SymbolInfo> symbolInfo = new List<SymbolInfo>();
+                List<SymbolInfo> symbolInfo = [];
                 string? cursor = null;
                 while (true)
                 {
@@ -422,7 +422,6 @@ namespace CryptoBlade.Exchanges
                         break;
                     cursor = data.NextPageCursor;
                 }
-
                 return symbolInfo.ToArray();
             });
 

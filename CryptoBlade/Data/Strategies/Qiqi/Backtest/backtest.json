@@ -25,7 +25,7 @@
     "AccountName":  "CryptoBlade_Demo",
     "BotMode":  "Backtest",
     "StrategyName":  "Qiqi",
-    "TradingMode":  "Normal",
+    "TradingMode":  "DynamicBackTest",
     "MaxRunningStrategies":  200,
     "DcaOrdersCount":  1000,
     "DynamicBotCount":  {
@@ -39,7 +39,7 @@
     "WalletExposureLong":  15.0,
     "WalletExposureShort":  15.0,
     "MinimumVolume":  15000.0,
-    "MinimumPriceDistance":  0.015,
+    "MinimumPriceDistance":  0.0015,
     "ForceMinQty":  false,
     "QtyFactorLong":  2.0,
     "QtyFactorShort":  2.0,
@@ -55,7 +55,7 @@
     "NormalizedAverageTrueRangePeriod":  14,
     "MinNormalizedAverageTrueRangePeriod":  1.0,
     "BackTest":  {
-                     "Start":  "2023-09-01T00:00:00",
+                     "Start":  "2025-09-01T00:00:00",
                      "End":  "2025-03-17T00:00:00",
                      "InitialBalance":  100,
                      "StartupCandleData":  "1.00:00:00",
