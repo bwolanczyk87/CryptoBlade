@@ -28,11 +28,6 @@ namespace CryptoBlade.Exchanges
             throw new NotImplementedException();
         }
 
-        public Task<bool> SwitchCrossIsolatedMarginAsync(SymbolInfo symbol, TradeMode tradeMode, CancellationToken cancel = default)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<bool> CancelOrderAsync(string symbol, string orderId, CancellationToken cancel = default)
         {
             throw new NotImplementedException();

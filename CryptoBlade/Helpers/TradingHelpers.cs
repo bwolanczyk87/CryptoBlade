@@ -229,7 +229,7 @@ namespace CryptoBlade.Helpers
                 return null;
             }
 
-            List<Quote> quotes = candles.Select(c => new Quote
+            List<Quote> quotes = [.. candles.Select(c => new Quote
             {
                 Date = c.StartTime,
                 Open = c.Open,
@@ -237,10 +237,10 @@ namespace CryptoBlade.Helpers
                 Low = c.Low,
                 Close = c.Close,
                 Volume = c.Volume
-            }).ToList();
+            })];
 
             IEnumerable<AtrResult> atrResults = quotes.GetAtr();
-            AtrResult lastAtr = atrResults.LastOrDefault();
+            AtrResult? lastAtr = atrResults.LastOrDefault();
             if (lastAtr == null || lastAtr.Atr == null)
             {
                 return null;

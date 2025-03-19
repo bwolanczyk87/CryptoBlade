@@ -85,18 +85,13 @@ namespace CryptoBlade.Exchanges
                         timeFrame.ToKlineInterval(),
                         klineUpdateEvent =>
                         {
-                            if (string.IsNullOrEmpty(klineUpdateEvent.Topic))
-                                return;
-                            string[] topicParts = klineUpdateEvent.Topic.Split('.');
-                            if (topicParts.Length != 2)
-                                return;
-                            string symbol = topicParts[1];
+                            string? symbol = klineUpdateEvent.Symbol;
                             foreach (BybitKlineUpdate bybitKlineUpdate in klineUpdateEvent.Data)
                             {
                                 if (!bybitKlineUpdate.Confirm)
                                     continue;
                                 var candle = bybitKlineUpdate.ToCandle();
-                                handler(symbol, candle);
+                                handler(symbol ?? string.Empty, candle);
                             }
                         },
                         cancel);

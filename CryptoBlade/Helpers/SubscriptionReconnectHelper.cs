@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Strategies.Policies;
-using CryptoExchange.Net.Sockets;
+using CryptoExchange.Net.Objects.Sockets;
 
 namespace CryptoBlade.Helpers
 {

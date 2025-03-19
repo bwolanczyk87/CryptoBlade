@@ -1,158 +1,360 @@
 {
-  "TradingBot": {
-    "Accounts": [
-      {
-        "Name": "CryptoBlade_Demo",
-        "ApiKey": "LOYP26XvTB3ZbrLtdm",
-        "ApiSecret": "WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv",
-        "Exchange": "Bybit"
-      },
-      {
-        "Name": "CryptoBlade_Subaccount",
-        "ApiKey": "URvF5Qbv7PBnHWs0k3",
-        "ApiSecret": "w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv",
-        "Exchange": "Bybit"
-      }
-    ],
-    "AccountName": "CryptoBlade_Demo",
-    "BotMode": "Optimizer",
-    "StrategyName": "Tartaglia",
-    "TradingMode": "Normal",
-    "MaxRunningStrategies": 200,
-    "DcaOrdersCount": 1000,
-    "DynamicBotCount": {
-      "TargetLongExposure": 100.0,
-      "TargetShortExposure": 100.0,
-      "MaxLongStrategies": 150,
-      "MaxShortStrategies": 150,
-      "MaxDynamicStrategyOpenPerStep": 6,
-      "Step": "0.00:03:00"
-    },
-    "WalletExposureLong": 500.0,
-    "WalletExposureShort": 500.0,
-    "ForceMinQty": false,
-    "MinProfitRate": 0.0001,
-    "Unstucking": {
-      "Enabled": true,
-      "SlowUnstuckThresholdPercent": -0.001,
-      "SlowUnstuckPositionThresholdPercent": -0.0005,
-      "SlowUnstuckPercentStep": 0.1,
-      "ForceUnstuckThresholdPercent": -0.003,
-      "ForceUnstuckPositionThresholdPercent": -0.0007,
-      "ForceUnstuckPercentStep": 0.1,
-      "ForceKillTheWorst": true
-    },
-    "SymbolVolumePreference": [ "MEDIUM", "HIGH" ],
-    "SymbolVolatilityPreference": [ "HIGH", "LARGE" ],
-    "SymbolMaturityPreference": [ "LOW", "MEDIUM" ],
-    "Whitelist": [
-      "BTCUSDT",
-      "ETHUSDT",
-      "XRPUSDT",
-      "BNBUSDT",
-      "DOGEUSDT",
-      "ADAUSDT",
-      "SOLUSDT",
-      "TRXUSDT",
-      "MATICUSDT",
-      "LTCUSDT",
-      "DOTUSDT",
-      "BCHUSDT",
-      "SHIB1000USDT",
-      "AVAXUSDT",
-      "UNIUSDT",
-      "XLMUSDT",
-      "LINKUSDT",
-      "XMRUSDT",
-      "ATOMUSDT",
-      "ETCUSDT",
-      "FILUSDT",
-      "ICPUSDT",
-      "HBARUSDT",
-      "LDOUSDT",
-      "CROUSDT",
-      "ARBUSDT",
-      "APTUSDT",
-      "QNTUSDT",
-      "VETUSDT",
-      "NEARUSDT",
-      "MKRUSDT",
-      "AAVEUSDT",
-      "OPUSDT",
-      "GRTUSDT",
-      "SNXUSDT",
-      "ALGOUSDT",
-      "STXUSDT",
-      "EGLDUSDT",
-      "SANDUSDT",
-      "EOSUSDT",
-      "THETAUSDT",
-      "AXSUSDT",
-      "IMXUSDT",
-      "XTZUSDT",
-      "APEUSDT",
-      "MANAUSDT",
-      "FTMUSDT",
-      "BSVUSDT",
-      "RNDRUSDT",
-      "INJUSDT",
-      "CRVUSDT",
-      "NEOUSDT",
-      "FLOWUSDT",
-      "GALAUSDT",
-      "RPLUSDT",
-      "1000XECUSDT",
-      "KAVAUSDT",
-      "1000PEPEUSDT",
-      "CHZUSDT",
-      "KLAYUSDT",
-      "GMXUSDT",
-      "PAXGUSDT",
-      "COMPUSDT",
-      "FXSUSDT",
-      "SUIUSDT",
-      "MINAUSDT",
-      "TWTUSDT",
-      "ARUSDT",
-      "CFXUSDT",
-      "DASHUSDT",
-      "DYDXUSDT",
-      "ZILUSDT",
-      "WOOUSDT",
-      "1INCHUSDT",
-      "ENJUSDT",
-      "CVXUSDT",
-      "FLRUSDT",
-      "BATUSDT",
-      "MASKUSDT",
-      "RUNEUSDT",
-      "LRCUSDT",
-      "AGIXUSDT",
-      "QTUMUSDT",
-      "XEMUSDT",
-      "ROSEUSDT",
-      "WLDUSDT",
-      "ZECUSDT",
-      "CELOUSDT",
-      "BLURUSDT",
-      "ENSUSDT",
-      "GMTUSDT",
-      "HNTUSDT",
-      "ILVUSDT",
-      "ASTRUSDT",
-      "HOTUSDT",
-      "YFIUSDT",
-      "FETUSDT",
-      "RVNUSDT",
-      "JSTUSDT",
-      "ANKRUSDT",
-      "ICXUSDT",
-      "KSMUSDT",
-      "SXPUSDT",
-      "B"
-    ],
-    "Blacklist": [],
-    "SymbolTradingModes": []
-  }
-  }
-  
+    "Accounts":  [
+                     {
+                         "Name":  "CryptoBlade_Demo",
+                         "ApiKey":  "LOYP26XvTB3ZbrLtdm",
+                         "ApiSecret":  "WHqw6GHHsrqc56NiPMdpPcL0zFfaQCCTeLwv",
+                         "Exchange":  "Bybit",
+                         "IsDemo":  true
+                     },
+                     {
+                         "Name":  "CryptoBlade_Subaccount",
+                         "ApiKey":  "URvF5Qbv7PBnHWs0k3",
+                         "ApiSecret":  "w8eIqzxkD8B3ClR422BuLliaPGAlrLyDddFv",
+                         "Exchange":  "Bybit",
+                         "IsDemo":  false
+                     }
+                 ],
+    "AccountName":  "CryptoBlade_Demo",
+    "BotMode":  "Optimizer",
+    "StrategyName":  "Tartaglia",
+    "TradingMode":  "Dynamic",
+    "MaxRunningStrategies":  1,
+    "DcaOrdersCount":  1000,
+    "DynamicBotCount":  {
+                            "TargetLongExposure":  100.0,
+                            "TargetShortExposure":  100.0,
+                            "MaxLongStrategies":  1,
+                            "MaxShortStrategies":  1,
+                            "MaxDynamicStrategyOpenPerStep":  6,
+                            "Step":  "0.00:03:00"
+                        },
+    "BackTest":  {
+                     "Start":  "2025-03-1T00:00:00",
+                     "End":  "2025-03-17T23:00:00",
+                     "InitialBalance":  100,
+                     "StartupCandleData":  "1.00:00:00",
+                     "InitialUntradableDays":  -2000
+                 },
+    "Optimizer":  {
+                      "GeneticAlgorithm":  {
+                                               "GenerationCount":  10,
+                                               "MutationProbability":  0.05,
+                                               "CrossoverProbability":  0.95,
+                                               "MinPopulationSize":  10,
+                                               "MaxPopulationSize":  10,
+                                               "MutationStrategy":  "UniformMutation",
+                                               "SelectionStrategy":  "RankSelection",
+                                               "MutationMultiplier":  1.2,
+                                               "MaxMutationProbability":  0.3,
+                                               "FitnessOptions":  {
+                                                                      "RunningDaysPreference":  0.1,
+                                                                      "AvgDailyGainPreference":  1.0,
+                                                                      "LowestEquityToBalancePreference":  0.3,
+                                                                      "EquityBalanceNrmsePreference":  0.15,
+                                                                      "AdgNrmseErrorPreference":  0.3,
+                                                                      "MaxAvgDailyGainPercent":  1,
+                                                                      "MinAvgDailyGainPercent":  0
+                                                                  }
+                                           },
+                      "Tartaglia":  {
+                                        "ChannelLengthLong":  {
+                                                                  "Min":  5,
+                                                                  "Max":  1000
+                                                              },
+                                        "ChannelLengthShort":  {
+                                                                   "Min":  5,
+                                                                   "Max":  1000
+                                                               },
+                                        "StandardDeviationLong":  {
+                                                                      "Min":  0.1,
+                                                                      "Max":  10,
+                                                                      "FractionDigits":  1
+                                                                  },
+                                        "StandardDeviationShort":  {
+                                                                       "Min":  0.1,
+                                                                       "Max":  10,
+                                                                       "FractionDigits":  1
+                                                                   },
+                                        "MinReentryPositionDistanceLong":  {
+                                                                               "Min":  0.001,
+                                                                               "Max":  0.2,
+                                                                               "FractionDigits":  3
+                                                                           },
+                                        "MinReentryPositionDistanceShort":  {
+                                                                                "Min":  0.001,
+                                                                                "Max":  0.2,
+                                                                                "FractionDigits":  3
+                                                                            }
+                                    },
+                      "AutoHedge":  {
+                                        "MinReentryPositionDistanceLong":  {
+                                                                               "Min":  0.001,
+                                                                               "Max":  0.2,
+                                                                               "FractionDigits":  3
+                                                                           },
+                                        "MinReentryPositionDistanceShort":  {
+                                                                                "Min":  0.001,
+                                                                                "Max":  0.2,
+                                                                                "FractionDigits":  3
+                                                                            }
+                                    },
+                      "MfiRsiEriTrend":  {
+                                             "MinReentryPositionDistanceLong":  {
+                                                                                    "Min":  0.001,
+                                                                                    "Max":  0.2,
+                                                                                    "FractionDigits":  3
+                                                                                },
+                                             "MinReentryPositionDistanceShort":  {
+                                                                                     "Min":  0.001,
+                                                                                     "Max":  0.2,
+                                                                                     "FractionDigits":  3
+                                                                                 },
+                                             "MfiRsiLookbackPeriod":  {
+                                                                          "Min":  14,
+                                                                          "Max":  120
+                                                                      },
+                                             "UseEriOnly":  {
+                                                                "Min":  false,
+                                                                "Max":  true
+                                                            }
+                                         },
+                      "TradingBot":  {
+                                         "WalletExposureLong":  {
+                                                                    "Min":  5,
+                                                                    "Max":  10,
+                                                                    "FractionDigits":  1
+                                                                },
+                                         "WalletExposureShort":  {
+                                                                     "Min":  0,
+                                                                     "Max":  10,
+                                                                     "FractionDigits":  1
+                                                                 },
+                                         "QtyFactorLong":  {
+                                                               "Min":  1,
+                                                               "Max":  10,
+                                                               "FractionDigits":  3
+                                                           },
+                                         "QtyFactorShort":  {
+                                                                "Min":  0.001,
+                                                                "Max":  3,
+                                                                "FractionDigits":  3
+                                                            },
+                                         "EnableRecursiveQtyFactorLong":  {
+                                                                              "Min":  false,
+                                                                              "Max":  true
+                                                                          },
+                                         "EnableRecursiveQtyFactorShort":  {
+                                                                               "Min":  false,
+                                                                               "Max":  true
+                                                                           },
+                                         "DcaOrdersCount":  {
+                                                                "Min":  1,
+                                                                "Max":  5000
+                                                            },
+                                         "UnstuckingEnabled":  {
+                                                                   "Min":  false,
+                                                                   "Max":  true
+                                                               },
+                                         "SlowUnstuckThresholdPercent":  {
+                                                                             "Min":  -1,
+                                                                             "Max":  -0.01,
+                                                                             "FractionDigits":  2
+                                                                         },
+                                         "SlowUnstuckPositionThresholdPercent":  {
+                                                                                     "Min":  -1,
+                                                                                     "Max":  -0.01,
+                                                                                     "FractionDigits":  2
+                                                                                 },
+                                         "SlowUnstuckPercentStep":  {
+                                                                        "Min":  0.01,
+                                                                        "Max":  1,
+                                                                        "FractionDigits":  2
+                                                                    },
+                                         "ForceUnstuckThresholdPercent":  {
+                                                                              "Min":  -1,
+                                                                              "Max":  -0.01,
+                                                                              "FractionDigits":  2
+                                                                          },
+                                         "ForceUnstuckPositionThresholdPercent":  {
+                                                                                      "Min":  -1,
+                                                                                      "Max":  -0.01,
+                                                                                      "FractionDigits":  2
+                                                                                  },
+                                         "ForceUnstuckPercentStep":  {
+                                                                         "Min":  0.01,
+                                                                         "Max":  1,
+                                                                         "FractionDigits":  2
+                                                                     },
+                                         "ForceKillTheWorst":  {
+                                                                   "Min":  false,
+                                                                   "Max":  true
+                                                               },
+                                         "MinimumVolume":  {
+                                                               "Min":  1000,
+                                                               "Max":  30000
+                                                           },
+                                         "MinimumPriceDistance":  {
+                                                                      "Min":  0.015,
+                                                                      "Max":  0.03,
+                                                                      "FractionDigits":  3
+                                                                  },
+                                         "MinProfitRate":  {
+                                                               "Min":  0.0006,
+                                                               "Max":  0.01,
+                                                               "FractionDigits":  4
+                                                           },
+                                         "TargetLongExposure":  {
+                                                                    "Min":  0,
+                                                                    "Max":  3,
+                                                                    "FractionDigits":  2
+                                                                },
+                                         "TargetShortExposure":  {
+                                                                     "Min":  0,
+                                                                     "Max":  3,
+                                                                     "FractionDigits":  2
+                                                                 },
+                                         "MaxLongStrategies":  {
+                                                                   "Min":  0,
+                                                                   "Max":  15
+                                                               },
+                                         "MaxShortStrategies":  {
+                                                                    "Min":  0,
+                                                                    "Max":  15
+                                                                },
+                                         "EnableCriticalModeLong":  {
+                                                                        "Min":  false,
+                                                                        "Max":  true
+                                                                    },
+                                         "EnableCriticalModeShort":  {
+                                                                         "Min":  false,
+                                                                         "Max":  true
+                                                                     },
+                                         "CriticalModelWalletExposureThresholdLong":  {
+                                                                                          "Min":  0,
+                                                                                          "Max":  3,
+                                                                                          "FractionDigits":  2
+                                                                                      },
+                                         "CriticalModelWalletExposureThresholdShort":  {
+                                                                                           "Min":  0,
+                                                                                           "Max":  3,
+                                                                                           "FractionDigits":  2
+                                                                                       },
+                                         "SpotRebalancingRatio":  {
+                                                                      "Min":  0,
+                                                                      "Max":  1,
+                                                                      "FractionDigits":  2
+                                                                  }
+                                     },
+                      "RecursiveStrategy":  {
+                                                "DDownFactorLong":  {
+                                                                        "Min":  0.1,
+                                                                        "Max":  3,
+                                                                        "FractionDigits":  3
+                                                                    },
+                                                "InitialQtyPctLong":  {
+                                                                          "Min":  0.001,
+                                                                          "Max":  0.2,
+                                                                          "FractionDigits":  3
+                                                                      },
+                                                "ReentryPositionPriceDistanceLong":  {
+                                                                                         "Min":  0.0001,
+                                                                                         "Max":  0.2,
+                                                                                         "FractionDigits":  4
+                                                                                     },
+                                                "ReentryPositionPriceDistanceWalletExposureWeightingLong":  {
+                                                                                                                "Min":  0,
+                                                                                                                "Max":  3,
+                                                                                                                "FractionDigits":  3
+                                                                                                            },
+                                                "DDownFactorShort":  {
+                                                                         "Min":  0.1,
+                                                                         "Max":  3,
+                                                                         "FractionDigits":  3
+                                                                     },
+                                                "InitialQtyPctShort":  {
+                                                                           "Min":  0.001,
+                                                                           "Max":  0.2,
+                                                                           "FractionDigits":  3
+                                                                       },
+                                                "ReentryPositionPriceDistanceShort":  {
+                                                                                          "Min":  0.0001,
+                                                                                          "Max":  0.2,
+                                                                                          "FractionDigits":  4
+                                                                                      },
+                                                "ReentryPositionPriceDistanceWalletExposureWeightingShort":  {
+                                                                                                                 "Min":  0,
+                                                                                                                 "Max":  3,
+                                                                                                                 "FractionDigits":  3
+                                                                                                             }
+                                            },
+                      "Qiqi":  {
+                                   "RsiTakeProfitLong":  {
+                                                             "Min":  60,
+                                                             "Max":  80
+                                                         },
+                                   "QflBellowPercentEnterLong":  {
+                                                                     "Min":  0.1,
+                                                                     "Max":  4,
+                                                                     "FractionDigits":  1
+                                                                 },
+                                   "RsiTakeProfitShort":  {
+                                                              "Min":  20,
+                                                              "Max":  40
+                                                          },
+                                   "QflAbovePercentEnterShort":  {
+                                                                     "Min":  0.1,
+                                                                     "Max":  4,
+                                                                     "FractionDigits":  1
+                                                                 },
+                                   "TakeProfitPercentLong":  {
+                                                                 "Min":  0.02,
+                                                                 "Max":  0.5,
+                                                                 "FractionDigits":  2
+                                                             },
+                                   "TakeProfitPercentShort":  {
+                                                                  "Min":  0.02,
+                                                                  "Max":  0.5,
+                                                                  "FractionDigits":  2
+                                                              }
+                               },
+                      "SessionId":  "Session01",
+                      "EnableHistoricalDataCaching":  true,
+                      "ParallelTasks":  10
+                  },
+    "WalletExposureLong":  500.0,
+    "WalletExposureShort":  500.0,
+    "ForceMinQty":  false,
+    "MinProfitRate":  0.0001,
+    "Unstucking":  {
+                       "Enabled":  true,
+                       "SlowUnstuckThresholdPercent":  -0.001,
+                       "SlowUnstuckPositionThresholdPercent":  -0.0005,
+                       "SlowUnstuckPercentStep":  0.1,
+                       "ForceUnstuckThresholdPercent":  -0.003,
+                       "ForceUnstuckPositionThresholdPercent":  -0.0007,
+                       "ForceUnstuckPercentStep":  0.1,
+                       "ForceKillTheWorst":  true
+                   },
+    "SymbolVolumePreference":  [
+                                   "MEDIUM",
+                                   "HIGH"
+                               ],
+    "SymbolVolatilityPreference":  [
+                                       "HIGH",
+                                       "LARGE"
+                                   ],
+    "SymbolMaturityPreference":  [
+                                     "LOW",
+                                     "MEDIUM"
+                                 ],
+    "Whitelist":  [
+                      "ONTUSDT"
+                  ],
+    "Blacklist":  [
+
+                  ],
+    "SymbolTradingModes":  [
+
+                           ]
+}

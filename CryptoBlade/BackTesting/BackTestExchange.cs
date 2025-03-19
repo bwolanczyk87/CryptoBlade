@@ -79,11 +79,6 @@ namespace CryptoBlade.BackTesting
             return Task.FromResult(true);
         }
 
-        public Task<bool> SwitchCrossIsolatedMarginAsync(SymbolInfo symbol, TradeMode tradeMode, CancellationToken cancel = default)
-        {
-            return Task.FromResult(true);
-        }
-
         public async Task<bool> CancelOrderAsync(string symbol, string orderId, CancellationToken cancel = default)
         {
             Order? order = null;

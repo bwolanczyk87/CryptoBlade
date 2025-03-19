@@ -1,6 +1,5 @@
 ﻿using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
-using Microsoft.AspNetCore.Mvc.Localization;
 using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Mapping
@@ -113,9 +112,9 @@ namespace CryptoBlade.Mapping
         {
             return new Ticker
             {
-                BestAskPrice = ticker.BestAskPrice,
+                BestAskPrice = ticker.BestAskPrice ?? 0,
                 LastPrice = ticker.LastPrice,
-                BestBidPrice = ticker.BestBidPrice,
+                BestBidPrice = ticker.BestBidPrice ?? 0,
                 FundingRate = ticker.FundingRate,
                 Timestamp = DateTime.UtcNow,
                 Volume24H = ticker.Volume24h
@@ -194,7 +193,7 @@ namespace CryptoBlade.Mapping
                 Price = value.Price,
                 AveragePrice = value.AveragePrice,
                 OrderId = value.OrderId,
-                PositionMode = value.PositionMode.ToPositionMode(),
+                PositionMode = value.PositionIdx.ToPositionMode(),
                 Quantity = value.Quantity,
                 Side = value.Side.ToOrderSide(),
                 QuantityFilled = value.QuantityFilled,
@@ -209,62 +208,42 @@ namespace CryptoBlade.Mapping
 
         public static OrderSide ToOrderSide(this Bybit.Net.Enums.OrderSide value)
         {
-            switch (value)
+            return value switch
             {
-                case Bybit.Net.Enums.OrderSide.Buy:
-                    return OrderSide.Buy;
-                case Bybit.Net.Enums.OrderSide.Sell:
-                    return OrderSide.Sell;
-                default: throw new ArgumentOutOfRangeException(nameof(value), value, null);
-            }
+                Bybit.Net.Enums.OrderSide.Buy => OrderSide.Buy,
+                Bybit.Net.Enums.OrderSide.Sell => OrderSide.Sell,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
         }
 
-        public static OrderPositionMode? ToPositionMode(this Bybit.Net.Enums.PositionMode? value)
+        public static OrderPositionMode? ToPositionMode(this Bybit.Net.Enums.PositionIdx? value)
         {
-            if(value == null)
-                return null;
-            switch (value)
+            return value switch
             {
-                case Bybit.Net.Enums.PositionMode.OneWay:
-                    return OrderPositionMode.OneWay;
-                case Bybit.Net.Enums.PositionMode.BothSideBuy:
-                    return OrderPositionMode.BothSideBuy;
-                case Bybit.Net.Enums.PositionMode.BothSideSell:
-                    return OrderPositionMode.BothSideSell;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value), value, null);
-            }
+                Bybit.Net.Enums.PositionIdx.OneWayMode => (OrderPositionMode?)OrderPositionMode.OneWay,
+                Bybit.Net.Enums.PositionIdx.BuyHedgeMode => (OrderPositionMode?)OrderPositionMode.BothSideBuy,
+                Bybit.Net.Enums.PositionIdx.SellHedgeMode => (OrderPositionMode?)OrderPositionMode.BothSideSell,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
         }
 
-        public static OrderStatus ToOrderStatus(this Bybit.Net.Enums.V5.OrderStatus value)
+        public static OrderStatus ToOrderStatus(this Bybit.Net.Enums.OrderStatus value)
         {
-            switch (value)
+            return value switch
             {
-                case Bybit.Net.Enums.V5.OrderStatus.Created:
-                    return OrderStatus.Created;
-                case Bybit.Net.Enums.V5.OrderStatus.New:
-                    return OrderStatus.New;
-                case Bybit.Net.Enums.V5.OrderStatus.Rejected:
-                    return OrderStatus.Rejected;
-                case Bybit.Net.Enums.V5.OrderStatus.PartiallyFilled:
-                    return OrderStatus.PartiallyFilled;
-                case Bybit.Net.Enums.V5.OrderStatus.PartiallyFilledCanceled:
-                    return OrderStatus.PartiallyFilledCanceled;
-                case Bybit.Net.Enums.V5.OrderStatus.Filled:
-                    return OrderStatus.Filled;
-                case Bybit.Net.Enums.V5.OrderStatus.Cancelled:
-                    return OrderStatus.Cancelled;
-                case Bybit.Net.Enums.V5.OrderStatus.Untriggered:
-                    return OrderStatus.Untriggered;
-                case Bybit.Net.Enums.V5.OrderStatus.Triggered:
-                    return OrderStatus.Triggered;
-                case Bybit.Net.Enums.V5.OrderStatus.Deactivated:
-                    return OrderStatus.Deactivated;
-                case Bybit.Net.Enums.V5.OrderStatus.Active:
-                    return OrderStatus.Active;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value), value, null);
-            }
+                Bybit.Net.Enums.OrderStatus.Created => OrderStatus.Created,
+                Bybit.Net.Enums.OrderStatus.New => OrderStatus.New,
+                Bybit.Net.Enums.OrderStatus.Rejected => OrderStatus.Rejected,
+                Bybit.Net.Enums.OrderStatus.PartiallyFilled => OrderStatus.PartiallyFilled,
+                Bybit.Net.Enums.OrderStatus.PartiallyFilledCanceled => OrderStatus.PartiallyFilledCanceled,
+                Bybit.Net.Enums.OrderStatus.Filled => OrderStatus.Filled,
+                Bybit.Net.Enums.OrderStatus.Cancelled => OrderStatus.Cancelled,
+                Bybit.Net.Enums.OrderStatus.Untriggered => OrderStatus.Untriggered,
+                Bybit.Net.Enums.OrderStatus.Triggered => OrderStatus.Triggered,
+                Bybit.Net.Enums.OrderStatus.Deactivated => OrderStatus.Deactivated,
+                Bybit.Net.Enums.OrderStatus.Active => OrderStatus.Active,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
         }
 
         public static Position? ToPosition(this Bybit.Net.Objects.Models.V5.BybitPosition value)
@@ -278,8 +257,8 @@ namespace CryptoBlade.Mapping
                 Side = value.Side.ToPositionSide(),
                 Symbol = value.Symbol,
                 TradeMode = value.TradeMode.ToTradeMode(),
-                CreateTime = value.CreateTime,
-                UpdateTime = value.UpdateTime
+                CreateTime = value.CreateTime ?? default,
+                UpdateTime = value.UpdateTime ?? default
             };
 
             if (position.UpdateTime < position.CreateTime)
@@ -288,58 +267,45 @@ namespace CryptoBlade.Mapping
             return position;
         }
 
-        public static PositionSide ToPositionSide(this Bybit.Net.Enums.PositionSide value)
+        public static PositionSide ToPositionSide(this Bybit.Net.Enums.PositionSide? value)
         {
-            switch (value)
+            return value switch
             {
-                case Bybit.Net.Enums.PositionSide.Buy:
-                    return PositionSide.Buy;
-                case Bybit.Net.Enums.PositionSide.Sell:
-                    return PositionSide.Sell;
-                case Bybit.Net.Enums.PositionSide.None:
-                    return PositionSide.None;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value), value, null);
-            }
+                Bybit.Net.Enums.PositionSide.Buy => PositionSide.Buy,
+                Bybit.Net.Enums.PositionSide.Sell => PositionSide.Sell,
+                Bybit.Net.Enums.PositionSide.None => PositionSide.None,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
         }
 
         public static TradeMode ToTradeMode(this Bybit.Net.Enums.TradeMode value)
         {
-            switch (value)
+            return value switch
             {
-                case Bybit.Net.Enums.TradeMode.CrossMargin:
-                    return TradeMode.CrossMargin;
-                case Bybit.Net.Enums.TradeMode.Isolated:
-                    return TradeMode.Isolated;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value), value, null);
-            }
+                Bybit.Net.Enums.TradeMode.CrossMargin => TradeMode.CrossMargin,
+                Bybit.Net.Enums.TradeMode.Isolated => TradeMode.Isolated,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
         }
 
-        public static Bybit.Net.Enums.V5.PositionMode ToBybitPositionMode(this PositionMode positionMode)
+        public static Bybit.Net.Enums.PositionMode ToBybitPositionMode(this PositionMode positionMode)
         {
-            switch (positionMode)
+            return positionMode switch
             {
-                case PositionMode.Hedge:
-                    return Bybit.Net.Enums.V5.PositionMode.BothSides;
-                case PositionMode.OneWay:
-                    return Bybit.Net.Enums.V5.PositionMode.MergedSingle;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(positionMode), positionMode, null);
-            }
+                PositionMode.Hedge => Bybit.Net.Enums.PositionMode.BothSides,
+                PositionMode.OneWay => Bybit.Net.Enums.PositionMode.MergedSingle,
+                _ => throw new ArgumentOutOfRangeException(nameof(positionMode), positionMode, null),
+            };
         }
 
         public static Bybit.Net.Enums.TradeMode ToBybitTradeMode(this TradeMode tradeMode)
         {
-            switch (tradeMode)
+            return tradeMode switch
             {
-                case TradeMode.CrossMargin:
-                    return Bybit.Net.Enums.TradeMode.CrossMargin;
-                case TradeMode.Isolated:
-                    return Bybit.Net.Enums.TradeMode.Isolated;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(tradeMode), tradeMode, null);
-            }
+                TradeMode.CrossMargin => Bybit.Net.Enums.TradeMode.CrossMargin,
+                TradeMode.Isolated => Bybit.Net.Enums.TradeMode.Isolated,
+                _ => throw new ArgumentOutOfRangeException(nameof(tradeMode), tradeMode, null),
+            };
         }
 
         public static OrderUpdate ToOrderUpdate(this Bybit.Net.Objects.Models.V5.BybitOrderUpdate value)

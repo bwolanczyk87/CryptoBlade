@@ -14,11 +14,6 @@ namespace CryptoBlade.Exchanges
             string symbol,
             CancellationToken cancel = default);
 
-        Task<bool> SwitchCrossIsolatedMarginAsync(
-            SymbolInfo symbol,
-            Models.TradeMode tradeMode,
-            CancellationToken cancel = default);
-
         Task<bool> CancelOrderAsync(
             string symbol,
             string orderId,

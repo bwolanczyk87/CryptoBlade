@@ -14,6 +14,7 @@ using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Symbols;
 using GeneticSharp;
 using Microsoft.Extensions.Options;
+using CryptoExchange.Net.Clients;
 
 namespace CryptoBlade.Optimizer
 {
@@ -35,6 +36,7 @@ namespace CryptoBlade.Optimizer
             m_logger = logger;
             m_applicationLifetime = applicationLifetime;
             m_tradingSymbolsManager = symbolsManager;
+
         }
 
         public Task RunAsync(CancellationToken cancel)
@@ -250,17 +252,16 @@ namespace CryptoBlade.Optimizer
                 {
                     Directory = ConfigPaths.DefaultHistoricalDataDirectory,
                 });
-            ProtoHistoricalDataStorage historicalDataStorage =
-                new ProtoHistoricalDataStorage(protoHistoricalDataStorageOptions);
-
-            BinanceCbFuturesRestClient binanceCbFuturesRestClient = new BinanceCbFuturesRestClient(
+            ProtoHistoricalDataStorage historicalDataStorage = new(protoHistoricalDataStorageOptions);
+            BinanceCbFuturesRestClient binanceCbFuturesRestClient = new(
                 ApplicationLogging.CreateLogger<BinanceCbFuturesRestClient>(),
                 new BinanceRestClient());
-            BinanceHistoricalDataDownloader binanceHistoricalDataDownloader = new BinanceHistoricalDataDownloader(
+            BinanceHistoricalDataDownloader binanceHistoricalDataDownloader = new(
                 historicalDataStorage,
                 ApplicationLogging.CreateLogger<BinanceHistoricalDataDownloader>(),
                 binanceCbFuturesRestClient);
-            BackTestDataDownloader backTestDataDownloader = new BackTestDataDownloader(binanceHistoricalDataDownloader);
+            BackTestDataDownloader backTestDataDownloader = new(binanceHistoricalDataDownloader);
+
             var start = m_options.Value.BackTest.Start;
             var end = m_options.Value.BackTest.End;
             start -= m_options.Value.BackTest.StartupCandleData;

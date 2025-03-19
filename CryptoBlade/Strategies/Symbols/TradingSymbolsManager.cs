@@ -69,7 +69,15 @@ namespace CryptoBlade.Strategies.Symbols
                     try
                     {
                         var existingJson = await File.ReadAllTextAsync(jsonFile, cancel);
-                        return JsonSerializer.Deserialize<SymbolInfo[]>(existingJson);
+                        var deserializedSymbols = JsonSerializer.Deserialize<SymbolInfo[]>(existingJson);
+                        if (deserializedSymbols != null)
+                        {
+                            return deserializedSymbols;
+                        }
+                        else
+                        {
+                            File.Delete(jsonFile);
+                        }
                     }
                     catch (Exception)
                     {
@@ -87,7 +95,7 @@ namespace CryptoBlade.Strategies.Symbols
             if (File.Exists(jsonFile))
                 File.Delete(jsonFile);
 
-            await File.WriteAllTextAsync(jsonFile, json, cancel);   
+            await File.WriteAllTextAsync(jsonFile, json, cancel);
             return symbolInfo;
         }
 
@@ -99,7 +107,7 @@ namespace CryptoBlade.Strategies.Symbols
 
         private static Dictionary<string, SymbolClassification> ClassifySymbols(SymbolInfo[] symbols)
         {
-            if (!symbols.Any())
+            if (symbols.Length == 0)
                 throw new ArgumentException("No symbols to classify");
 
             var launchDesc = symbols
@@ -109,13 +117,13 @@ namespace CryptoBlade.Strategies.Symbols
 
             var volumeAsc = symbols
                 .Where(s => s.Volume.HasValue && s.Volume.Value > 0)
-                .OrderBy(s => s.Volume.Value)
+                .OrderBy(s => s.Volume ?? 0)
                 .ToList();
             var volumeMap = ClassifyIntoFourSegments(volumeAsc);
 
             var volAsc = symbols
                 .Where(s => s.Volatility.HasValue && s.Volatility.Value > 0)
-                .OrderBy(s => s.Volatility.Value)
+                .OrderBy(s => s.Volatility ?? 0)
                 .ToList();
             var volatilityMap = ClassifyIntoFourSegments(volAsc);
 

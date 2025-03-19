@@ -1,5 +1,4 @@
 ﻿using Bybit.Net.Enums;
-using Bybit.Net.Enums.V5;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Configuration;
 using CryptoBlade.Helpers;
@@ -10,7 +9,7 @@ using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
-using OrderStatus = Bybit.Net.Enums.V5.OrderStatus;
+using OrderStatus = Bybit.Net.Enums.OrderStatus;
 using Position = CryptoBlade.Models.Position;
 using PositionMode = CryptoBlade.Models.PositionMode;
 using TradeMode = CryptoBlade.Models.TradeMode;
@@ -87,35 +86,6 @@ namespace CryptoBlade.Exchanges
             return modeOk;
         }
 
-        public async Task<bool> SwitchCrossIsolatedMarginAsync(SymbolInfo symbol,
-            TradeMode tradeMode,
-            CancellationToken cancel = default)
-        {
-            if (!symbol.MaxLeverage.HasValue)
-            {
-                m_logger.LogError($"Failed to setup cross mode. Max leverage is not set for {symbol.Name}");
-                return false;
-            }
-
-            var crossMode = await ExchangePolicies.RetryTooManyVisits.ExecuteAsync(async () =>
-            {
-                var crossModeResult = await m_bybitRestClient.V5Api.Account.SwitchCrossIsolatedMarginAsync(
-                    m_category,
-                    symbol.Name,
-                    tradeMode.ToBybitTradeMode(),
-                    symbol.MaxLeverage.Value,
-                    symbol.MaxLeverage.Value,
-                    cancel);
-                return crossModeResult;
-            });
-            bool crossModeOk = crossMode.Success || crossMode.Error != null &&
-                crossMode.Error.Code == (int)BybitErrorCodes.CrossModeNotModified;
-            if (!crossModeOk)
-                m_logger.LogError($"Failed to setup cross mode. {crossMode.Error?.Message}");
-
-            return crossModeOk;
-        }
-
         public async Task<bool> CancelOrderAsync(string symbol, string orderId, CancellationToken cancel = default)
         {
             var cancelOrder = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
@@ -131,6 +101,7 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
+            var symbols = GetSymbolInfoAsync(cancel);
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogDebug($"{symbol} Placing limit buy order for '{quantity}' @ '{price}'");
@@ -196,6 +167,7 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
+            var symbols = GetSymbolInfoAsync(cancel);
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogDebug(
@@ -427,6 +399,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var symbolsResult = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseSymbolsAsync(
                         m_category,
+                        null,
                         null,
                         null,
                         null,

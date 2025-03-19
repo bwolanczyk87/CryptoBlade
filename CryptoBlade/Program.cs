@@ -28,10 +28,9 @@ namespace CryptoBlade
             var builder = WebApplication.CreateBuilder(args);
             builder.Configuration.AddEnvironmentVariables("CB_");
             var debugView = builder.Configuration.GetDebugView();
-            string[] debugViewLines = debugView.Split(Environment.NewLine)
+            string[] debugViewLines = [.. debugView.Split(Environment.NewLine)
                 .Where(x => !x.Contains("ApiKey", StringComparison.OrdinalIgnoreCase)
-                && !x.Contains("ApiSecret", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+                && !x.Contains("ApiSecret", StringComparison.OrdinalIgnoreCase))];
             debugView = string.Join(Environment.NewLine, debugViewLines);
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
@@ -50,6 +49,11 @@ namespace CryptoBlade
                 });
             });
 
+            if(tradingBotOptions == null)
+            {
+                Console.WriteLine("No configuration found.");
+                return;
+            }
             switch (tradingBotOptions.BotMode)
             {
                 case BotMode.Live:
@@ -246,7 +250,7 @@ namespace CryptoBlade
             builder.Services.AddBybit(
                 restOptions =>
                 {
-                    restOptions.V5Options.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
+                    restOptions.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
 
                     if (mainAccount.HasApiCredentials())
                         restOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);

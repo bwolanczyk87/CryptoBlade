@@ -1,5 +1,4 @@
-﻿using CryptoBlade.Helpers;
-using CryptoExchange.Net.Sockets;
+﻿using CryptoExchange.Net.Objects.Sockets;
 
 namespace CryptoBlade.Exchanges
 {
@@ -14,7 +13,7 @@ namespace CryptoBlade.Exchanges
 
         public void AutoReconnect(ILogger logger)
         {
-            m_subscription.AutoReconnect(logger);
+            m_subscription.ReconnectAsync();
         }
 
         public async Task CloseAsync()
