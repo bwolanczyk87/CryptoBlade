@@ -4,14 +4,7 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 CBClone/
-/CryptoBlade/Data/HistoricalData
-/CryptoBlade/Data/OptimizerResults
-/CryptoBlade/Data/Strategies/*/Backtest/Results
-/CryptoBlade/Data/Strategies/*/Optimizer/Results
-cryptoblade.tar
-
-**/docker-compose.yml
-**/docker-compose.override.yml
+CryptoBlade/Data/
 
 # User-specific files
 *.rsuser

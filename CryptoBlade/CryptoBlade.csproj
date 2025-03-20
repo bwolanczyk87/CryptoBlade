@@ -9,17 +9,6 @@
     <Version>1.4.0</Version>
   </PropertyGroup>
 
-  <!--<ItemGroup>
-    <Compile Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
-    <Compile Remove="Scripts\**" />
-    <Content Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
-    <Content Remove="Scripts\**" />
-    <EmbeddedResource Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
-    <EmbeddedResource Remove="Scripts\**" />
-    <None Remove="Data\Strategies\MfiRsiCandlePrecise\Result\**" />
-    <None Remove="Scripts\**" />
-  </ItemGroup>-->
-
   <ItemGroup>
     <PackageReference Include="Accord" Version="3.8.0" />
     <PackageReference Include="Accord.MachineLearning" Version="3.8.0" />
