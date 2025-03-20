@@ -58,7 +58,7 @@ Dokument został przygotowany w formacie **Markdown**.
 
 - **Opis**: Nazwa konta, z którego bot skorzysta domyślnie (musi pokrywać się z polem `Name` w którymś obiekcie `Accounts`).
 - **Przykłady użycia**:
-  1. Ustawienie wartości `"CryptoBlade_Demo"` w celu rozpoczęcia pracy na koncie demo.
+  1. Ustawienie wartości `"Demo"` w celu rozpoczęcia pracy na koncie demo.
   2. Przełączenie na `"CryptoBlade_Subaccount"`, aby aktywować pracę na subkoncie produkcyjnym.
 
 ---
