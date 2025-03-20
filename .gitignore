@@ -3,8 +3,8 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
-CBClone/
-CryptoBlade/Data/
+/CBClone/
+/CryptoBlade/Data/
 
 # User-specific files
 *.rsuser
