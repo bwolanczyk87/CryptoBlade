@@ -152,7 +152,7 @@
    - Verify signaling logic in strategies (LinearRegression, Tartaglia, Mona, MfiRsiEriTrend, Qiqi).
 
 2. **Configuration Fixes**:
-   - Ensure `appsettings.json` contains the correct account data (ApiKey/ApiSecret) and the right mode (Live, Backtest, Optimizer).
+   - Ensure `appsettings.Accounts.json` contains the correct account data (ApiKey/ApiSecret) and the right mode (Live, Backtest, Optimizer).
    - Validate and standardize your strategy/optimizer settings.
 
 3. **Quality Control and Monitoring Integration**:

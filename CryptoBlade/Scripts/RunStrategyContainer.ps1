@@ -2,8 +2,7 @@
     deploy.ps1 - Skrypt do dekodowania trzycyfrowego kodu, dynamicznego pobierania mappingów
     z plików źródłowych (Strategies/StrategyNames.cs, Configuration/BotMode.cs, Configuration/TradingMode.cs),
     aktualizacji plików JSON (np. live.json, backtest.json, optimizer.json) z relatywną ścieżką,
-    kopiowania wartości ApiKey i ApiSecret z appsettings.json (w trybie demo kopiujemy wszystkie konta,
-    a w produkcyjnym tylko wybrane konto), generowania zmiennych środowiskowych do sekcji environment w 
+    generowania zmiennych środowiskowych do sekcji environment w 
     pliku docker-compose.yml oraz uruchomienia kontenerów (docker login + docker compose up).
 
     Parametry:
@@ -143,38 +142,6 @@ if ($BotMode -eq "Backtest") {
     $jsonContent.TradingMode = "DynamicBackTest"
 } else {
     $jsonContent.TradingMode = $TradingMode
-}
-
-# Kopiowanie ApiKey/ApiSecret z appsettings.json – plik znajduje się w katalogu nadrzędnym
-$appSettingsFile = "$PSScriptRoot\..\appsettings.json"
-if (-not (Test-Path $appSettingsFile)) {
-    Write-Warning "Plik appsettings.json nie został znaleziony. Dane ApiKey/ApiSecret nie zostaną zaktualizowane."
-} else {
-    $appSettings = Get-Content $appSettingsFile -Raw | ConvertFrom-Json
-    if ($appSettings.TradingBot -and $appSettings.TradingBot.Accounts) {
-        if ($Demo) {
-            # Tryb demo: kopiujemy wszystkie konta i ustawiamy AccountName na pierwsze konto demo
-            $jsonContent.Accounts = $appSettings.TradingBot.Accounts
-            $demoAccount = $appSettings.TradingBot.Accounts | Where-Object { $_.IsDemo -eq $true } | Select-Object -First 1
-            if ($demoAccount) {
-                $jsonContent.AccountName = $demoAccount.Name
-                Write-Host "Demo mode: Skopiowano wszystkie konta i ustawiono konto demo: $($demoAccount.Name)."
-            } else {
-                Write-Warning "Demo mode: Nie znaleziono konta demo w appsettings.json."
-            }
-        } else {
-            # Produkcyjny: kopiujemy tylko konto wskazane w AccountName
-            $selectedAccount = $appSettings.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
-            if ($selectedAccount) {
-                $jsonContent.Accounts = @($selectedAccount)
-                Write-Host "Skopiowano ApiKey i ApiSecret z appsettings.json dla konta $($jsonContent.AccountName)."
-            } else {
-                Write-Warning "Nie znaleziono konta o nazwie $($jsonContent.AccountName) w appsettings.json."
-            }
-        }
-    } else {
-        Write-Warning "Struktura appsettings.json nie zawiera TradingBot.Accounts."
-    }
 }
 
 # Zapisanie zaktualizowanego JSONa (nadpisanie oryginalnego pliku)

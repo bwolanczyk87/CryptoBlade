@@ -294,13 +294,6 @@ if (Test-Path $appsettingsPath) {
     Write-Host "Przetwarzanie pliku:" $appsettingsPath
     try {
         $jsonContent = Get-Content -Path $appsettingsPath -Raw | ConvertFrom-Json
-        # W sekcji accounts pozostaw puste wartości dla ApiKey i ApiSecret
-        if ($null -ne $jsonContent.TradingBot.Accounts) {
-            foreach ($account in $jsonContent.TradingBot.Accounts) {
-                $account.ApiKey = ""
-                $account.ApiSecret = ""
-            }
-        }
         $destinationAppsettingsPath = Join-Path -Path $DestDir -ChildPath "appsettings.json"
         $jsonContent | ConvertTo-Json -Depth 10 | Out-File -FilePath $destinationAppsettingsPath -Encoding utf8
         Write-Host "Zapisano zmodyfikowany plik appsettings.json w:" $destinationAppsettingsPath
