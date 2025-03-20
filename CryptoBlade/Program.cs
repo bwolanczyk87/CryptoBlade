@@ -26,7 +26,10 @@ namespace CryptoBlade
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.Configuration.AddEnvironmentVariables("CB_");
+            builder.Configuration
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile("appsettings.Accounts.json", optional: false, reloadOnChange: true)
+                .AddEnvironmentVariables("CB_");
             var debugView = builder.Configuration.GetDebugView();
             string[] debugViewLines = [.. debugView.Split(Environment.NewLine)
                 .Where(x => !x.Contains("ApiKey", StringComparison.OrdinalIgnoreCase)
