@@ -1,1 +1,1 @@
-docker build -f "CryptoBlade/Dockerfile" -t cryptoblade:live .
+docker build -f "CryptoBlade/Dockerfile" -t cryptoblade:latest .
