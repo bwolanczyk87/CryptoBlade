@@ -225,9 +225,19 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+$config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
+$account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
+$env:B_TradingBot__Accounts__0__Name=$account.Name
+$env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
+$env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
+$env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
+$env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
+
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."
 docker compose -p $containerName up -d
+
+
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1

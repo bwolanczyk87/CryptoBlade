@@ -295,7 +295,9 @@ namespace CryptoBlade.BackTesting
             json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(filePathDetailed, json);
 
-            var botSettings = JsonSerializer.Serialize(m_tradingBotOptions.Value, new JsonSerializerOptions { WriteIndented = true });
+            var settings = m_tradingBotOptions.Value;
+            settings.Accounts = [];
+            var botSettings = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(Path.Combine(directory, "appsettings.json"), botSettings);
             m_resultsSaved = true;
         }
