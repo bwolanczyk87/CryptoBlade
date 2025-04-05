@@ -24,6 +24,12 @@
         EriTrend,
         LinearRegressionPriceShort,
         LinearRegressionPriceLong,
-        NormalizedAverageTrueRange
+        NormalizedAverageTrueRange,
+        Macd,
+        MacdSignal,
+        MacdHistogram,
+        Rsi,
+        Atr,
+        Volume
     }
 }

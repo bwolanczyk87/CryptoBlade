@@ -2,6 +2,7 @@
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Momentum;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 
@@ -43,6 +44,9 @@ namespace CryptoBlade.Strategies
 
             if (string.Equals(StrategyNames.Qiqi, strategyName, StringComparison.OrdinalIgnoreCase))
                 return CreateQiqiStrategy(config, symbol);
+
+            if (string.Equals(StrategyNames.Momentum, strategyName, StringComparison.OrdinalIgnoreCase))
+                return CreateMomentumStrategy(config, symbol);
 
             return CreateAutoHedgeStrategy(config, symbol);
         }
@@ -178,6 +182,34 @@ namespace CryptoBlade.Strategies
             optionsSetup(options);
             return Options.Create(options);
         }
+
+        private ITradingStrategy CreateMomentumStrategy(TradingBotOptions config, string symbol)
+        {
+            var momentumOptions = CreateTradeOptions<MomentumStrategyOptions>(config, symbol, strategyOptions =>
+            {
+                strategyOptions.MinimumPriceDistance = config.MinimumPriceDistance;
+                strategyOptions.MinimumVolume = config.MinimumVolume;
+                strategyOptions.MacdFastPeriod = config.Strategies.Momentum.MacdFastPeriod;
+                strategyOptions.MacdSlowPeriod = config.Strategies.Momentum.MacdSlowPeriod;
+                strategyOptions.MacdSignalPeriod = config.Strategies.Momentum.MacdSignalPeriod;
+                strategyOptions.RsiPeriod = config.Strategies.Momentum.RsiPeriod;
+                strategyOptions.RsiUpperThreshold = config.Strategies.Momentum.RsiUpperThreshold;
+                strategyOptions.RsiLowerThreshold = config.Strategies.Momentum.RsiLowerThreshold;
+                strategyOptions.AtrPeriod = config.NormalizedAverageTrueRangePeriod;
+                strategyOptions.MinimumAtr = config.MinNormalizedAverageTrueRangePeriod;
+                strategyOptions.MinReentryPositionDistanceLong = config.Strategies.Momentum.MinReentryPositionDistanceLong;
+                strategyOptions.MinReentryPositionDistanceShort = config.Strategies.Momentum.MinReentryPositionDistanceShort;
+                strategyOptions.ConfirmationCandles = config.Strategies.Momentum.ConfirmationCandles;
+                strategyOptions.UseSecondaryTimeFrameFilter = config.Strategies.Momentum.UseSecondaryTimeFrameFilter;
+                strategyOptions.PrimaryTimeFrame = config.Strategies.Momentum.PrimaryTimeFrame;
+                strategyOptions.SecondaryTimeFrame = config.Strategies.Momentum.SecondaryTimeFrame;
+                strategyOptions.PrimaryTimeFrameWindowSize = config.Strategies.Momentum.PrimaryTimeFrameWindowSize;
+                strategyOptions.SecondaryTimeFrameWindowSize = config.Strategies.Momentum.SecondaryTimeFrameWindowSize;
+            });
+
+            return new MomentumStrategy(momentumOptions, m_botOptions, symbol, m_walletManager, m_restClient);
+        }
+
 
         private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup) 
             where TOptions : TradingStrategyBaseOptions, new()

@@ -227,11 +227,18 @@ if ($LASTEXITCODE -ne 0) {
 
 $config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
 $account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
-$env:B_TradingBot__Accounts__0__Name=$account.Name
+$env:CB_TradingBot__Accounts__0__Name=$account.Name
 $env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
 $env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
 $env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
 $env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
+
+$secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
+$env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
+$env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
+$env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
+$env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
+$env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."

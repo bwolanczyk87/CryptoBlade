@@ -39,12 +39,13 @@
     <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Optimizer\Results\" />
     <Folder Include="Data\Strategies\MfiRsiEriTrend\Backtest\Results\" />
     <Folder Include="Data\Strategies\MfiRsiEriTrend\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Momentum\Backtest\Results\" />
+    <Folder Include="Data\Strategies\Momentum\Optimizer\Results\Session01\" />
     <Folder Include="Data\Strategies\Mona\Backtest\Results\" />
     <Folder Include="Data\Strategies\Mona\Optimizer\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Backtest\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\Tartaglia\Backtest\Results\" />
-    <Folder Include="Data\Strategies\Tartaglia\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Tartaglia - Copy\Optimizer\Results\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 

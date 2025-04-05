@@ -9,5 +9,6 @@
         public const string Mona = "Mona";
         public const string Qiqi = "Qiqi";
         public const string Tartaglia = "Tartaglia";
+        public const string Momentum = "Momentum";
     }
 }
