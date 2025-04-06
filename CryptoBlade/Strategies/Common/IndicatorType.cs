@@ -30,6 +30,7 @@
         MacdHistogram,
         Rsi,
         Atr,
-        Volume
+        Volume,
+        Adx
     }
 }

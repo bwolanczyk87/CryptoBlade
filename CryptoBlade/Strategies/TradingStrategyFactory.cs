@@ -204,6 +204,9 @@ namespace CryptoBlade.Strategies
                 strategyOptions.SecondaryTimeFrame = config.Strategies.Momentum.SecondaryTimeFrame;
                 strategyOptions.PrimaryTimeFrameWindowSize = config.Strategies.Momentum.PrimaryTimeFrameWindowSize;
                 strategyOptions.SecondaryTimeFrameWindowSize = config.Strategies.Momentum.SecondaryTimeFrameWindowSize;
+                strategyOptions.UseAdxFilter = config.Strategies.Momentum.UseAdxFilter;
+                strategyOptions.AdxPeriod = config.Strategies.Momentum.AdxPeriod;
+                strategyOptions.MinAdxThreshold = config.Strategies.Momentum.MinAdxThreshold;
             });
 
             return new MomentumStrategy(momentumOptions, m_botOptions, symbol, m_walletManager, m_restClient);

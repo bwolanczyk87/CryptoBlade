@@ -22,5 +22,10 @@ namespace CryptoBlade.Strategies
         public TimeFrame SecondaryTimeFrame { get; set; } = TimeFrame.FourHours;
         public int PrimaryTimeFrameWindowSize { get; set; } = 150;
         public int SecondaryTimeFrameWindowSize { get; set; } = 150;
+        public bool UseAdxFilter { get; set; } = false;
+        public int AdxPeriod { get; set; } = 14;
+        public decimal MinAdxThreshold { get; set; } = 20m;
+
+
     }
 }
