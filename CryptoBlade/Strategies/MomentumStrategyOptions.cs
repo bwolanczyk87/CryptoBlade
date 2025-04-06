@@ -1,6 +1,6 @@
 ﻿using CryptoBlade.Models;
 
-namespace CryptoBlade.Strategies.Momentum
+namespace CryptoBlade.Strategies
 {
     public class MomentumStrategyOptions : TradingStrategyBaseOptions
     {

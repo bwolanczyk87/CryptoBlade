@@ -163,14 +163,14 @@ namespace CryptoBlade.Strategies.Common
 
                 m_logger.LogInformation($"Leverage set to {symbol.MaxLeverage} for {symbol.Name}");
 
-                if(m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
-                {
-                    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
-                    if (!modeOk)
-                        throw new InvalidOperationException("Failed to setup position mode.");
+                //if(m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
+                //{
+                //    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
+                //    if (!modeOk)
+                //        throw new InvalidOperationException("Failed to setup position mode.");
 
-                    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
-                }
+                //    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
+                //}
 
                 m_logger.LogInformation($"Symbol {symbol.Name} setup completed");
             }
@@ -296,11 +296,17 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenLongPosition
                     && LongFundingWithinLimit(ticker))
                 {
+                    var quaintityLong = dynamicQtyLong.Value;
+                    if (shortPosition != null)
+                    {
+                        quaintityLong += shortPosition.Quantity;
+                    }
+
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open long position");
                     if (UseMarketOrdersForEntries)
-                        await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceMarketBuyOrderAsync(quaintityLong, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceLimitBuyOrderAsync(quaintityLong, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                 }
 
                 if (hasSellSignal
@@ -312,11 +318,17 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenShortPosition
                     && ShortFundingWithinLimit(ticker))
                 {
+                    var quaintityShort = dynamicQtyShort.Value;
+                    if (longPosition != null)
+                    {
+                        quaintityShort += longPosition.Quantity;
+                    }
+
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open short position");
                     if (UseMarketOrdersForEntries)
-                        await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceMarketSellOrderAsync(quaintityShort, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceLimitSellOrderAsync(quaintityShort, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                 }
 
                 if (hasBuyExtraSignal

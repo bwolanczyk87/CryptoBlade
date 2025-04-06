@@ -6,7 +6,7 @@ using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
 
-namespace CryptoBlade.Strategies.Momentum
+namespace CryptoBlade.Strategies
 {
     public class MomentumStrategy(
         IOptions<MomentumStrategyOptions> options,

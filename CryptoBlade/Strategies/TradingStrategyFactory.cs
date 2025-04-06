@@ -2,7 +2,6 @@
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Common;
-using CryptoBlade.Strategies.Momentum;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 
