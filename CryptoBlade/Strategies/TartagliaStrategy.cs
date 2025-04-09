@@ -41,6 +41,9 @@ namespace CryptoBlade.Strategies
 
         protected override async Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
+            LongTakeProfitFraction = m_options.Value.LongTakeProfitFraction;
+            ShortTakeProfitFraction = m_options.Value.ShortTakeProfitFraction;
+
             List<StrategyIndicator> takeProfitIndicators = new List<StrategyIndicator>();
             await base.CalculateTakeProfitAsync(takeProfitIndicators);
             var linearRegressionPriceLongObj =

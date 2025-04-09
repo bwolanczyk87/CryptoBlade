@@ -8,6 +8,7 @@ using Skender.Stock.Indicators;
 using System.Threading.Channels;
 using CryptoBlade.Mapping;
 using CryptoBlade.Strategies.Symbols;
+using BybitEnums = Bybit.Net.Enums;
 
 namespace CryptoBlade.Strategies.Common
 {
@@ -99,7 +100,16 @@ namespace CryptoBlade.Strategies.Common
         protected Order[] LongTakeProfitOrders { get; set; }
         protected Order[] ShortTakeProfitOrders { get; set; }
         protected decimal? ShortTakeProfitPrice { get; set; }
+        protected decimal? ShortTakeProfitFraction { get; set; }
         protected decimal? LongTakeProfitPrice { get; set; }
+        protected decimal? LongTakeProfitFraction { get; set; }
+        protected decimal? StopLossPrice { get; set; }
+        protected decimal? TakeProfitPrice { get; set; }
+        protected decimal? TrailingStopActivePrice { get; set; }
+        protected decimal? TrailingStopPriceDistance { get; set; }
+        protected BybitEnums.StopLossTakeProfitMode? StopLossTakeProfitMode { get; set; }
+        protected decimal? StopLossQuantity { get; set; }
+        protected decimal? TakeProfitQuantity { get; set; }
         public DateTime? NextShortProfitReplacement { get; set; }
         public DateTime? NextLongProfitReplacement { get; set; }
         public DateTime? LastCandleLongOrder { get; set; }
@@ -163,14 +173,14 @@ namespace CryptoBlade.Strategies.Common
 
                 m_logger.LogInformation($"Leverage set to {symbol.MaxLeverage} for {symbol.Name}");
 
-                //if(m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
-                //{
-                //    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
-                //    if (!modeOk)
-                //        throw new InvalidOperationException("Failed to setup position mode.");
+                if (m_botOptions.Value.QuoteAsset != Assets.UsdcQuote)
+                {
+                    bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
+                    if (!modeOk)
+                        throw new InvalidOperationException("Failed to setup position mode.");
 
-                //    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
-                //}
+                    m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
+                }
 
                 m_logger.LogInformation($"Symbol {symbol.Name} setup completed");
             }
@@ -225,7 +235,16 @@ namespace CryptoBlade.Strategies.Common
             var longTakeProfitOrders = LongTakeProfitOrders;
             var shortTakeProfitOrders = ShortTakeProfitOrders;
             decimal? longTakeProfitPrice = LongTakeProfitPrice;
+            decimal? longTakeProfitFraction = LongTakeProfitFraction;
             decimal? shortTakeProfitPrice = ShortTakeProfitPrice;
+            decimal? shortTakeProfitFraction = ShortTakeProfitFraction;
+            decimal? stopLossPrice = StopLossPrice;
+            decimal? takeProfitPrice = TakeProfitPrice;
+            decimal? trailingStopActivePrice = TrailingStopActivePrice;
+            decimal? trailingStopPriceDistance = TrailingStopPriceDistance;
+            BybitEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = StopLossTakeProfitMode;
+            decimal? stopLossQuantity = StopLossQuantity;
+            decimal? takeProfitQuantity = TakeProfitQuantity;
             DateTime utcNow = ticker?.Timestamp ?? DateTime.UtcNow;
             TimeSpan replacementTime = TimeSpan.FromMinutes(4.5);
             decimal? maxShortQty = MaxQtyShort;
@@ -296,17 +315,11 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenLongPosition
                     && LongFundingWithinLimit(ticker))
                 {
-                    var quaintityLong = dynamicQtyLong.Value;
-                    if (shortPosition != null)
-                    {
-                        quaintityLong += shortPosition.Quantity;
-                    }
-
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open long position");
                     if (UseMarketOrdersForEntries)
-                        await PlaceMarketBuyOrderAsync(quaintityLong, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitBuyOrderAsync(quaintityLong, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                 }
 
                 if (hasSellSignal
@@ -318,17 +331,11 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenShortPosition
                     && ShortFundingWithinLimit(ticker))
                 {
-                    var quaintityShort = dynamicQtyShort.Value;
-                    if (longPosition != null)
-                    {
-                        quaintityShort += longPosition.Quantity;
-                    }
-
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open short position");
                     if (UseMarketOrdersForEntries)
-                        await PlaceMarketSellOrderAsync(quaintityShort, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitSellOrderAsync(quaintityShort, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                 }
 
                 if (hasBuyExtraSignal
@@ -379,6 +386,7 @@ namespace CryptoBlade.Strategies.Common
             // quantity would not be valid
             if (longPosition != null
                 && longTakeProfitPrice.HasValue
+                && longTakeProfitFraction.HasValue
                 && !hasPlacedOrder
                 && !executeParams.LongUnstucking)
             {
@@ -390,14 +398,16 @@ namespace CryptoBlade.Strategies.Common
                         m_logger.LogDebug($"{Name}: {Symbol} Canceling long take profit order '{longTakeProfitOrder.OrderId}'");
                         await CancelOrderAsync(longTakeProfitOrder.OrderId, cancel);
                     }
-                    m_logger.LogDebug($"{Name}: {Symbol} Placing long take profit order for '{longPosition.Quantity}' @ '{longTakeProfitPrice.Value}'");
-                    await PlaceLongTakeProfitOrderAsync(longPosition.Quantity, longTakeProfitPrice.Value, false, cancel);
+                    decimal longPositionQuantity = longPosition.Quantity * longTakeProfitFraction.Value;
+                    m_logger.LogDebug($"{Name}: {Symbol} Placing long take profit order for '{longPositionQuantity}' @ '{longTakeProfitPrice.Value}'");
+                    await PlaceLongTakeProfitOrderAsync(longPositionQuantity, longTakeProfitPrice.Value, false, cancel);
                     NextLongProfitReplacement = utcNow + replacementTime;
                 }
             }
 
             if (shortPosition != null
                 && shortTakeProfitPrice.HasValue
+                && shortTakeProfitFraction.HasValue
                 && !hasPlacedOrder
                 && !executeParams.ShortUnstucking)
             {
@@ -409,10 +419,31 @@ namespace CryptoBlade.Strategies.Common
                         m_logger.LogDebug($"{Name}: {Symbol} Canceling short take profit order '{shortTakeProfitOrder.OrderId}'");
                         await CancelOrderAsync(shortTakeProfitOrder.OrderId, cancel);
                     }
-                    m_logger.LogDebug($"{Name}: {Symbol} Placing short take profit order for '{shortPosition.Quantity}' @ '{shortTakeProfitPrice.Value}'");
-                    await PlaceShortTakeProfitOrderAsync(shortPosition.Quantity, shortTakeProfitPrice.Value, false, cancel);
+                    decimal shortPositionQuantity = shortPosition.Quantity * shortTakeProfitFraction.Value;
+                    m_logger.LogDebug($"{Name}: {Symbol} Placing short take profit order for '{shortPositionQuantity}' @ '{shortTakeProfitPrice.Value}'");
+                    await PlaceShortTakeProfitOrderAsync(shortPositionQuantity, shortTakeProfitPrice.Value, false, cancel);
                     NextShortProfitReplacement = utcNow + replacementTime;
                 }
+            }
+
+            if (longPosition != null
+                && stopLossPrice.HasValue
+                && !hasPlacedOrder
+                && !executeParams.LongUnstucking)
+            {
+                await PlaceTradingStopAsync(
+                    BybitEnums.PositionIdx.BuyHedgeMode, stopLossPrice.Value, takeProfitPrice, TrailingStopPriceDistance,
+                    takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+            }
+
+            if (shortPosition != null
+                && stopLossPrice.HasValue
+                && !hasPlacedOrder
+                && !executeParams.LongUnstucking)
+            {
+                await PlaceTradingStopAsync(
+                    BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, TrailingStopPriceDistance,
+                    takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
             }
 
             m_logger.LogDebug($"{Name}: {Symbol} Finished executing strategy. TradingMode: {m_options.Value.TradingMode}");
@@ -543,6 +574,8 @@ namespace CryptoBlade.Strategies.Common
 
         protected abstract Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators);
 
+        protected abstract Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators);
+
         protected abstract Task<decimal?> CalculateMinBalanceAsync();
 
         public virtual async Task EvaluateSignalsAsync(CancellationToken cancel)
@@ -589,6 +622,7 @@ namespace CryptoBlade.Strategies.Common
             }
 
             await CalculateTakeProfitAsync(indicators);
+            await CalculateStopLossTakeProfitAsync(indicators);
             Indicators = indicators.ToArray();
         }
 
@@ -660,6 +694,17 @@ namespace CryptoBlade.Strategies.Common
         {
             var orderPlaced = await m_cbFuturesRestClient.PlaceShortTakeProfitOrderAsync(Symbol, qty, price, force, cancel);
             return orderPlaced;
+        }
+
+        public async Task<bool> PlaceTradingStopAsync(BybitEnums.PositionIdx positionIdx, decimal stopLossPrice, decimal? takeProfitPrice, decimal? trailingStopPriceDistance,
+            decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, decimal? trailingStopActivePrice = null,
+            BybitEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        {
+            var placed = await m_cbFuturesRestClient.SetTradingStopAsync(
+                Symbol, stopLossPrice, takeProfitPrice, trailingStopPriceDistance, positionIdx,
+                trailingStopActivePrice, takeProfitQuantity, stopLossQuantity,
+                stopLossTakeProfitMode, cancel);
+            return placed;
         }
 
         private static bool NoTradeForCandle(Quote candle, DateTime? lastTrade)

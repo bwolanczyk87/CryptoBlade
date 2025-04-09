@@ -1,4 +1,5 @@
-﻿using CryptoBlade.Models;
+﻿using Bybit.Net.Enums;
+using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
 
 namespace CryptoBlade.Exchanges
@@ -55,6 +56,18 @@ namespace CryptoBlade.Exchanges
             decimal qty,
             decimal price,
             bool force,
+            CancellationToken cancel = default);
+
+        Task<bool> SetTradingStopAsync(
+            string symbol, 
+            decimal stopLoss, 
+            decimal? takeProfit, 
+            decimal? trailingStop,
+            PositionIdx positionIdx, 
+            decimal? activePrice = null, 
+            decimal? takeProfitQuantity = null, 
+            decimal? stopLossQuantity = null,
+            StopLossTakeProfitMode? stopLossTakeProfitMode = null, 
             CancellationToken cancel = default);
 
         Task<Balance> GetBalancesAsync(CancellationToken cancel = default);

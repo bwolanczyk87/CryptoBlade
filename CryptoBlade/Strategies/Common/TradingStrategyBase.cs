@@ -22,8 +22,10 @@ namespace CryptoBlade.Strategies.Common
             m_options = options;
         }
 
-        protected abstract int DcaOrdersCount { get; }
-        protected abstract bool ForceMinQty { get; }
+        protected override decimal WalletExposureLong => m_options.Value.WalletExposureLong;
+        protected override decimal WalletExposureShort => m_options.Value.WalletExposureShort;
+        protected virtual int DcaOrdersCount => m_options.Value.DcaOrdersCount;
+        protected virtual bool ForceMinQty => m_options.Value.ForceMinQty;
 
         protected override Task<decimal?> CalculateMinBalanceAsync()
         {
@@ -173,6 +175,7 @@ namespace CryptoBlade.Strategies.Common
                     m_options.Value.FeeRate,
                     m_options.Value.MinProfitRate);
             ShortTakeProfitPrice = shortTakeProfit;
+            ShortTakeProfitFraction = m_options.Value.ShortTakeProfitFraction;
             if (shortTakeProfit.HasValue)
                 indicators.Add(new StrategyIndicator(nameof(IndicatorType.ShortTakeProfit), shortTakeProfit.Value));
 
@@ -187,9 +190,15 @@ namespace CryptoBlade.Strategies.Common
                     m_options.Value.FeeRate,
                     m_options.Value.MinProfitRate);
             LongTakeProfitPrice = longTakeProfit;
+            LongTakeProfitFraction = m_options.Value.LongTakeProfitFraction;
             if (longTakeProfit.HasValue)
                 indicators.Add(new StrategyIndicator(nameof(IndicatorType.LongTakeProfit), longTakeProfit.Value));
 
+            return Task.CompletedTask;
+        }
+
+        protected override Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
+        {
             return Task.CompletedTask;
         }
 

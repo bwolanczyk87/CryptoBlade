@@ -53,9 +53,9 @@ namespace CryptoBlade.Services
                             strategyState.TotalWalletShortExposure);
 
 
-                        List<string> symbolsToProcess = new List<string>();
+                        List<string> symbolsToProcess = [];
 
-                        using (await Lock.LockAsync())
+                        using (await Lock.LockAsync(cancel))
                         {
                             while (StrategyExecutionChannel.Reader.TryRead(out var symbol))
                                 symbolsToProcess.Add(symbol);
@@ -88,8 +88,8 @@ namespace CryptoBlade.Services
                                 .Select(x => x.Strategy.Strategy.Value.Symbol)
                                 .ToArray();
 
-                            List<Task> executionTasks = new List<Task>();
-                            if (inTradeSymbols.Any())
+                            List<Task> executionTasks = [];
+                            if (inTradeSymbols.Length != 0)
                             {
                                 var executeParams =
                                     inTradeSymbols.ToDictionary(x => x, _ => new ExecuteParams(true, true, true, true,false, false));
@@ -97,8 +97,7 @@ namespace CryptoBlade.Services
                                     cancel);
                             }
 
-
-                            if (strategiesWithMostVolume.Any())
+                            if (strategiesWithMostVolume.Length != 0)
                             {
                                 var executeParams =
                                     strategiesWithMostVolume.ToDictionary(x => x, _ => new ExecuteParams(true, true, true, true, false, false));

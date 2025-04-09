@@ -25,5 +25,9 @@ namespace CryptoBlade.Strategies.Common
         public StrategySelectPreference StrategySelectPreference { get; set; } = StrategySelectPreference.Volume;
 
         public int NormalizedAverageTrueRangePeriod { get; set; } = 14;
+
+        public decimal? LongTakeProfitFraction { get; set; } = 1m;
+
+        public decimal? ShortTakeProfitFraction { get; set; } = 1m;
     }
 }

@@ -207,6 +207,12 @@ namespace CryptoBlade.Strategies
                 strategyOptions.UseAdxFilter = config.Strategies.Momentum.UseAdxFilter;
                 strategyOptions.AdxPeriod = config.Strategies.Momentum.AdxPeriod;
                 strategyOptions.MinAdxThreshold = config.Strategies.Momentum.MinAdxThreshold;
+                strategyOptions.UsePartialTakeProfit = config.Strategies.Momentum.UsePartialTakeProfit;
+                strategyOptions.PartialTpPercent = config.Strategies.Momentum.PartialTpPercent;
+                strategyOptions.LongTakeProfitFraction = config.Strategies.Momentum.PartialTpSizeFraction;
+                strategyOptions.ShortTakeProfitFraction = config.Strategies.Momentum.PartialTpSizeFraction;
+                strategyOptions.UseTrailingStop = config.Strategies.Momentum.UseTrailingStop;
+                strategyOptions.TrailingStopDistance = config.Strategies.Momentum.TrailingStopDistance;
             });
 
             return new MomentumStrategy(momentumOptions, m_botOptions, symbol, m_walletManager, m_restClient);

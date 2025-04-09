@@ -14,6 +14,7 @@ $strategyMap = @{
     5 = "Tartaglia"
     6 = "Mona"
     7 = "Qiqi"
+    8 = "Momentum"
 }
 
 # Pobranie nazwy strategii na podstawie numeru
@@ -60,7 +61,8 @@ $filteredFiles = Get-ChildItem -Path $SourceDir -Recurse -File | Where-Object {
     ($_.FullName -notmatch '(?i)\\appsettings.Development.json(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\CryptoBlade.csproj(\\|$)') -and
     ($_.FullName -notmatch '(?i)\\Properties\\launchSettings.json(\\|$)') -and
-    ($_.FullName -notmatch '(?i)\\docker-compose(\\|$)')
+    ($_.FullName -notmatch '(?i)\\docker-compose(\\|$)') -and
+    ($_.FullName -notmatch '(?i)\\appsettings.Accounts.json(\\|$)')
 }
 
 # Wczytanie listy strategii z pliku StrategyNames.cs

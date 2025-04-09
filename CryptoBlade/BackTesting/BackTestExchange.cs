@@ -1,11 +1,9 @@
-﻿using System.Text.Json;
+﻿using BybtiEnums = Bybit.Net.Enums;
 using CryptoBlade.Exchanges;
-using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
-using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 
@@ -840,6 +838,11 @@ namespace CryptoBlade.BackTesting
             foreach (var subscription in m_fundingRateFeeSubscriptions)
                 subscription.Notify(symbol, fee);
             return Task.CompletedTask;
+        }
+
+        public Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop, BybtiEnums.PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, BybtiEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
         }
 
         #region Subscriptions

@@ -21,5 +21,10 @@ namespace CryptoBlade.Configuration
         public bool UseAdxFilter { get; set; } = false;
         public int AdxPeriod { get; set; } = 14;
         public decimal MinAdxThreshold { get; set; } = 20m;
+        public bool UsePartialTakeProfit { get; set; } = true;
+        public decimal PartialTpPercent { get; set; } = 0.03m;
+        public decimal PartialTpSizeFraction { get; set; } = 0.5m;
+        public bool UseTrailingStop { get; set; } = true;
+        public decimal TrailingStopDistance { get; set; } = 0.02m;
     }
 }

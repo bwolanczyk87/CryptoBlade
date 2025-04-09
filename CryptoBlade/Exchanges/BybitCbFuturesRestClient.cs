@@ -5,14 +5,12 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
-using CryptoExchange.Net.Interfaces;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
 using OrderStatus = Bybit.Net.Enums.OrderStatus;
 using Position = CryptoBlade.Models.Position;
 using PositionMode = CryptoBlade.Models.PositionMode;
-using TradeMode = CryptoBlade.Models.TradeMode;
 
 namespace CryptoBlade.Exchanges
 {
@@ -101,7 +99,6 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
-            var symbols = GetSymbolInfoAsync(cancel);
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogDebug($"{symbol} Placing limit buy order for '{quantity}' @ '{price}'");
@@ -167,7 +164,6 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
-            var symbols = GetSymbolInfoAsync(cancel);
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogDebug(
@@ -355,6 +351,40 @@ namespace CryptoBlade.Exchanges
                     m_logger.LogDebug($"{symbol} short take profit order was cancelled.");
                     return false;
                 }
+            }
+
+            return true;
+        }
+
+        public async Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop,
+            PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null,
+            StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        {
+            var stopRes = await ExchangePolicies.RetryTooManyVisits.ExecuteAsync(
+                async () =>
+                    await m_bybitRestClient.V5Api.Trading.SetTradingStopAsync(
+                        category: m_category,
+                        symbol: symbol,
+                        positionIdx: positionIdx,
+                        takeProfit: takeProfit,
+                        stopLoss: stopLoss,
+                        trailingStop: trailingStop,
+                        takeProfitTrigger: TriggerType.MarkPrice,
+                        stopLossTrigger: TriggerType.MarkPrice,
+                        activePrice: activePrice,
+                        takeProfitOrderType: OrderType.Market,
+                        stopLossOrderType: OrderType.Market,
+                        takeProfitQuantity: takeProfitQuantity,
+                        stopLossQuantity: stopLossQuantity,
+                        stopLossTakeProfitMode: stopLossTakeProfitMode,
+                        ct: cancel
+                    )
+            );
+
+            if (!stopRes.Success)
+            {
+                m_logger.LogError($"{symbol}: Bybit SetTradingStop responded with success=false. Error: {stopRes.Error?.Message}");
+                return false;
             }
 
             return true;

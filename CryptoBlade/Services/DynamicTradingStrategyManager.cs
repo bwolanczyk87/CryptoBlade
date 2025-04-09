@@ -185,18 +185,18 @@ namespace CryptoBlade.Services
                             strategyState.TotalWalletLongExposure,
                             strategyState.TotalWalletShortExposure);
 
-                        List<string> symbolsToProcess = new List<string>();
-                        using (await Lock.LockAsync())
+                        List<string> symbolsToProcess = [];
+                        using (await Lock.LockAsync(cancel))
                         {
                             while (StrategyExecutionChannel.Reader.TryRead(out var symbol))
                                 symbolsToProcess.Add(symbol);
-                            HashSet<string> unstuckingLong = new HashSet<string>();
-                            HashSet<string> unstuckingShort = new HashSet<string>();
+                            HashSet<string> unstuckingLong = [];
+                            HashSet<string> unstuckingShort = [];
                             if (m_options.Value.Unstucking.Enabled)
                             {
                                 var unstuckingSymbolsLocal = await ExecutePriorityUnstuckAsync(strategyState, cancel);
-                                unstuckingLong = new HashSet<string>(unstuckingSymbolsLocal.LongUnstucking);
-                                unstuckingShort = new HashSet<string>(unstuckingSymbolsLocal.ShortUnstucking);
+                                unstuckingLong = [.. unstuckingSymbolsLocal.LongUnstucking];
+                                unstuckingShort = [.. unstuckingSymbolsLocal.ShortUnstucking];
                             }
 
                             // exclude unstucking symbols from processing, it can probably be optimized to allow execution for some positions
@@ -273,7 +273,7 @@ namespace CryptoBlade.Services
                                 canAddLongPositions,
                                 canAddShortPositions);
                             // we need to put it back to hashset, we might open opposite position on the same symbol
-                            HashSet<string> tradeSymbols = new HashSet<string>();
+                            HashSet<string> tradeSymbols = [];
                             foreach (string inTradeSymbol in inTradeSymbols)
                                 tradeSymbols.Add(inTradeSymbol);
 

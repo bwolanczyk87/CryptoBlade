@@ -65,6 +65,11 @@ namespace CryptoBlade.Exchanges
             throw new NotImplementedException();
         }
 
+        public Task<bool> SetTradingStopAsync(string symbol, decimal? stopLoss, decimal? takeProfit, decimal? trailingStop, Bybit.Net.Enums.PositionIdx positionIdx, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<Balance> GetBalancesAsync(CancellationToken cancel = default)
         {
             throw new NotImplementedException();
@@ -126,6 +131,11 @@ namespace CryptoBlade.Exchanges
             
             var fundingRates = data.Select(x => x.ToFundingRate()).ToArray();
             return fundingRates;
+        }
+
+        public Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop, Bybit.Net.Enums.PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, Bybit.Net.Enums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -103,6 +103,9 @@ namespace CryptoBlade.Strategies
             LongTakeProfitPrice = null;
             ShortTakeProfitPrice = null;
 
+            LongTakeProfitFraction = m_options.Value.LongTakeProfitFraction;
+            ShortTakeProfitFraction = m_options.Value.ShortTakeProfitFraction;
+
             var ticker = Ticker;
             if (ticker == null)
                 return Task.CompletedTask;
@@ -293,6 +296,11 @@ namespace CryptoBlade.Strategies
 
             return new SignalEvaluation(hasBuySignal, hasSellSignal, hasBuyExtraSignal, hasSellExtraSignal,
                 indicators.ToArray());
+        }
+
+        protected override Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -1,316 +1,252 @@
 ﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
-using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
-using Skender.Stock.Indicators;  // używamy tylko do obliczania RSI
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies
 {
-    public class MomentumStrategy : TradingStrategyBase
+    public class MomentumStrategy(IOptions<MomentumStrategyOptions> options, IOptions<TradingBotOptions> botOptions, string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient) : 
+        TradingStrategyBase(options, botOptions, symbol, BuildTimeFrameWindows(options.Value), walletManager, restClient)
     {
-        private readonly IOptions<MomentumStrategyOptions> m_options;
-
-        public MomentumStrategy(
-            IOptions<MomentumStrategyOptions> options,
-            IOptions<TradingBotOptions> botOptions,
-            string symbol,
-            IWalletManager walletManager,
-            ICbFuturesRestClient restClient)
-            : base(
-                  options,
-                  botOptions,
-                  symbol,
-                  BuildTimeFrameWindows(options.Value),
-                  walletManager,
-                  restClient)
-        {
-            m_options = options;
-        }
-
         public override string Name => "Momentum";
 
-        protected override decimal WalletExposureLong => m_options.Value.WalletExposureLong;
-        protected override decimal WalletExposureShort => m_options.Value.WalletExposureShort;
-        protected override int DcaOrdersCount => m_options.Value.DcaOrdersCount;
-        protected override bool ForceMinQty => m_options.Value.ForceMinQty;
-
-        protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
+        protected override async Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
-            // Odczyt parametrów
-            var opts = m_options.Value;
+            //var opts = m_options.Value;
+            //var ticker = Ticker;
+            //if (ticker == null)
+            //    return;
 
-            // Pobranie danych świec z głównego interwału
-            var primaryQuotes = QuoteQueues[opts.PrimaryTimeFrame].GetQuotes();
+            //if (LongPosition != null)
+            //{
+            //    var sellSignal = (bool)indicators.First(i => i.Name == IndicatorType.Sell.ToString()).Value;
+            //    if (sellSignal)
+            //    {
+            //        LongTakeProfitPrice = ticker.BestBidPrice;
+            //        indicators.Add(new StrategyIndicator(nameof(IndicatorType.LongTakeProfit), LongTakeProfitPrice));
+            //    }
+            //    else
+            //    {
+            //        LongTakeProfitPrice = null;
+            //    }
+            //}
+            //else
+            //{
+            //    m_longPeakPrice = null;
+            //}
 
-            // Opcjonalne pobranie świec z interwału pomocniczego (jeśli włączone)
-            var secondaryQuotes = opts.UseSecondaryTimeFrameFilter
-                ? QuoteQueues[opts.SecondaryTimeFrame].GetQuotes()
-                : Array.Empty<Quote>();
+            //if (ShortPosition != null)
+            //{
+            //    var buySignal = (bool)indicators.First(i => i.Name == IndicatorType.Buy.ToString()).Value;
+            //    if (buySignal)
+            //    {
+            //        ShortTakeProfitPrice = ticker.BestAskPrice;
+            //        indicators.Add(new StrategyIndicator(nameof(IndicatorType.ShortTakeProfit), ShortTakeProfitPrice));
+            //    }
+            //    else
+            //    {
+            //        ShortTakeProfitPrice = null;
+            //    }
+            //}
+            //else
+            //{
+            //    m_shortValleyPrice = null;
+            //}
 
-            // Jeśli brak danych w głównym interwale, nie ma co oceniać
-            if (primaryQuotes.Length == 0)
+            await Task.CompletedTask;
+        }
+
+        protected override async Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
+        {
+            StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
+            TrailingStopActivePrice = null;
+            TrailingStopPriceDistance = null;
+            StopLossQuantity = null;
+            TakeProfitQuantity = null;
+
+            if (LongPosition == null && ShortPosition == null)
             {
-                return Task.FromResult(new SignalEvaluation(
-                    false, false, false, false, Array.Empty<StrategyIndicator>()));
+                StopLossPrice = null;
+                TakeProfitPrice = null;
+                return;
             }
 
-            // Konwersja Candle->(DateTime, double) do obliczania zero-lag MACD
-            var primaryCloseList = primaryQuotes
-                .Select(q => (q.Date, (double)q.Close))
-                .ToList();
-
-            // Obliczenie zero-lag MACD na głównym interwale
-            var (macdZL, signalZL, histZL) = ComputeZeroLagMacd(
-                primaryCloseList,
-                opts.MacdFastPeriod,
-                opts.MacdSlowPeriod,
-                opts.MacdSignalPeriod);
-
-            // RSI z biblioteki Skender
-            var rsiList = primaryQuotes.GetRsi(opts.RsiPeriod);
-            var rsi = rsiList.LastOrDefault();
-
-            bool okAdx = true;
-            double? adxValue = null;
-            if (opts.UseAdxFilter)
+            var quotes = QuoteQueues[options.Value.PrimaryTimeFrame].GetQuotes();
+            if (quotes.Length < 2)
             {
-                var adxList = primaryQuotes.GetAdx(opts.AdxPeriod);
-                var lastAdx = adxList.LastOrDefault();
-                if (lastAdx != null && lastAdx.Adx.HasValue)
+                StopLossPrice = null;
+                TakeProfitPrice = null;
+                return;
+            }
+
+            int lookback = Math.Min(10, quotes.Length);
+            var recentQuotes = quotes[^lookback..];
+
+            if (LongPosition != null)
+            {
+                var localLow = recentQuotes.Min(q => q.Low);
+                StopLossPrice = localLow * 0.998m;
+
+                if (StopLossPrice.HasValue && StopLossPrice < LongPosition.AveragePrice)
                 {
-                    adxValue = lastAdx.Adx.Value;
-                    okAdx = (decimal)adxValue >= opts.MinAdxThreshold;
+                    decimal risk = LongPosition.AveragePrice - StopLossPrice.Value;
+                    decimal targetReward = 2m * risk;
+                    TakeProfitPrice = LongPosition.AveragePrice + targetReward;
                 }
                 else
                 {
-                    okAdx = false;
+                    TakeProfitPrice = null;
+                }
+            }
+            else if (ShortPosition != null)
+            {
+                var localHigh = recentQuotes.Max(q => q.High);
+                StopLossPrice = localHigh * 1.002m;
+
+                if (StopLossPrice.HasValue && StopLossPrice > ShortPosition.AveragePrice)
+                {
+                    decimal risk = StopLossPrice.Value - ShortPosition.AveragePrice;
+                    decimal targetReward = 2m * risk;
+                    TakeProfitPrice = ShortPosition.AveragePrice - targetReward;
+                }
+                else
+                {
+                    TakeProfitPrice = null;
                 }
             }
 
-            // Filtrowanie trendu na interwale pomocniczym
-            bool isBullishTrendSecondary = false;
-            bool isBearishTrendSecondary = false;
-            if (opts.UseSecondaryTimeFrameFilter && secondaryQuotes.Length > 0)
-            {
-                var secondaryCloseList = secondaryQuotes
-                    .Select(q => (q.Date, (double)q.Close))
-                    .ToList();
+            indicators.Add(new StrategyIndicator("StopLossPrice", StopLossPrice ?? 0m));
+            indicators.Add(new StrategyIndicator("TakeProfitPrice", TakeProfitPrice ?? 0m));
 
-                var (macdSec, sigSec, histSec) = ComputeZeroLagMacd(
-                    secondaryCloseList,
-                    opts.MacdFastPeriod,
-                    opts.MacdSlowPeriod,
-                    opts.MacdSignalPeriod);
+            await Task.CompletedTask;
+        }
 
-                isBullishTrendSecondary = (histSec.HasValue && histSec.Value > 0) &&
-                                          (macdSec.HasValue && sigSec.HasValue && macdSec.Value > sigSec.Value);
-                isBearishTrendSecondary = (histSec.HasValue && histSec.Value < 0) &&
-                                          (macdSec.HasValue && sigSec.HasValue && macdSec.Value < sigSec.Value);
-            }
 
-            // Ocena sygnałów: buy / sell
+        protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
+        {
+            //// 1) Pobieramy ustawienia strategii i świeczki
+            var opts = options.Value;
+            var primaryQuotes = QuoteQueues[opts.PrimaryTimeFrame].GetQuotes();
+            //if (primaryQuotes.Length < 30)
+            //{
+            //    // Za mało danych, nie generujemy sygnału
+            //    return Task.FromResult(
+            //        new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
+            //    );
+            //}
+
+            //// 2) Konwertujemy do listy (Skender) i liczymy HMA, CMF i OBV
+            // var quotesList = primaryQuotes.ToList();
+
+            //// Długości HMA (przykładowe)
+            //int periodShort = 9;
+            //int periodLong = 21;
+            //int cmfPeriod = 20;
+
+            //// Hull Moving Average (krótka i długa)
+            //var hmaShortResults = quotesList.GetHma(periodShort).ToList(); // .Sma / .Hma z biblioteki Skendera
+            //var hmaLongResults = quotesList.GetHma(periodLong).ToList();
+
+            //// Chaikin Money Flow
+            //var cmfResults = quotesList.GetCmf(cmfPeriod).ToList();
+
+            //// (Opcjonalnie) OBV do wglądu
+            //var obvResults = quotesList.GetObv().ToList();
+
+            //// 3) Bierzemy ostatnie wartości z hma i cmf
+            ////    Uwaga: hmaShortResults[i].Hma zwraca double? (może być null, trzeba sprawdzić)
+            //var lastHmaShort = hmaShortResults.LastOrDefault();
+            //var prevHmaShort = hmaShortResults.Count > 1 ? hmaShortResults[^2] : null;
+
+            //var lastHmaLong = hmaLongResults.LastOrDefault();
+            //var prevHmaLong = hmaLongResults.Count > 1 ? hmaLongResults[^2] : null;
+
+            //var lastCmf = cmfResults.LastOrDefault(); // .Cmf => double?
+
+            //// Sprawdzamy, czy mamy wszystkie dane niepuste
+            //if (!lastHmaShort.Hma.HasValue || !lastHmaLong.Hma.HasValue || lastCmf.Cmf == null)
+            //{
+            //    return Task.FromResult(
+            //        new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
+            //    );
+            //}
+
+            //// 4) Logika przecięć: HMA short vs. HMA long
+            //// Sprawdzamy dwa ostatnie "punkty" w hmaShort i hmaLong, 
+            //// żeby wykryć, czy nastąpiło przecięcie z dołu/do góry
+            //double hmaShortNow = lastHmaShort.Hma.Value;
+            //double hmaLongNow = lastHmaLong.Hma.Value;
+
+            //double? hmaShortPrev = prevHmaShort?.Hma;
+            //double? hmaLongPrev = prevHmaLong?.Hma;
+
             bool hasBuySignal = false;
             bool hasSellSignal = false;
+
+            //// Dodatkowo filtr CMF > 0 => kupno, CMF < 0 => sprzedaż
+            //double cmfValue = lastCmf.Cmf.Value;
+
+            //if (hmaShortPrev.HasValue && hmaLongPrev.HasValue)
+            //{
+            //    // CROSS UP:
+            //    // warunek: wcześniej hmaShort < hmaLong, teraz hmaShort > hmaLong (i CMF > 0)
+            //    bool crossUp = (hmaShortPrev < hmaLongPrev) && (hmaShortNow > hmaLongNow);
+            //    bool bullishVolume = (cmfValue > 0);
+            //    if (crossUp && bullishVolume)
+            //        hasBuySignal = true;
+
+            //    // CROSS DOWN:
+            //    // wcześniej hmaShort > hmaLong, teraz hmaShort < hmaLong (CMF < 0)
+            //    bool crossDown = (hmaShortPrev > hmaLongPrev) && (hmaShortNow < hmaLongNow);
+            //    bool bearishVolume = (cmfValue < 0);
+            //    if (crossDown && bearishVolume)
+            //        hasSellSignal = true;
+            //}
+
+            //// Ewentualnie tu logika "extra signals" (dca) – np. re-entry
+            //// if (LongPosition != null && hasBuySignal) ...
+            //// if (ShortPosition != null && hasSellSignal) ...
+            hasBuySignal = true;
             bool hasBuyExtraSignal = false;
             bool hasSellExtraSignal = false;
 
-            // Sprawdzamy warunek buy/sell na podstawie MACD, RSI, ADX i (opcjonalnie) filtra secondary
-            if (macdZL.HasValue && signalZL.HasValue && histZL.HasValue && rsi != null && okAdx)
-            {
-                // Warunek kupna
-                if (histZL.Value > 0 &&
-                    macdZL.Value > signalZL.Value &&
-                    (decimal)rsi.Rsi < opts.RsiUpperThreshold &&
-                    (!opts.UseSecondaryTimeFrameFilter || isBullishTrendSecondary))
-                {
-                    hasBuySignal = true;
-                }
+            // 5) Zbierzmy wskaźniki do debugowania
+            var indicators = new List<StrategyIndicator>
+    {
+        //new StrategyIndicator("HmaShortNow", (decimal)hmaShortNow),
+        //new StrategyIndicator("HmaLongNow", (decimal)hmaLongNow),
+        //new StrategyIndicator("CMF", (decimal)cmfValue),
+        // Jeśli chcesz – OBV:
+        // new StrategyIndicator("OBV", obvResults.LastOrDefault()?.Obv ?? 0)
+    };
 
-                // Warunek sprzedaży
-                if (histZL.Value < 0 &&
-                    macdZL.Value < signalZL.Value &&
-                    (decimal)rsi.Rsi > opts.RsiLowerThreshold &&
-                    (!opts.UseSecondaryTimeFrameFilter || isBearishTrendSecondary))
-                {
-                    hasSellSignal = true;
-                }
-            }
-
-            // Re-entry logic: jeżeli mamy już Long / Short i wciąż jest sygnał w tym samym kierunku
-            if (LongPosition != null && hasBuySignal)
-            {
-                var thresholdLong = (1.0m - opts.MinReentryPositionDistanceLong) * LongPosition.AveragePrice;
-                if (Ticker != null && Ticker.BestBidPrice < thresholdLong)
-                {
-                    hasBuyExtraSignal = true;
-                }
-            }
-            if (ShortPosition != null && hasSellSignal)
-            {
-                var thresholdShort = (1.0m + opts.MinReentryPositionDistanceShort) * ShortPosition.AveragePrice;
-                if (Ticker != null && Ticker.BestAskPrice > thresholdShort)
-                {
-                    hasSellExtraSignal = true;
-                }
-            }
-
-            // Zapis wskaźników do debugowania
-            List<StrategyIndicator> indicators = new()
-            {
-                new StrategyIndicator(IndicatorType.Macd.ToString(), macdZL ?? 0),
-                new StrategyIndicator(IndicatorType.MacdSignal.ToString(), signalZL ?? 0),
-                new StrategyIndicator(IndicatorType.MacdHistogram.ToString(), histZL ?? 0)
-            };
-            if (rsi != null)
-            {
-                indicators.Add(new StrategyIndicator(IndicatorType.Rsi.ToString(), rsi.Rsi ?? 0));
-            }
-            if (opts.UseAdxFilter && adxValue.HasValue)
-            {
-                indicators.Add(new StrategyIndicator(IndicatorType.Adx.ToString(), adxValue ?? 0));
-            }
-
+            // Budujemy wynik
             var evaluation = new SignalEvaluation(
                 hasBuySignal,
                 hasSellSignal,
                 hasBuyExtraSignal,
                 hasSellExtraSignal,
-                indicators.ToArray());
-
+                indicators.ToArray()
+            );
             return Task.FromResult(evaluation);
         }
 
-        /// <summary>
-        /// Budowa listy TimeFrameWindow na podstawie configu – ewentualny interwał wtórny
-        /// </summary>
         private static TimeFrameWindow[] BuildTimeFrameWindows(MomentumStrategyOptions opts)
         {
             if (opts.UseSecondaryTimeFrameFilter)
             {
-                return new[]
-                {
+                return
+                [
                     new TimeFrameWindow(opts.PrimaryTimeFrame, opts.PrimaryTimeFrameWindowSize, true),
                     new TimeFrameWindow(opts.SecondaryTimeFrame, opts.SecondaryTimeFrameWindowSize, false)
-                };
+                ];
             }
-            return new[]
-            {
+            return
+            [
                 new TimeFrameWindow(opts.PrimaryTimeFrame, opts.PrimaryTimeFrameWindowSize, true)
-            };
-        }
-
-        /// <summary>
-        /// Implementacja Zero-Lag MACD w stylu artykułu:
-        /// 1) obliczamy Zero-Lag (fast i slow) – double-smooth,
-        /// 2) macdLine = ZLfast - ZLslow,
-        /// 3) sygnał = zero-lag ema z macdLine,
-        /// 4) histogram = macdLine - signal
-        /// Zwraca (macdLine, signalLine, histogram).
-        /// </summary>
-        private static (double?, double?, double?) ComputeZeroLagMacd(
-            List<(DateTime DateTime, double Close)> prices,
-            int fastPeriods,
-            int slowPeriods,
-            int signalPeriods)
-        {
-            // Potrzebujemy wystarczająco świec, by liczyć slow i potem signal
-            // np. ~ slowPeriods + signalPeriods
-            int needed = Math.Max(slowPeriods, signalPeriods) * 2;
-            if (prices.Count < needed)
-                return (null, null, null);
-
-            // Zero-lag fast
-            var zlemaFast = ZeroLagMa(prices, fastPeriods);
-
-            // Zero-lag slow
-            var zlemaSlow = ZeroLagMa(prices, slowPeriods);
-
-            if (zlemaFast.Count == 0 || zlemaSlow.Count == 0)
-                return (null, null, null);
-
-            // Weźmy ostatni element (zakładając, że zlemaFast i slow mają zbliżoną długość)
-            double fastVal = zlemaFast[^1].Value;
-            double slowVal = zlemaSlow[^1].Value;
-
-            double macdLine = fastVal - slowVal;
-
-            // Sygnał zero-lag
-            var macdList = new List<(DateTime, double)>();
-            int minCount = Math.Min(zlemaFast.Count, zlemaSlow.Count);
-            for (int i = 0; i < minCount; i++)
-            {
-                double mVal = zlemaFast[i].Value - zlemaSlow[i].Value;
-                macdList.Add((zlemaFast[i].DateTime, mVal));
-            }
-
-            var zlemaSignal = ZeroLagMa(macdList, signalPeriods);
-            if (zlemaSignal.Count == 0)
-                return (null, null, null);
-
-            double signalLine = zlemaSignal[^1].Value;
-            double hist = macdLine - signalLine;
-
-            return (macdLine, signalLine, hist);
-        }
-
-        /// <summary>
-        /// Zero-lag MA:
-        /// 1) oblicz Ema(...) z inputu (okres = length),
-        /// 2) oblicz Ema(...) z poprzednich wyników,
-        /// 3) ZL = 2*ema1 - ema2
-        /// </summary>
-        private static List<(DateTime DateTime, double Value)> ZeroLagMa(
-            List<(DateTime DateTime, double Value)> data,
-            int length)
-        {
-            var ema1 = Ema(data, length);
-            var ema2 = Ema(ema1, length);
-
-            int count = Math.Min(ema1.Count, ema2.Count);
-            var zl = new List<(DateTime, double)>(count);
-            for (int i = 0; i < count; i++)
-            {
-                double zVal = 2.0 * ema1[i].Value - ema2[i].Value;
-                zl.Add((ema1[i].DateTime, zVal));
-            }
-            return zl;
-        }
-
-        /// <summary>
-        /// Klasyczna EMA – pętla, zwraca listę o tej samej długości co 'data'.
-        /// Pierwsza wartość = data[0].Value,
-        /// Ema(i) = Ema(i-1) + k*(price - Ema(i-1)),
-        /// k = 2/(length+1).
-        /// </summary>
-        private static List<(DateTime DateTime, double Value)> Ema(
-            List<(DateTime DateTime, double Value)> data,
-            int length)
-        {
-            var output = new List<(DateTime DateTime, double Value)>(data.Count);
-            if (data.Count == 0 || length < 1)
-                return output;
-
-            double k = 2.0 / (length + 1.0);
-
-            double prevEma = data[0].Value;
-            output.Add((data[0].DateTime, prevEma));
-
-            for (int i = 1; i < data.Count; i++)
-            {
-                double price = data[i].Value;
-                double currentEma = prevEma + k * (price - prevEma);
-                output.Add((data[i].DateTime, currentEma));
-                prevEma = currentEma;
-            }
-
-            return output;
+            ];
         }
     }
 }

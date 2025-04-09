@@ -26,6 +26,10 @@ namespace CryptoBlade.Strategies
         public int AdxPeriod { get; set; } = 14;
         public decimal MinAdxThreshold { get; set; } = 20m;
 
-
+        // NOWE POLA DOT. ZAMYKANIA POZYCJI
+        public bool UsePartialTakeProfit { get; set; } = true;         // czy używać częściowego TP
+        public decimal PartialTpPercent { get; set; } = 0.03m;          // zysk (np. 3%) przy którym realizujemy część
+        public bool UseTrailingStop { get; set; } = true;               // czy używać trailing stop
+        public decimal TrailingStopDistance { get; set; } = 0.02m;      // 2% od szczytu/dołka
     }
 }
