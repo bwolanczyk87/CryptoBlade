@@ -61,6 +61,11 @@ namespace CryptoBlade.Strategies.Symbols
         {
             string jsonFile = Path.Combine(historicalDataDirectory, "symbolinfo.json");
 
+            if (!Directory.Exists(historicalDataDirectory))
+            {
+                Directory.CreateDirectory(historicalDataDirectory);
+            }
+
             if (File.Exists(jsonFile))
             {
                 var fileInfo = new FileInfo(jsonFile);

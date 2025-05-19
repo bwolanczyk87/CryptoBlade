@@ -1,0 +1,16 @@
+// filepath: /home/inclusion/Repositories/CryptoBlade/.vscode/tasks.json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/CryptoBlade/CryptoBlade.csproj"
+            ],
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}

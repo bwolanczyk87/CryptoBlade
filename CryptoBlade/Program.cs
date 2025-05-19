@@ -285,7 +285,6 @@ namespace CryptoBlade
                 });
             });
 
-
             if (mainAccount.IsDemo)
             {
                 var secondaryAccount = tradingBotOptions.Accounts.FirstOrDefault(x => !x.IsDemo) ??
