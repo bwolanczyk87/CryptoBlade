@@ -20,6 +20,13 @@
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/CryptoBlade/Views"
             }
+        },
+        {
+            "type": "PowerShell",
+            "request": "launch",
+            "name": "PowerShell: Launch Script",
+            "script": "${file}",
+            "args": []
         }
     ]
 }

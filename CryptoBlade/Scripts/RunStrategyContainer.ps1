@@ -198,11 +198,11 @@ if (-not (Test-Path $composeFile)) {
 }
 
 $composeContent = Get-Content $composeFile -Raw
-$pattern = "(?ms)(environment:\s*\n(?:\s+- .*\n)+)"
+$pattern = "(?ms)(^\s*environment:\s*\n(?:\s+- .*\n)*)"
 if ($composeContent -match $pattern) {
-    $composeContent = $composeContent -replace $pattern, "environment:`n$($envLines -join "`n")`n"
+    $composeContent = $composeContent -replace $pattern, "    environment:`n$($envLines -join "`n")`n"
 } else {
-    $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    environment:`n$($envLines -join "`n")`n"
+    $composeContent = $composeContent -replace "(environment:\s*\n)", "    environment:`n$($envLines -join "`n")`n"
 }
 
 $containerName = "cryptoblade_$($StrategyName.ToLower())_$($BotMode.ToLower())"
@@ -214,8 +214,8 @@ if ($composeContent -match "container_name:\s*\S+") {
     $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    container_name: $containerName`n"
 }
 
-Set-Content $composeFile $composeContent
-Write-Host "Plik docker-compose.yml został zaktualizowany."
+# Set-Content $composeFile $composeContent
+# Write-Host "Plik docker-compose.yml został zaktualizowany."
 
 # Uruchomienie docker login i docker compose up
 Write-Host "Logowanie do Docker..."
@@ -225,24 +225,24 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
-$account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
-$env:CB_TradingBot__Accounts__0__Name=$account.Name
-$env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
-$env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
-$env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
-$env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
+# $config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
+# $account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
+# $env:CB_TradingBot__Accounts__0__Name=$account.Name
+# $env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
+# $env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
+# $env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
+# $env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
 
-$secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
-$env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
-$env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
-$env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
-$env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
-$env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
+# $secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
+# $env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
+# $env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
+# $env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
+# $env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
+# $env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."
-docker compose -p $containerName up -d
+docker-compose -p $containerName up -d
 
 
 if ($LASTEXITCODE -ne 0) {

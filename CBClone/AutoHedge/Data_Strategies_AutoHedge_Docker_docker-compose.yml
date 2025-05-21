@@ -57,6 +57,7 @@ services:
         - CB_TradingBot__Strategies__AutoHedge__MinReentryPositionDistanceShort=0.02
         - CB_TradingBot__Strategies__AutoHedge__QtyFactorShort=1.0
         - CB_TradingBot__StrategyName=AutoHedge
+        - CB_TradingBot__BotMode=Live
         - CB_TradingBot__StrategySelectPreference=0
         - CB_TradingBot__TakerFeeRate=0.00055
         - CB_TradingBot__Unstucking__Enabled=False
