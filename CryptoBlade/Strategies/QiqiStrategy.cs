@@ -300,7 +300,7 @@ namespace CryptoBlade.Strategies
 
         protected override Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
     }
 }
