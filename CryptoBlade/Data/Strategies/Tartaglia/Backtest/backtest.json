@@ -1,0 +1,82 @@
+{
+    "AccountName": "Demo",
+    "BotMode": "Backtest",
+    "StrategyName": "Tartaglia",
+    "TradingMode": "DynamicBackTest",
+    "MaxRunningStrategies": 100,
+    "DcaOrdersCount": 1000,
+    "DynamicBotCount": {
+        "TargetLongExposure": 30.0,
+        "TargetShortExposure": 30.0,
+        "MaxLongStrategies": 40,
+        "MaxShortStrategies": 40,
+        "MaxDynamicStrategyOpenPerStep": 10,
+        "Step": "00:01:00"
+    },
+    "WalletExposureLong": 20.0,
+    "WalletExposureShort": 20.0,
+    "MinimumVolume": 15000.0,
+    "MinimumPriceDistance": 0.015,
+    "ForceMinQty": false,
+    "QtyFactorLong": 20.0,
+    "QtyFactorShort": 3,
+    "EnableRecursiveQtyFactorLong": true,
+    "EnableRecursiveQtyFactorShort": true,
+    "PlaceOrderAttempts": 5,
+    "MaxAbsFundingRate": 0.0002,
+    "MakerFeeRate": 0.0002,
+    "TakerFeeRate": 0.00055,
+    "MinProfitRate": 0.0006,
+    "SpotRebalancingRatio": 0.0,
+    "StrategySelectPreference": 0,
+    "NormalizedAverageTrueRangePeriod": 14,
+    "MinNormalizedAverageTrueRangePeriod": 1.0,
+    "BackTest": {
+        "Start": "2025-02-12T00:00:00",
+        "End": "2025-03-12T23:00:00",
+        "InitialBalance": 100,
+        "StartupCandleData": "1.00:00:00",
+        "InitialUntradableDays": 0
+    },
+    "Unstucking": {
+        "Enabled": false,
+        "SlowUnstuckThresholdPercent": -0.3,
+        "SlowUnstuckPositionThresholdPercent": -0.05,
+        "ForceUnstuckThresholdPercent": -0.4,
+        "ForceUnstuckPositionThresholdPercent": -0.2,
+        "SlowUnstuckPercentStep": 0.2,
+        "ForceUnstuckPercentStep": 0.1,
+        "ForceKillTheWorst": false
+    },
+    "Strategies": {
+        "Tartaglia": {
+            "StandardDeviationLong": 2.5,
+            "StandardDeviationShort": 2.5,
+            "ChannelLengthLong": 66,
+            "ChannelLengthShort": 66,
+            "MinReentryPositionDistanceLong": 0.03,
+            "MinReentryPositionDistanceShort": 0.03
+        }
+    },
+    "CriticalMode": {
+        "EnableCriticalModeLong": true,
+        "EnableCriticalModeShort": true,
+        "WalletExposureThresholdLong": 0.3,
+        "WalletExposureThresholdShort": 0.3
+    },
+    "SymbolVolumePreference": [
+        "LARGE",
+        "HIGH"
+    ],
+    "SymbolVolatilityPreference": [
+        "HIGH",
+        "LARGE"
+    ],
+    "SymbolMaturityPreference": [
+        "LARGE",
+        "MEDIUM"
+    ],
+    "Whitelist": [],
+    "Blacklist": [],
+    "SymbolTradingModes": []
+}

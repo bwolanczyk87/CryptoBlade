@@ -1,0 +1,73 @@
+services:
+  cryptoblade:
+    container_name: mfirsicandleprecise_live
+    image: cryptoblade:latest
+    labels:
+        - "autoheal=true"
+    ports:
+        - 8092:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/MfiRsiCandlePrecise/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
+    environment:
+        - CB_TradingBot__AccountName=Demo
+        - CB_TradingBot__BackTest__End=2023-08-19T00:00:00
+        - CB_TradingBot__BackTest__InitialBalance=1000
+        - CB_TradingBot__BackTest__InitialUntradableDays=0
+        - CB_TradingBot__BackTest__Start=2023-01-01T00:00:00
+        - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
+        - CB_TradingBot__BotMode=Live
+        - CB_TradingBot__CriticalMode__EnableCriticalModeLong=True
+        - CB_TradingBot__CriticalMode__EnableCriticalModeShort=True
+        - CB_TradingBot__CriticalMode__WalletExposureThresholdLong=0.3
+        - CB_TradingBot__CriticalMode__WalletExposureThresholdShort=0.3
+        - CB_TradingBot__DcaOrdersCount=1000
+        - CB_TradingBot__DynamicBotCount__MaxDynamicStrategyOpenPerStep=20
+        - CB_TradingBot__DynamicBotCount__MaxLongStrategies=40
+        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=40
+        - CB_TradingBot__DynamicBotCount__Step=00:01:00
+        - CB_TradingBot__DynamicBotCount__TargetLongExposure=20.5
+        - CB_TradingBot__DynamicBotCount__TargetShortExposure=20.5
+        - CB_TradingBot__EnableRecursiveQtyFactorLong=True
+        - CB_TradingBot__EnableRecursiveQtyFactorShort=True
+        - CB_TradingBot__ForceMinQty=False
+        - CB_TradingBot__MakerFeeRate=0.0002
+        - CB_TradingBot__MaxAbsFundingRate=0.0002
+        - CB_TradingBot__MaxRunningStrategies=100
+        - CB_TradingBot__MinimumPriceDistance=0.015
+        - CB_TradingBot__MinimumVolume=15000.0
+        - CB_TradingBot__MinNormalizedAverageTrueRangePeriod=1.0
+        - CB_TradingBot__MinProfitRate=0.0006
+        - CB_TradingBot__NormalizedAverageTrueRangePeriod=14
+        - CB_TradingBot__PlaceOrderAttempts=5
+        - CB_TradingBot__QtyFactorLong=20.0
+        - CB_TradingBot__QtyFactorShort=20
+        - CB_TradingBot__SpotRebalancingRatio=0.0
+        - CB_TradingBot__Strategies__MfiRsiCandlePrecise__MfiRsiLookback=14
+        - CB_TradingBot__Strategies__MfiRsiCandlePrecise__RSIThresholdBuy=30
+        - CB_TradingBot__Strategies__MfiRsiCandlePrecise__RSIThresholdSell=70
+        - CB_TradingBot__Strategies__MfiRsiCandlePrecise__SignalSmoothing=3
+        - CB_TradingBot__StrategyName=MfiRsiCandlePrecise
+        - CB_TradingBot__StrategySelectPreference=0
+        - CB_TradingBot__SymbolMaturityPreference__0=MEDIUM
+        - CB_TradingBot__SymbolMaturityPreference__1=HIGH
+        - CB_TradingBot__SymbolMaturityPreference__2=LARGE
+        - CB_TradingBot__SymbolVolatilityPreference__0=MEDIUM
+        - CB_TradingBot__SymbolVolatilityPreference__1=HIGH
+        - CB_TradingBot__SymbolVolatilityPreference__2=LARGE
+        - CB_TradingBot__SymbolVolumePreference__0=MEDIUM
+        - CB_TradingBot__SymbolVolumePreference__1=HIGH
+        - CB_TradingBot__SymbolVolumePreference__2=LARGE
+        - CB_TradingBot__TakerFeeRate=0.00055
+        - CB_TradingBot__TradingMode=Dynamic
+        - CB_TradingBot__Unstucking__Enabled=False
+        - CB_TradingBot__Unstucking__ForceKillTheWorst=False
+        - CB_TradingBot__Unstucking__ForceUnstuckPercentStep=0.1
+        - CB_TradingBot__Unstucking__ForceUnstuckPositionThresholdPercent=-0.2
+        - CB_TradingBot__Unstucking__ForceUnstuckThresholdPercent=-0.4
+        - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.2
+        - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
+        - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.3
+        - CB_TradingBot__WalletExposureLong=20.0
+        - CB_TradingBot__WalletExposureShort=20.0
+
