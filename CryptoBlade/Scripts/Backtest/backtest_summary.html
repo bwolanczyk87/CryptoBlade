@@ -1,66 +1,178 @@
 <!DOCTYPE html>
 <html lang="pl">
+
 <head>
     <meta charset="UTF-8">
-    <title>Lista podsumowań backtestów</title>
+    <title>Podsumowania backtestów</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
-        th { background: #f0f0f0; }
-        tr:nth-child(even) { background: #fafafa; }
-        a { color: #0074d9; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #aaa;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        a {
+            color: #0074d9;
+        }
+
+        .best {
+            color: #0a0;
+            font-weight: bold;
+        }
+
+        .worst {
+            color: #c00;
+            font-weight: bold;
+        }
+
+
     </style>
 </head>
+
 <body>
-    <h2>Lista podsumowań backtestów</h2>
+    <h2>Podsumowania zbiorczych backtestów</h2>
     <table id="summaryTable">
-        <tr>
-            <th>Data</th>
-            <th>Nazwa pliku</th>
-            <th>Podgląd</th>
-        </tr>
+        <thead>
+            <tr id="headerRow">
+                <th>Data</th>
+                <th>Backtest</th>
+                <!-- Strategie będą dynamicznie -->
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
     </table>
-    <pre id="jsonPreview" style="display:none; background:#f8f8f8; border:1px solid #ccc; padding:1em; max-height:400px; overflow:auto;"></pre>
     <script>
-        // Ścieżka do katalogu z plikami
-        const summaryDir = "../Data/Strategies/_globalBacktest/";
+        const summaryDir = "/Data/Strategies/_globalBacktest/";
+
+        // Najpierw pobierz dane globalne (daty, initial balance)
+        let globalBacktest = { start: "-", end: "-", initialBalance: "-" };
+        fetch("/Scripts/Backtest/backtest_global.json")
+            .then(r => r.json())
+            .then(globalConfig => {
+                if (globalConfig.BackTest) {
+                    globalBacktest.start = globalConfig.BackTest.Start?.replace("T", " ") ?? "-";
+                    globalBacktest.end = globalConfig.BackTest.End?.replace("T", " ") ?? "-";
+                    globalBacktest.initialBalance = globalConfig.BackTest.InitialBalance ?? "-";
+                }
+            });
 
         fetch(summaryDir)
             .then(response => response.text())
             .then(html => {
-                // Wyciągnij nazwy plików JSON z listingu katalogu
                 const files = [...html.matchAll(/href="([^"]+\.json)"/g)].map(m => m[1]);
                 files.sort().reverse();
-                const table = document.getElementById('summaryTable');
-                files.forEach(file => {
-                    // Wyciągnij datę z nazwy pliku
-                    const match = file.match(/^(\d{14})-/);
-                    let dateStr = "-";
-                    if (match) {
-                        const d = match[1];
-                        dateStr = `${d.substr(0,4)}-${d.substr(4,2)}-${d.substr(6,2)} ${d.substr(8,2)}:${d.substr(10,2)}:${d.substr(12,2)}`;
-                    }
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${dateStr}</td>
-                        <td>${file}</td>
-                        <td><a href="#" onclick="showJson('${file}');return false;">Podgląd</a></td>
-                    `;
-                    table.appendChild(row);
+
+                Promise.all(files.map(file =>
+                    fetch(summaryDir + file)
+                        .then(r => r.json())
+                        .then(json => ({ file, json }))
+                )).then(results => {
+                    // Zbierz wszystkie strategie z wszystkich plików
+                    const allStrategies = new Set();
+                    results.forEach(({ json }) => {
+                        if (json.Iterations) {
+                            json.Iterations.forEach(iter => allStrategies.add(iter.Strategy));
+                        }
+                    });
+                    const strategies = Array.from(allStrategies).sort();
+
+                    // Zbuduj nagłówek
+                    const headerRow = document.getElementById('headerRow');
+                    // Dodaj kolumnę Backtest
+                    // (już jest w HTML, więc nie trzeba dodawać)
+                    strategies.forEach(strategy => {
+                        const th = document.createElement('th');
+                        th.textContent = strategy;
+                        headerRow.appendChild(th);
+                    });
+
+                    // Zbuduj wiersze
+                    const tbody = document.querySelector('#summaryTable tbody');
+                    results.forEach(({ file, json }) => {
+                        // Data z nazwy pliku
+                        const match = file.match(/^(\d{14})-/);
+                        let dateStr = "-";
+                        if (match) {
+                            const d = match[1];
+                            dateStr = `${d.substr(0, 4)}-${d.substr(4, 2)}-${d.substr(6, 2)} ${d.substr(8, 2)}:${d.substr(10, 2)}:${d.substr(12, 2)}`;
+                        }
+                        const tr = document.createElement('tr');
+                        // Pierwsza kolumna: data
+                        const tdDate = document.createElement('td');
+                        tdDate.textContent = dateStr;
+                        tr.appendChild(tdDate);
+
+                        // Druga kolumna: Backtest (zakres dat i initial balance)
+                        const tdBacktest = document.createElement('td');
+                        tdBacktest.innerHTML =
+                            `Od: <b>${globalBacktest.start}</b><br>` +
+                            `Do: <b>${globalBacktest.end}</b><br>` +
+                            `Initial: <b>${globalBacktest.initialBalance}</b>`;
+                        tr.appendChild(tdBacktest);
+
+                        // Mapowanie: strategia => {FB, FE, UPnL}
+                        const stratMap = {};
+                        if (json.Iterations) {
+                            json.Iterations.forEach(iter => {
+                                stratMap[iter.Strategy] = iter;
+                            });
+                        }
+
+                        // Wyznacz najlepszą/najgorszą strategię dla tego wiersza
+                        let initialBalance = globalBacktest.initialBalance;
+                        let best = null, worst = null, bestVal = -Infinity, worstVal = Infinity;
+                        if (json.Iterations) {
+                            json.Iterations.forEach(iter => {
+                                const fe = iter.FinalEquity ?? null;
+                                if (fe !== null && fe !== initialBalance) {
+                                    if (fe > bestVal) { bestVal = fe; best = iter.Strategy; }
+                                    if (fe < worstVal) { worstVal = fe; worst = iter.Strategy; }
+                                }
+                            });
+                        }
+
+                        // Kolumny: strategie
+                        strategies.forEach(strategy => {
+                            const td = document.createElement('td');
+                            if (stratMap[strategy]) {
+                                const iter = stratMap[strategy];
+                                td.innerHTML =
+                                    `FB: <b>${iter.FinalBalance ?? '-'}</b><br>` +
+                                    `FE: <b>${iter.FinalEquity ?? '-'}</b><br>` +
+                                    `UPnL: <b>${iter.UnrealizedPnl ?? '-'}</b>`;
+                                if (strategy === best) td.classList.add('best');
+                                if (strategy === worst) td.classList.add('worst');
+                            } else {
+                                td.textContent = "-";
+                            }
+                            tr.appendChild(td);
+                        });
+
+                        tbody.appendChild(tr);
+                    });
                 });
             });
-
-        function showJson(file) {
-            fetch(summaryDir + file)
-                .then(r => r.json())
-                .then(json => {
-                    const pre = document.getElementById('jsonPreview');
-                    pre.style.display = 'block';
-                    pre.textContent = JSON.stringify(json, null, 2);
-                    window.scrollTo(0, document.body.scrollHeight);
-                });
-        }
     </script>
 </body>
+
 </html>
