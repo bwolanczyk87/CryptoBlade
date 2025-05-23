@@ -126,88 +126,88 @@ namespace CryptoBlade.Strategies
 
         protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
-            //// 1) Pobieramy ustawienia strategii i świeczki
+            // 1) Pobieramy ustawienia strategii i świeczki
             var opts = options.Value;
             var primaryQuotes = QuoteQueues[opts.PrimaryTimeFrame].GetQuotes();
-            //if (primaryQuotes.Length < 30)
-            //{
-            //    // Za mało danych, nie generujemy sygnału
-            //    return Task.FromResult(
-            //        new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
-            //    );
-            //}
+            if (primaryQuotes.Length < 30)
+            {
+               // Za mało danych, nie generujemy sygnału
+               return Task.FromResult(
+                   new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
+               );
+            }
 
-            //// 2) Konwertujemy do listy (Skender) i liczymy HMA, CMF i OBV
-            // var quotesList = primaryQuotes.ToList();
+            // 2) Konwertujemy do listy (Skender) i liczymy HMA, CMF i OBV
+            var quotesList = primaryQuotes.ToList();
 
-            //// Długości HMA (przykładowe)
-            //int periodShort = 9;
-            //int periodLong = 21;
-            //int cmfPeriod = 20;
+            // Długości HMA (przykładowe)
+            int periodShort = 9;
+            int periodLong = 21;
+            int cmfPeriod = 20;
 
-            //// Hull Moving Average (krótka i długa)
-            //var hmaShortResults = quotesList.GetHma(periodShort).ToList(); // .Sma / .Hma z biblioteki Skendera
-            //var hmaLongResults = quotesList.GetHma(periodLong).ToList();
+            // Hull Moving Average (krótka i długa)
+            var hmaShortResults = quotesList.GetHma(periodShort).ToList(); // .Sma / .Hma z biblioteki Skendera
+            var hmaLongResults = quotesList.GetHma(periodLong).ToList();
 
-            //// Chaikin Money Flow
-            //var cmfResults = quotesList.GetCmf(cmfPeriod).ToList();
+            // Chaikin Money Flow
+            var cmfResults = quotesList.GetCmf(cmfPeriod).ToList();
 
-            //// (Opcjonalnie) OBV do wglądu
-            //var obvResults = quotesList.GetObv().ToList();
+            // (Opcjonalnie) OBV do wglądu
+            var obvResults = quotesList.GetObv().ToList();
 
-            //// 3) Bierzemy ostatnie wartości z hma i cmf
-            ////    Uwaga: hmaShortResults[i].Hma zwraca double? (może być null, trzeba sprawdzić)
-            //var lastHmaShort = hmaShortResults.LastOrDefault();
-            //var prevHmaShort = hmaShortResults.Count > 1 ? hmaShortResults[^2] : null;
+            // 3) Bierzemy ostatnie wartości z hma i cmf
+            //    Uwaga: hmaShortResults[i].Hma zwraca double? (może być null, trzeba sprawdzić)
+            var lastHmaShort = hmaShortResults.LastOrDefault();
+            var prevHmaShort = hmaShortResults.Count > 1 ? hmaShortResults[^2] : null;
 
-            //var lastHmaLong = hmaLongResults.LastOrDefault();
-            //var prevHmaLong = hmaLongResults.Count > 1 ? hmaLongResults[^2] : null;
+            var lastHmaLong = hmaLongResults.LastOrDefault();
+            var prevHmaLong = hmaLongResults.Count > 1 ? hmaLongResults[^2] : null;
 
-            //var lastCmf = cmfResults.LastOrDefault(); // .Cmf => double?
+            var lastCmf = cmfResults.LastOrDefault(); // .Cmf => double?
 
-            //// Sprawdzamy, czy mamy wszystkie dane niepuste
-            //if (!lastHmaShort.Hma.HasValue || !lastHmaLong.Hma.HasValue || lastCmf.Cmf == null)
-            //{
-            //    return Task.FromResult(
-            //        new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
-            //    );
-            //}
+            // Sprawdzamy, czy mamy wszystkie dane niepuste
+            if (!lastHmaShort.Hma.HasValue || !lastHmaLong.Hma.HasValue || lastCmf.Cmf == null)
+            {
+               return Task.FromResult(
+                   new SignalEvaluation(false, false, false, false, Array.Empty<StrategyIndicator>())
+               );
+            }
 
-            //// 4) Logika przecięć: HMA short vs. HMA long
-            //// Sprawdzamy dwa ostatnie "punkty" w hmaShort i hmaLong, 
-            //// żeby wykryć, czy nastąpiło przecięcie z dołu/do góry
-            //double hmaShortNow = lastHmaShort.Hma.Value;
-            //double hmaLongNow = lastHmaLong.Hma.Value;
+            // 4) Logika przecięć: HMA short vs. HMA long
+            // Sprawdzamy dwa ostatnie "punkty" w hmaShort i hmaLong, 
+            // żeby wykryć, czy nastąpiło przecięcie z dołu/do góry
+            double hmaShortNow = lastHmaShort.Hma.Value;
+            double hmaLongNow = lastHmaLong.Hma.Value;
 
-            //double? hmaShortPrev = prevHmaShort?.Hma;
-            //double? hmaLongPrev = prevHmaLong?.Hma;
+            double? hmaShortPrev = prevHmaShort?.Hma;
+            double? hmaLongPrev = prevHmaLong?.Hma;
 
             bool hasBuySignal = false;
             bool hasSellSignal = false;
 
-            //// Dodatkowo filtr CMF > 0 => kupno, CMF < 0 => sprzedaż
-            //double cmfValue = lastCmf.Cmf.Value;
+            // Dodatkowo filtr CMF > 0 => kupno, CMF < 0 => sprzedaż
+            double cmfValue = lastCmf.Cmf.Value;
 
-            //if (hmaShortPrev.HasValue && hmaLongPrev.HasValue)
-            //{
-            //    // CROSS UP:
-            //    // warunek: wcześniej hmaShort < hmaLong, teraz hmaShort > hmaLong (i CMF > 0)
-            //    bool crossUp = (hmaShortPrev < hmaLongPrev) && (hmaShortNow > hmaLongNow);
-            //    bool bullishVolume = (cmfValue > 0);
-            //    if (crossUp && bullishVolume)
-            //        hasBuySignal = true;
+            if (hmaShortPrev.HasValue && hmaLongPrev.HasValue)
+            {
+               // CROSS UP:
+               // warunek: wcześniej hmaShort < hmaLong, teraz hmaShort > hmaLong (i CMF > 0)
+               bool crossUp = (hmaShortPrev < hmaLongPrev) && (hmaShortNow > hmaLongNow);
+               bool bullishVolume = (cmfValue > 0);
+               if (crossUp && bullishVolume)
+                   hasBuySignal = true;
 
-            //    // CROSS DOWN:
-            //    // wcześniej hmaShort > hmaLong, teraz hmaShort < hmaLong (CMF < 0)
-            //    bool crossDown = (hmaShortPrev > hmaLongPrev) && (hmaShortNow < hmaLongNow);
-            //    bool bearishVolume = (cmfValue < 0);
-            //    if (crossDown && bearishVolume)
-            //        hasSellSignal = true;
-            //}
+               // CROSS DOWN:
+               // wcześniej hmaShort > hmaLong, teraz hmaShort < hmaLong (CMF < 0)
+               bool crossDown = (hmaShortPrev > hmaLongPrev) && (hmaShortNow < hmaLongNow);
+               bool bearishVolume = (cmfValue < 0);
+               if (crossDown && bearishVolume)
+                   hasSellSignal = true;
+            }
 
-            //// Ewentualnie tu logika "extra signals" (dca) – np. re-entry
-            //// if (LongPosition != null && hasBuySignal) ...
-            //// if (ShortPosition != null && hasSellSignal) ...
+            // Ewentualnie tu logika "extra signals" (dca) – np. re-entry
+            // if (LongPosition != null && hasBuySignal) ...
+            // if (ShortPosition != null && hasSellSignal) ...
             hasBuySignal = true;
             bool hasBuyExtraSignal = false;
             bool hasSellExtraSignal = false;

@@ -27,6 +27,65 @@ if ($Code -notmatch '^\d{3}$') {
     exit 1
 }
 
+# Sprawdź status Dockera i uruchom jeśli nie działa
+Write-Host "Sprawdzam status Dockera..."
+$dockerStatus = & systemctl is-active docker 2>$null
+
+if ($dockerStatus -ne "active") {
+    Write-Host "Docker nie jest aktywny. Próbuję uruchomić..."
+
+    # Automatyczne wykrywanie socketa Docker
+    if (Test-Path "$HOME/.docker/desktop/docker.sock") {
+        $env:DOCKER_HOST = "unix://$HOME/.docker/desktop/docker.sock"
+        Write-Host "Używam socketa Docker Desktop: $HOME/.docker/desktop/docker.sock"
+    } 
+    elseif (Test-Path "/var/run/docker.sock") {
+        $env:DOCKER_HOST = "unix:///var/run/docker.sock"
+        Write-Host "Używam klasycznego socketa: /var/run/docker.sock"
+    }
+    else {
+        Write-Warning "Nie znaleziono socketa Docker. Sprawdź, czy Docker jest uruchomiony."
+    }
+
+    try {
+        sudo systemctl start docker
+        systemctl --user start docker-desktop
+        Start-Sleep -Seconds 3
+        $dockerStatus = & systemctl is-active docker 2>$null
+        if ($dockerStatus -eq "active") {
+            Write-Host "Docker został uruchomiony."
+
+            # Uruchomienie docker login
+            Write-Host "Logowanie do Docker..."
+            $accountsConfigPath = "$scriptRoot/../../appsettings.Accounts.json"
+            $accountsConfig = Get-Content $accountsConfigPath | ConvertFrom-Json
+            $dockerToken = $accountsConfig.Docker.Token
+            $dockerLogin = $accountsConfig.Docker.Login 
+
+            if (-not $dockerToken -or -not $dockerLogin) {
+                Write-Error "Nie znaleziono tokena lub loginu do Dockera w pliku appsettings.Accounts.json."
+                exit 1
+            }
+            else {
+                $dockerToken | docker login --username $dockerLogin --password-stdin
+            }
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Błąd logowania do Docker."
+                exit 1
+            }
+        } else {
+            Write-Error "Nie udało się uruchomić Dockera. Sprawdź uprawnienia lub zainstaluj Docker."
+            exit 1
+        }
+    } catch {
+        Write-Error "Błąd podczas uruchamiania Dockera: $_"
+        exit 1
+    }
+} else {
+    Write-Host "Docker jest aktywny."
+}
+
 # Funkcja: Pobiera wartości enum z pliku źródłowym
 function Get-EnumMapping {
     param(
@@ -118,11 +177,6 @@ if (-not $strategyMap.ContainsKey($strategyDigit)) {
 }
 $StrategyName = $strategyMap[$strategyDigit]
 
-Write-Host "Dekodowano:" -ForegroundColor Cyan
-Write-Host "  Strategia: $StrategyName"
-Write-Host "  BotMode: $BotMode"
-Write-Host "  TradingMode: $TradingMode"
-
 # Wybór pliku JSON na podstawie BotMode – zakładamy, że plik znajduje się w:
 # "$PSScriptRoot\..\Data\Strategies\<primaryStrategy>\<botmode>\<botmode>.json"
 $primaryStrategy = ($StrategyName -split ",")[0].Trim()
@@ -144,6 +198,11 @@ if ($BotMode -eq "Backtest") {
     $jsonContent.TradingMode = $TradingMode
 }
 
+Write-Host "Dekodowano:" -ForegroundColor Cyan
+Write-Host "  Strategia: $StrategyName"
+Write-Host "  BotMode: $BotMode"
+Write-Host "  TradingMode: $TradingMode"
+
 # Zapisanie zaktualizowanego JSONa (nadpisanie oryginalnego pliku)
 $jsonContent | ConvertTo-Json -Depth 10 | Set-Content $jsonFile
 Write-Host "Plik $jsonFile został zaktualizowany."
@@ -156,7 +215,6 @@ function Flatten-Json {
         [string]$Prefix = ""
     )
     $result = @{}
-    # Jeżeli obiekt jest tablicą
     if ($Data -is [System.Array]) {
         $index = 0
         foreach ($item in $Data) {
@@ -165,7 +223,6 @@ function Flatten-Json {
             $index++
         }
     }
-    # Jeżeli obiekt jest obiektem (custom) – przetwarzamy tylko właściwości typu NoteProperty
     elseif ($Data -is [psobject] -and $Data.PSObject.Properties.Count -gt 0) {
         foreach ($prop in $Data.PSObject.Properties) {
             if ($prop.MemberType -ne 'NoteProperty') { continue }
@@ -174,7 +231,11 @@ function Flatten-Json {
         }
     }
     else {
-        $result[$Prefix] = $Data.ToString()
+        if ($Data -is [DateTime]) {
+            $result[$Prefix] = $Data.ToString("yyyy-MM-ddTHH:mm:ss")
+        } else {
+            $result[$Prefix] = $Data.ToString()
+        }
     }
     return $result
 }
@@ -205,7 +266,7 @@ if ($composeContent -match $pattern) {
     $composeContent = $composeContent -replace "(environment:\s*\n)", "    environment:`n$($envLines -join "`n")`n"
 }
 
-$containerName = "cryptoblade_$($StrategyName.ToLower())_$($BotMode.ToLower())"
+$containerName = "$($StrategyName.ToLower())_$($BotMode.ToLower())"
 if ($composeContent -match "container_name:\s*\S+") {
     # Zastępujemy istniejącą wartość
     $composeContent = $composeContent -replace "container_name:\s*\S+", "container_name: $containerName"
@@ -214,40 +275,34 @@ if ($composeContent -match "container_name:\s*\S+") {
     $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    container_name: $containerName`n"
 }
 
-# Set-Content $composeFile $composeContent
-# Write-Host "Plik docker-compose.yml został zaktualizowany."
+Set-Content $composeFile $composeContent
+Write-Host "Plik docker-compose.yml został zaktualizowany."
 
-# Uruchomienie docker login i docker compose up
-Write-Host "Logowanie do Docker..."
-docker login
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Błąd logowania do Docker."
-    exit 1
-}
+$config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
+$account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
+$env:CB_TradingBot__Accounts__0__Name=$account.Name
+$env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
+$env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
+$env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
+$env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
 
-# $config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
-# $account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
-# $env:CB_TradingBot__Accounts__0__Name=$account.Name
-# $env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
-# $env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
-# $env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
-# $env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
-
-# $secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
-# $env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
-# $env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
-# $env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
-# $env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
-# $env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
+$secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
+$env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
+$env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
+$env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
+$env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
+$env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."
-docker-compose -p $containerName up -d
 
-
+docker network rm "$($containerName)_default"
+docker rm -f $containerName
+docker-compose -p $containerName up -d --force-recreate
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1
 }
+
 
 Write-Host "Kontenery zostały uruchomione, a wyniki backtestu będą zapisywane zgodnie z konfiguracją."

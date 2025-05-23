@@ -5,6 +5,7 @@
 
 /CBClone/
 /CryptoBlade/Data/HistoricalData
+/CryptoBlade/Data/Strategies/*/Backtest/Results/
 
 # User-specific files
 *.rsuser

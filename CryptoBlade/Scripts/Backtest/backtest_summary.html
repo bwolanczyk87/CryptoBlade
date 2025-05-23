@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Lista podsumowań backtestów</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+        th { background: #f0f0f0; }
+        tr:nth-child(even) { background: #fafafa; }
+        a { color: #0074d9; }
+    </style>
+</head>
+<body>
+    <h2>Lista podsumowań backtestów</h2>
+    <table id="summaryTable">
+        <tr>
+            <th>Data</th>
+            <th>Nazwa pliku</th>
+            <th>Podgląd</th>
+        </tr>
+    </table>
+    <pre id="jsonPreview" style="display:none; background:#f8f8f8; border:1px solid #ccc; padding:1em; max-height:400px; overflow:auto;"></pre>
+    <script>
+        // Ścieżka do katalogu z plikami
+        const summaryDir = "../Data/Strategies/_globalBacktest/";
+
+        fetch(summaryDir)
+            .then(response => response.text())
+            .then(html => {
+                // Wyciągnij nazwy plików JSON z listingu katalogu
+                const files = [...html.matchAll(/href="([^"]+\.json)"/g)].map(m => m[1]);
+                files.sort().reverse();
+                const table = document.getElementById('summaryTable');
+                files.forEach(file => {
+                    // Wyciągnij datę z nazwy pliku
+                    const match = file.match(/^(\d{14})-/);
+                    let dateStr = "-";
+                    if (match) {
+                        const d = match[1];
+                        dateStr = `${d.substr(0,4)}-${d.substr(4,2)}-${d.substr(6,2)} ${d.substr(8,2)}:${d.substr(10,2)}:${d.substr(12,2)}`;
+                    }
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${dateStr}</td>
+                        <td>${file}</td>
+                        <td><a href="#" onclick="showJson('${file}');return false;">Podgląd</a></td>
+                    `;
+                    table.appendChild(row);
+                });
+            });
+
+        function showJson(file) {
+            fetch(summaryDir + file)
+                .then(r => r.json())
+                .then(json => {
+                    const pre = document.getElementById('jsonPreview');
+                    pre.style.display = 'block';
+                    pre.textContent = JSON.stringify(json, null, 2);
+                    window.scrollTo(0, document.body.scrollHeight);
+                });
+        }
+    </script>
+</body>
+</html>

@@ -31,6 +31,7 @@
         Rsi,
         Atr,
         Volume,
-        Adx
+        Adx,
+        HourlyTrend
     }
 }
