@@ -43,8 +43,6 @@
             color: #c00;
             font-weight: bold;
         }
-
-
     </style>
 </head>
 
@@ -63,18 +61,6 @@
     </table>
     <script>
         const summaryDir = "/Data/Strategies/_globalBacktest/";
-
-        // Najpierw pobierz dane globalne (daty, initial balance)
-        let globalBacktest = { start: "-", end: "-", initialBalance: "-" };
-        fetch("/Scripts/Backtest/backtest_global.json")
-            .then(r => r.json())
-            .then(globalConfig => {
-                if (globalConfig.BackTest) {
-                    globalBacktest.start = globalConfig.BackTest.Start?.replace("T", " ") ?? "-";
-                    globalBacktest.end = globalConfig.BackTest.End?.replace("T", " ") ?? "-";
-                    globalBacktest.initialBalance = globalConfig.BackTest.InitialBalance ?? "-";
-                }
-            });
 
         fetch(summaryDir)
             .then(response => response.text())
@@ -98,8 +84,6 @@
 
                     // Zbuduj nagłówek
                     const headerRow = document.getElementById('headerRow');
-                    // Dodaj kolumnę Backtest
-                    // (już jest w HTML, więc nie trzeba dodawać)
                     strategies.forEach(strategy => {
                         const th = document.createElement('th');
                         th.textContent = strategy;
@@ -123,11 +107,17 @@
                         tr.appendChild(tdDate);
 
                         // Druga kolumna: Backtest (zakres dat i initial balance)
+                        let start = "-", end = "-", initialBalance = "-";
+                        if (json.BacktestConfig && json.BacktestConfig.BackTest) {
+                            start = json.BacktestConfig.BackTest.Start?.replace("T", " ") ?? "-";
+                            end = json.BacktestConfig.BackTest.End?.replace("T", " ") ?? "-";
+                            initialBalance = json.BacktestConfig.BackTest.InitialBalance ?? "-";
+                        }
                         const tdBacktest = document.createElement('td');
                         tdBacktest.innerHTML =
-                            `Od: <b>${globalBacktest.start}</b><br>` +
-                            `Do: <b>${globalBacktest.end}</b><br>` +
-                            `Initial: <b>${globalBacktest.initialBalance}</b>`;
+                            `Od: <b>${start}</b><br>` +
+                            `Do: <b>${end}</b><br>` +
+                            `Initial: <b>${initialBalance}</b>`;
                         tr.appendChild(tdBacktest);
 
                         // Mapowanie: strategia => {FB, FE, UPnL}
@@ -139,7 +129,6 @@
                         }
 
                         // Wyznacz najlepszą/najgorszą strategię dla tego wiersza
-                        let initialBalance = globalBacktest.initialBalance;
                         let best = null, worst = null, bestVal = -Infinity, worstVal = Infinity;
                         if (json.Iterations) {
                             json.Iterations.forEach(iter => {

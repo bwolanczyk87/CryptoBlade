@@ -11,10 +11,10 @@ services:
         - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__AccountName=Demo
-        - CB_TradingBot__BackTest__End=2025-05-5T00:00:00
+        - CB_TradingBot__BackTest__End=2025-05-23T00:00:00
         - CB_TradingBot__BackTest__InitialBalance=100
         - CB_TradingBot__BackTest__InitialUntradableDays=0
-        - CB_TradingBot__BackTest__Start=2025-05-01T00:00:00
+        - CB_TradingBot__BackTest__Start=2024-01-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__Blacklist__0=EOSUSDT
         - CB_TradingBot__BotMode=Backtest
@@ -25,10 +25,10 @@ services:
         - CB_TradingBot__DcaOrdersCount=1000
         - CB_TradingBot__DynamicBotCount__MaxDynamicStrategyOpenPerStep=5
         - CB_TradingBot__DynamicBotCount__MaxLongStrategies=30
-        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=50
+        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=30
         - CB_TradingBot__DynamicBotCount__Step=00:01:00
-        - CB_TradingBot__DynamicBotCount__TargetLongExposure=100
-        - CB_TradingBot__DynamicBotCount__TargetShortExposure=0
+        - CB_TradingBot__DynamicBotCount__TargetLongExposure=20
+        - CB_TradingBot__DynamicBotCount__TargetShortExposure=20
         - CB_TradingBot__EnableRecursiveQtyFactorLong=True
         - CB_TradingBot__EnableRecursiveQtyFactorShort=True
         - CB_TradingBot__ForceMinQty=False
@@ -41,13 +41,13 @@ services:
         - CB_TradingBot__MinProfitRate=0.0006
         - CB_TradingBot__NormalizedAverageTrueRangePeriod=14
         - CB_TradingBot__PlaceOrderAttempts=5
-        - CB_TradingBot__QtyFactorLong=250
-        - CB_TradingBot__QtyFactorShort=0
+        - CB_TradingBot__QtyFactorLong=100
+        - CB_TradingBot__QtyFactorShort=100
         - CB_TradingBot__SpotRebalancingRatio=0
         - CB_TradingBot__Strategies__LinearRegression__ChannelLength=100
         - CB_TradingBot__Strategies__LinearRegression__StandardDeviation=2
         - CB_TradingBot__StrategyName=LinearRegression
-        - CB_TradingBot__StrategySelectPreference=0
+        - CB_TradingBot__StrategySelectPreference=1
         - CB_TradingBot__SymbolMaturityPreference__0=MEDIUM
         - CB_TradingBot__SymbolMaturityPreference__1=LARGE
         - CB_TradingBot__SymbolVolatilityPreference__0=HIGH
@@ -65,7 +65,7 @@ services:
         - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
         - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.3
         - CB_TradingBot__WalletExposureLong=100
-        - CB_TradingBot__WalletExposureShort=0
+        - CB_TradingBot__WalletExposureShort=100
         - CB_TradingBot__Whitelist__0=BTCUSDT
         - CB_TradingBot__Whitelist__1=ETHUSDT
         - CB_TradingBot__Whitelist__10=DOTUSDT
