@@ -1,0 +1,118 @@
+{
+  "AccountName": "Demo",
+  "BotMode": "Backtest",
+  "TradingMode": "DynamicBackTest",
+  "MaxRunningStrategies": 30,
+  "DcaOrdersCount": 1000,
+  "DynamicBotCount": {
+    "TargetLongExposure": 20,
+    "TargetShortExposure": 20.0,
+    "MaxLongStrategies": 30,
+    "MaxShortStrategies": 30,
+    "MaxDynamicStrategyOpenPerStep": 5,
+    "Step": "00:01:00"
+  },
+  "WalletExposureLong": 100.0,
+  "WalletExposureShort": 100.0,
+  "MinimumVolume": 15000.0,
+  "MinimumPriceDistance": 0.015,
+  "ForceMinQty": false,
+  "QtyFactorLong": 100,
+  "QtyFactorShort": 100,
+  "EnableRecursiveQtyFactorLong": true,
+  "EnableRecursiveQtyFactorShort": true,
+  "PlaceOrderAttempts": 5,
+  "MaxAbsFundingRate": 0.0002,
+  "MakerFeeRate": 0.0002,
+  "TakerFeeRate": 0.00055,
+  "MinProfitRate": 0.0006,
+  "SpotRebalancingRatio": 0.0,
+  "StrategySelectPreference": 1,
+  "NormalizedAverageTrueRangePeriod": 14,
+  "MinNormalizedAverageTrueRangePeriod": 1.0,
+  "BackTest": {
+    "Start": "2024-01-01T00:00:00",
+    "End": "2025-05-23T00:00:00",
+    "InitialBalance": 100,
+    "StartupCandleData": "1.00:00:00",
+    "InitialUntradableDays": 0
+  },
+  "Unstucking": {
+    "Enabled": false,
+    "SlowUnstuckThresholdPercent": -0.3,
+    "SlowUnstuckPositionThresholdPercent": -0.05,
+    "ForceUnstuckThresholdPercent": -0.4,
+    "ForceUnstuckPositionThresholdPercent": -0.2,
+    "SlowUnstuckPercentStep": 0.2,
+    "ForceUnstuckPercentStep": 0.1,
+    "ForceKillTheWorst": true
+  },
+  "Strategies": {
+    "Momentum": {
+    }
+  },
+  "CriticalMode": {
+    "EnableCriticalModeLong": true,
+    "EnableCriticalModeShort": true,
+    "WalletExposureThresholdLong": 0.3,
+    "WalletExposureThresholdShort": 0.3
+  },
+  "SymbolVolumePreference": [
+    "HIGH",
+    "LARGE"
+  ],
+  "SymbolVolatilityPreference": [
+    "HIGH",
+    "LARGE"
+  ],
+  "SymbolMaturityPreference": [
+    "MEDIUM",
+    "LARGE"
+  ],
+  "Whitelist": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "XRPUSDT",
+    "BNBUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "SOLUSDT",
+    "TRXUSDT",
+    "MATICUSDT",
+    "LTCUSDT",
+    "DOTUSDT",
+    "BCHUSDT",
+    "SHIB1000U",
+    "AVAXUSDT",
+    "UNIUSDT",
+    "XLMUSDT",
+    "LINKUSDT",
+    "XMRUSDT",
+    "ATOMUSDT",
+    "ETCUSDT",
+    "FILUSDT",
+    "ICPUSDT",
+    "HBARUSDT",
+    "LDOUSDT",
+    "CROUSDT",
+    "ARBUSDT",
+    "APTUSDT",
+    "QNTUSDT",
+    "VETUSDT",
+    "NEARUSDT",
+    "MKRUSDT",
+    "AAVEUSDT",
+    "OPUSDT",
+    "GRTUSDT",
+    "SNXUSDT",
+    "ALGOUSDT",
+    "STXUSDT",
+    "EGLDUSDT",
+    "SANDUSDT"
+  ],
+  "Blacklist": [
+    "EOSUSDT"
+  ],
+  "SymbolTradingModes": [],
+  "StrategyName": "Momentum"
+}

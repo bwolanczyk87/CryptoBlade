@@ -184,38 +184,32 @@ namespace CryptoBlade.Strategies
 
         private ITradingStrategy CreateMomentumStrategy(TradingBotOptions config, string symbol)
         {
-            var momentumOptions = CreateTradeOptions<MomentumStrategyOptions>(config, symbol, strategyOptions =>
+            var options = CreateTradeOptions<MomentumStrategyOptions>(config, symbol, strategyOptions =>
             {
                 strategyOptions.MinimumPriceDistance = config.MinimumPriceDistance;
                 strategyOptions.MinimumVolume = config.MinimumVolume;
-                strategyOptions.MacdFastPeriod = config.Strategies.Momentum.MacdFastPeriod;
-                strategyOptions.MacdSlowPeriod = config.Strategies.Momentum.MacdSlowPeriod;
-                strategyOptions.MacdSignalPeriod = config.Strategies.Momentum.MacdSignalPeriod;
+                strategyOptions.FixedStopLossPercentage = config.Strategies.Momentum.FixedStopLossPercentage;
+                strategyOptions.RiskRewardRatio = config.Strategies.Momentum.RiskRewardRatio;
+                strategyOptions.BollingerBandsPeriod = config.Strategies.Momentum.BollingerBandsPeriod;
+                strategyOptions.BollingerBandsStdDev = config.Strategies.Momentum.BollingerBandsStdDev;
+                strategyOptions.SqueezeLookback = config.Strategies.Momentum.SqueezeLookback;
+                strategyOptions.SqueezeStdRatioThreshold = config.Strategies.Momentum.SqueezeStdRatioThreshold;
+                strategyOptions.VolumeLookbackPeriod = config.Strategies.Momentum.VolumeLookbackPeriod;
+                strategyOptions.VolumeSpikeMultiplier = config.Strategies.Momentum.VolumeSpikeMultiplier;
                 strategyOptions.RsiPeriod = config.Strategies.Momentum.RsiPeriod;
-                strategyOptions.RsiUpperThreshold = config.Strategies.Momentum.RsiUpperThreshold;
-                strategyOptions.RsiLowerThreshold = config.Strategies.Momentum.RsiLowerThreshold;
-                strategyOptions.AtrPeriod = config.NormalizedAverageTrueRangePeriod;
-                strategyOptions.MinimumAtr = config.MinNormalizedAverageTrueRangePeriod;
-                strategyOptions.MinReentryPositionDistanceLong = config.Strategies.Momentum.MinReentryPositionDistanceLong;
-                strategyOptions.MinReentryPositionDistanceShort = config.Strategies.Momentum.MinReentryPositionDistanceShort;
-                strategyOptions.ConfirmationCandles = config.Strategies.Momentum.ConfirmationCandles;
-                strategyOptions.UseSecondaryTimeFrameFilter = config.Strategies.Momentum.UseSecondaryTimeFrameFilter;
-                strategyOptions.PrimaryTimeFrame = config.Strategies.Momentum.PrimaryTimeFrame;
-                strategyOptions.SecondaryTimeFrame = config.Strategies.Momentum.SecondaryTimeFrame;
-                strategyOptions.PrimaryTimeFrameWindowSize = config.Strategies.Momentum.PrimaryTimeFrameWindowSize;
-                strategyOptions.SecondaryTimeFrameWindowSize = config.Strategies.Momentum.SecondaryTimeFrameWindowSize;
-                strategyOptions.UseAdxFilter = config.Strategies.Momentum.UseAdxFilter;
+                strategyOptions.RsiLongThreshold = config.Strategies.Momentum.RsiLongThreshold;
+                strategyOptions.RsiShortThreshold = config.Strategies.Momentum.RsiShortThreshold;
                 strategyOptions.AdxPeriod = config.Strategies.Momentum.AdxPeriod;
-                strategyOptions.MinAdxThreshold = config.Strategies.Momentum.MinAdxThreshold;
-                strategyOptions.UsePartialTakeProfit = config.Strategies.Momentum.UsePartialTakeProfit;
-                strategyOptions.PartialTpPercent = config.Strategies.Momentum.PartialTpPercent;
-                strategyOptions.LongTakeProfitFraction = config.Strategies.Momentum.PartialTpSizeFraction;
-                strategyOptions.ShortTakeProfitFraction = config.Strategies.Momentum.PartialTpSizeFraction;
-                strategyOptions.UseTrailingStop = config.Strategies.Momentum.UseTrailingStop;
-                strategyOptions.TrailingStopDistance = config.Strategies.Momentum.TrailingStopDistance;
+                strategyOptions.AdxTrendThreshold = config.Strategies.Momentum.AdxTrendThreshold;
+                strategyOptions.BreakoutConfirmationCandles = config.Strategies.Momentum.BreakoutConfirmationCandles;
+                strategyOptions.MinCandleBodySizePercent = config.Strategies.Momentum.MinCandleBodySizePercent;
+                strategyOptions.MinVolumeUsd = config.Strategies.Momentum.MinVolumeUsd;
+                strategyOptions.EmaTrendPeriod = config.Strategies.Momentum.EmaTrendPeriod;
+                strategyOptions.RsiContextLongThreshold = config.Strategies.Momentum.RsiContextLongThreshold;
+                strategyOptions.RsiContextShortThreshold = config.Strategies.Momentum.RsiContextShortThreshold;
             });
 
-            return new MomentumStrategy(momentumOptions, m_botOptions, symbol, m_walletManager, m_restClient);
+            return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
 

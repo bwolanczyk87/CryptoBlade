@@ -6,30 +6,29 @@ namespace CryptoBlade.Strategies
     {
         public decimal MinimumVolume { get; set; } = 15000m;
         public decimal MinimumPriceDistance { get; set; } = 0.01m;
-        public int MacdFastPeriod { get; set; } = 9;
-        public int MacdSlowPeriod { get; set; } = 21;
-        public int MacdSignalPeriod { get; set; } = 9;
-        public int RsiPeriod { get; set; } = 14;
-        public decimal RsiUpperThreshold { get; set; } = 70;
-        public decimal RsiLowerThreshold { get; set; } = 30;
-        public decimal AtrPeriod { get; set; } = 14;
-        public decimal MinimumAtr { get; set; } = 0.01m;
+
         public decimal MinReentryPositionDistanceLong { get; set; } = 0.02m;
         public decimal MinReentryPositionDistanceShort { get; set; } = 0.02m;
-        public int ConfirmationCandles { get; set; } = 1;
-        public bool UseSecondaryTimeFrameFilter { get; set; } = false;
-        public TimeFrame PrimaryTimeFrame { get; set; } = TimeFrame.OneHour;
-        public TimeFrame SecondaryTimeFrame { get; set; } = TimeFrame.FourHours;
-        public int PrimaryTimeFrameWindowSize { get; set; } = 150;
-        public int SecondaryTimeFrameWindowSize { get; set; } = 150;
-        public bool UseAdxFilter { get; set; } = false;
-        public int AdxPeriod { get; set; } = 14;
-        public decimal MinAdxThreshold { get; set; } = 20m;
 
-        // NOWE POLA DOT. ZAMYKANIA POZYCJI
-        public bool UsePartialTakeProfit { get; set; } = true;         // czy używać częściowego TP
-        public decimal PartialTpPercent { get; set; } = 0.03m;          // zysk (np. 3%) przy którym realizujemy część
-        public bool UseTrailingStop { get; set; } = true;               // czy używać trailing stop
-        public decimal TrailingStopDistance { get; set; } = 0.02m;      // 2% od szczytu/dołka
+        public TimeSpan CooldownPeriod { get; set; } = TimeSpan.FromMinutes(5);
+        public decimal FixedStopLossPercentage { get; set; } = 0.004m;
+        public decimal RiskRewardRatio { get; set; } = 1.0m;
+        public int BollingerBandsPeriod { get; set; } = 20;
+        public double BollingerBandsStdDev { get; set; } = 2.0;
+        public int SqueezeLookback { get; set; } = 60;
+        public decimal SqueezeStdRatioThreshold { get; set; } = 0.70m;
+        public int VolumeLookbackPeriod { get; set; } = 20;
+        public decimal VolumeSpikeMultiplier { get; set; } = 2.0m;
+        public int RsiPeriod { get; set; } = 14;
+        public decimal RsiLongThreshold { get; set; } = 65m;
+        public decimal RsiShortThreshold { get; set; } = 35m;
+        public int AdxPeriod { get; set; } = 10;
+        public decimal AdxTrendThreshold { get; set; } = 22m;
+        public int BreakoutConfirmationCandles { get; set; } = 1;
+        public decimal RsiContextLongThreshold { get; set; } = 50m;
+        public decimal RsiContextShortThreshold { get; set; } = 50m;
+        public int EmaTrendPeriod { get; set; } = 21;
+        public decimal MinCandleBodySizePercent { get; set; } = 0.0005m;
+        public decimal MinVolumeUsd { get; set; } = 100000m;
     }
 }

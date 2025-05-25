@@ -1,0 +1,13 @@
+services:
+  cryptoblade:
+    container_name: momentum_backtest
+    image: cryptoblade:latest
+    labels:
+        - "autoheal=true"
+    ports:
+        - 8092:80
+    volumes:
+        - ../Backtest:/app/Data/Strategies/AutoHedge/Backtest
+        - ../../../HistoricalData:/app/Data/HistoricalData
+    environment:
+      
