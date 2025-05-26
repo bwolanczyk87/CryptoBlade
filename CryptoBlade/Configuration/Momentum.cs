@@ -23,5 +23,13 @@ namespace CryptoBlade.Configuration
         public int EmaTrendPeriod { get; set; } = 21;
         public decimal RsiContextLongThreshold { get; set; } = 50m;
         public decimal RsiContextShortThreshold { get; set; } = 50m;
+
+        public int VolatilityPeriod { get; set; } = 14;
+        public decimal RsiVolatilityFactor { get; set; } = 0.5m;
+        public decimal TrendThreshold { get; set; } = 0.005m;
+        public int VolumeConfirmationPeriod { get; set; } = 5;
+        public decimal VolumeConfirmationFactor { get; set; } = 1.2m;
+        public decimal RsiContextLongThresholdBase { get; set; } = 50m;
+        public decimal RsiContextShortThresholdBase { get; set; } = 50m;
     }
 }

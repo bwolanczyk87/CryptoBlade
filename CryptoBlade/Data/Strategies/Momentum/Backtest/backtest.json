@@ -48,8 +48,7 @@
     "ForceKillTheWorst": true
   },
   "Strategies": {
-    "Momentum": {
-    }
+    "Momentum": {}
   },
   "CriticalMode": {
     "EnableCriticalModeLong": true,

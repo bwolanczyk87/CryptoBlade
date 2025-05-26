@@ -1,31 +1,41 @@
 services:
   cryptoblade:
-    container_name: qiqi_backtest
+    container_name: momentum
     image: cryptoblade:latest
     labels:
         - "autoheal=true"
     ports:
         - 8098:80
     volumes:
-        - ../Backtest:/app/Data/Strategies/Qiqi/Backtest
+        - ../Backtest:/app/Data/Strategies/Momentum/Backtest
         - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__AccountName=Demo
+        - CB_TradingBot__Accounts__0__Name=Demo
+        - CB_TradingBot__Accounts__0__ApiKey=QuchIEfmKQM8sdjPon
+        - CB_TradingBot__Accounts__0__ApiSecret=XVMG8nIgRJyR4Rc7v7WLQs6jSN1auL8A7UvS
+        - CB_TradingBot__Accounts__0__Exchange=Bybit
+        - CB_TradingBot__Accounts__0__IsDemo=true
+        - CB_TradingBot__Accounts__1__Name=Qiqi
+        - CB_TradingBot__Accounts__1__ApiKey=cT9Qmk7YdOgzNlMkZZ
+        - CB_TradingBot__Accounts__1__ApiSecret=4HXCYVzmj7hZc62yXFxlcRjqHBjMxjcldfEa
+        - CB_TradingBot__Accounts__1__Exchange=Bybit
+        - CB_TradingBot__Accounts__1__IsDemo=false
         - CB_TradingBot__BackTest__End=2025-05-23T00:00:00
-        - CB_TradingBot__BackTest__InitialBalance=100
+        - CB_TradingBot__BackTest__InitialBalance=1000
         - CB_TradingBot__BackTest__InitialUntradableDays=0
         - CB_TradingBot__BackTest__Start=2024-01-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__Blacklist__0=EOSUSDT
-        - CB_TradingBot__BotMode=Backtest
+        - CB_TradingBot__BotMode=Live
         - CB_TradingBot__CriticalMode__EnableCriticalModeLong=True
         - CB_TradingBot__CriticalMode__EnableCriticalModeShort=True
         - CB_TradingBot__CriticalMode__WalletExposureThresholdLong=0.3
         - CB_TradingBot__CriticalMode__WalletExposureThresholdShort=0.3
         - CB_TradingBot__DcaOrdersCount=1000
         - CB_TradingBot__DynamicBotCount__MaxDynamicStrategyOpenPerStep=5
-        - CB_TradingBot__DynamicBotCount__MaxLongStrategies=30
-        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=30
+        - CB_TradingBot__DynamicBotCount__MaxLongStrategies=100
+        - CB_TradingBot__DynamicBotCount__MaxShortStrategies=100
         - CB_TradingBot__DynamicBotCount__Step=00:01:00
         - CB_TradingBot__DynamicBotCount__TargetLongExposure=20
         - CB_TradingBot__DynamicBotCount__TargetShortExposure=20
@@ -34,7 +44,7 @@ services:
         - CB_TradingBot__ForceMinQty=False
         - CB_TradingBot__MakerFeeRate=0.0002
         - CB_TradingBot__MaxAbsFundingRate=0.0002
-        - CB_TradingBot__MaxRunningStrategies=30
+        - CB_TradingBot__MaxRunningStrategies=200
         - CB_TradingBot__MinimumPriceDistance=0.015
         - CB_TradingBot__MinimumVolume=15000
         - CB_TradingBot__MinNormalizedAverageTrueRangePeriod=1
@@ -44,29 +54,16 @@ services:
         - CB_TradingBot__QtyFactorLong=100
         - CB_TradingBot__QtyFactorShort=100
         - CB_TradingBot__SpotRebalancingRatio=0
-        - CB_TradingBot__Strategies__Qiqi__MaxTimeStuck=120.00:00:00
-        - CB_TradingBot__Strategies__Qiqi__QflAbovePercentEnterShort=4
-        - CB_TradingBot__Strategies__Qiqi__QflBellowPercentEnterLong=1.2999999523162842
-        - CB_TradingBot__Strategies__Qiqi__RsiTakeProfitLong=70
-        - CB_TradingBot__Strategies__Qiqi__RsiTakeProfitShort=21
-        - CB_TradingBot__Strategies__Qiqi__TakeProfitPercentLong=0.3499999940395355
-        - CB_TradingBot__Strategies__Qiqi__TakeProfitPercentShort=0.5
-        - CB_TradingBot__Strategies__Recursive__DDownFactorLong=3
-        - CB_TradingBot__Strategies__Recursive__DDownFactorShort=2.621999979019165
-        - CB_TradingBot__Strategies__Recursive__InitialQtyPctLong=0.006000000052154064
-        - CB_TradingBot__Strategies__Recursive__InitialQtyPctShort=0.017000000923871994
-        - CB_TradingBot__Strategies__Recursive__ReentryPositionPriceDistanceLong=0.01600000075995922
-        - CB_TradingBot__Strategies__Recursive__ReentryPositionPriceDistanceShort=0.0010000000474974513
-        - CB_TradingBot__Strategies__Recursive__ReentryPositionPriceDistanceWalletExposureWeightingLong=1.3899999856948853
-        - CB_TradingBot__Strategies__Recursive__ReentryPositionPriceDistanceWalletExposureWeightingShort=1.9739999771118164
-        - CB_TradingBot__StrategyName=Qiqi
+        - CB_TradingBot__StrategyName=Momentum
         - CB_TradingBot__StrategySelectPreference=1
         - CB_TradingBot__SymbolMaturityPreference__0=MEDIUM
         - CB_TradingBot__SymbolMaturityPreference__1=LARGE
         - CB_TradingBot__SymbolVolatilityPreference__0=HIGH
         - CB_TradingBot__SymbolVolatilityPreference__1=LARGE
+        - CB_TradingBot__SymbolVolatilityPreference__2=MEDIUM
         - CB_TradingBot__SymbolVolumePreference__0=HIGH
         - CB_TradingBot__SymbolVolumePreference__1=LARGE
+        - CB_TradingBot__SymbolVolumePreference__2=MEDIUM
         - CB_TradingBot__TakerFeeRate=0.00055
         - CB_TradingBot__TradingMode=DynamicBackTest
         - CB_TradingBot__Unstucking__Enabled=False
@@ -77,45 +74,5 @@ services:
         - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.2
         - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
         - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.3
-        - CB_TradingBot__WalletExposureLong=100
-        - CB_TradingBot__WalletExposureShort=100
-        - CB_TradingBot__Whitelist__0=BTCUSDT
-        - CB_TradingBot__Whitelist__1=ETHUSDT
-        - CB_TradingBot__Whitelist__10=DOTUSDT
-        - CB_TradingBot__Whitelist__11=BCHUSDT
-        - CB_TradingBot__Whitelist__12=SHIB1000U
-        - CB_TradingBot__Whitelist__13=AVAXUSDT
-        - CB_TradingBot__Whitelist__14=UNIUSDT
-        - CB_TradingBot__Whitelist__15=XLMUSDT
-        - CB_TradingBot__Whitelist__16=LINKUSDT
-        - CB_TradingBot__Whitelist__17=XMRUSDT
-        - CB_TradingBot__Whitelist__18=ATOMUSDT
-        - CB_TradingBot__Whitelist__19=ETCUSDT
-        - CB_TradingBot__Whitelist__2=XRPUSDT
-        - CB_TradingBot__Whitelist__20=FILUSDT
-        - CB_TradingBot__Whitelist__21=ICPUSDT
-        - CB_TradingBot__Whitelist__22=HBARUSDT
-        - CB_TradingBot__Whitelist__23=LDOUSDT
-        - CB_TradingBot__Whitelist__24=CROUSDT
-        - CB_TradingBot__Whitelist__25=ARBUSDT
-        - CB_TradingBot__Whitelist__26=APTUSDT
-        - CB_TradingBot__Whitelist__27=QNTUSDT
-        - CB_TradingBot__Whitelist__28=VETUSDT
-        - CB_TradingBot__Whitelist__29=NEARUSDT
-        - CB_TradingBot__Whitelist__3=BNBUSDT
-        - CB_TradingBot__Whitelist__30=MKRUSDT
-        - CB_TradingBot__Whitelist__31=AAVEUSDT
-        - CB_TradingBot__Whitelist__32=OPUSDT
-        - CB_TradingBot__Whitelist__33=GRTUSDT
-        - CB_TradingBot__Whitelist__34=SNXUSDT
-        - CB_TradingBot__Whitelist__35=ALGOUSDT
-        - CB_TradingBot__Whitelist__36=STXUSDT
-        - CB_TradingBot__Whitelist__37=EGLDUSDT
-        - CB_TradingBot__Whitelist__38=SANDUSDT
-        - CB_TradingBot__Whitelist__4=DOGEUSDT
-        - CB_TradingBot__Whitelist__5=ADAUSDT
-        - CB_TradingBot__Whitelist__6=SOLUSDT
-        - CB_TradingBot__Whitelist__7=TRXUSDT
-        - CB_TradingBot__Whitelist__8=MATICUSDT
-        - CB_TradingBot__Whitelist__9=LTCUSDT
-
+        - CB_TradingBot__WalletExposureLong=200
+        - CB_TradingBot__WalletExposureShort=200

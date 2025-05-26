@@ -186,34 +186,13 @@ namespace CryptoBlade.Strategies
         {
             var options = CreateTradeOptions<MomentumStrategyOptions>(config, symbol, strategyOptions =>
             {
-                strategyOptions.MinimumPriceDistance = config.MinimumPriceDistance;
-                strategyOptions.MinimumVolume = config.MinimumVolume;
-                strategyOptions.FixedStopLossPercentage = config.Strategies.Momentum.FixedStopLossPercentage;
-                strategyOptions.RiskRewardRatio = config.Strategies.Momentum.RiskRewardRatio;
-                strategyOptions.BollingerBandsPeriod = config.Strategies.Momentum.BollingerBandsPeriod;
-                strategyOptions.BollingerBandsStdDev = config.Strategies.Momentum.BollingerBandsStdDev;
-                strategyOptions.SqueezeLookback = config.Strategies.Momentum.SqueezeLookback;
-                strategyOptions.SqueezeStdRatioThreshold = config.Strategies.Momentum.SqueezeStdRatioThreshold;
-                strategyOptions.VolumeLookbackPeriod = config.Strategies.Momentum.VolumeLookbackPeriod;
-                strategyOptions.VolumeSpikeMultiplier = config.Strategies.Momentum.VolumeSpikeMultiplier;
-                strategyOptions.RsiPeriod = config.Strategies.Momentum.RsiPeriod;
-                strategyOptions.RsiLongThreshold = config.Strategies.Momentum.RsiLongThreshold;
-                strategyOptions.RsiShortThreshold = config.Strategies.Momentum.RsiShortThreshold;
-                strategyOptions.AdxPeriod = config.Strategies.Momentum.AdxPeriod;
-                strategyOptions.AdxTrendThreshold = config.Strategies.Momentum.AdxTrendThreshold;
-                strategyOptions.BreakoutConfirmationCandles = config.Strategies.Momentum.BreakoutConfirmationCandles;
-                strategyOptions.MinCandleBodySizePercent = config.Strategies.Momentum.MinCandleBodySizePercent;
-                strategyOptions.MinVolumeUsd = config.Strategies.Momentum.MinVolumeUsd;
-                strategyOptions.EmaTrendPeriod = config.Strategies.Momentum.EmaTrendPeriod;
-                strategyOptions.RsiContextLongThreshold = config.Strategies.Momentum.RsiContextLongThreshold;
-                strategyOptions.RsiContextShortThreshold = config.Strategies.Momentum.RsiContextShortThreshold;
             });
 
             return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
 
 
-        private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup) 
+        private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
             where TOptions : TradingStrategyBaseOptions, new()
         {
             bool isBackTest = config.IsBackTest();
@@ -247,7 +226,7 @@ namespace CryptoBlade.Strategies
         {
             var tradingMode = config.SymbolTradingModes.FirstOrDefault(x =>
                 string.Equals(x.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
-            if(tradingMode != null)
+            if (tradingMode != null)
                 return tradingMode.TradingMode;
             return config.TradingMode;
         }

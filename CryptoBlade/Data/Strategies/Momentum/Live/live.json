@@ -1,7 +1,7 @@
 {
   "AccountName": "Demo",
   "BotMode": "Live",
-  "StrategyName": "AutoHedge",
+  "StrategyName": "Momentum",
   "TradingMode": "Dynamic",
   "MaxRunningStrategies": 100,
   "DcaOrdersCount": 1000,
@@ -68,7 +68,8 @@
   },
   "SymbolVolumePreference": [
     "HIGH",
-    "LARGE"
+    "LARGE",
+    "MEDIUM"
   ],
   "SymbolVolatilityPreference": [
     "LOW",
@@ -76,60 +77,12 @@
   ],
   "SymbolMaturityPreference": [
     "HIGH",
-    "LARGE"
+    "LARGE",
+    "MEDIUM"
   ],
-  "Whitelist": [
-    "ARBUSDT",
-    "OPUSDT",
-    "XRPUSDT",
-    "LINAUSDT",
-    "TRXUSDT",
-    "NEARUSDT",
-    "SUIUSDT",
-    "GMTUSDT",
-    "ORDIUSDT",
-    "MATICUSDT",
-    "INJUSDT",
-    "ETHWUSDT",
-    "TUSDT",
-    "DOGEUSDT",
-    "SOLUSDT",
-    "BCHUSDT",
-    "LINKUSDT",
-    "GRTUSDT",
-    "MANAUSDT",
-    "1000PEPEUSDT",
-    "STXUSDT",
-    "LDOUSDT",
-    "COMPUSDT",
-    "XLMUSDT",
-    "ETCUSDT",
-    "STORJUSDT",
-    "CELOUSDT",
-    "APTUSDT",
-    "ADAUSDT",
-    "RDNTUSDT",
-    "FLOWUSDT",
-    "AVAXUSDT",
-    "ATOMUSDT",
-    "FILUSDT",
-    "MTLUSDT",
-    "MKRUSDT",
-    "XMRUSDT",
-    "MASKUSDT",
-    "NEOUSDT",
-    "AGLDUSDT",
-    "TRBUSDT",
-    "ZECUSDT",
-    "UNIUSDT",
-    "CVXUSDT",
-    "ZENUSDT",
-    "DYDXUSDT",
-    "AXSUSDT",
-    "GMXUSDT",
-    "OGNUSDT",
-    "ENSUSDT"
+  "Whitelist": [],
+  "Blacklist": [
+    "EOSUSDT"
   ],
-  "Blacklist": [],
   "SymbolTradingModes": []
 }
