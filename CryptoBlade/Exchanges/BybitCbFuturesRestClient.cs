@@ -358,7 +358,7 @@ namespace CryptoBlade.Exchanges
 
         public async Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop,
             PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null,
-            StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+            StopLossTakeProfitMode? stopLossTakeProfitMode = StopLossTakeProfitMode.Full, CancellationToken cancel = default)
         {
             var stopRes = await ExchangePolicies.RetryTooManyVisits.ExecuteAsync(
                 async () =>

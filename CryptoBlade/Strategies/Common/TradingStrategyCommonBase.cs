@@ -698,7 +698,7 @@ namespace CryptoBlade.Strategies.Common
 
         public async Task<bool> PlaceTradingStopAsync(BybitEnums.PositionIdx positionIdx, decimal stopLossPrice, decimal? takeProfitPrice, decimal? trailingStopPriceDistance,
             decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, decimal? trailingStopActivePrice = null,
-            BybitEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+            BybitEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = BybitEnums.StopLossTakeProfitMode.Full, CancellationToken cancel = default)
         {
             var placed = await m_cbFuturesRestClient.SetTradingStopAsync(
                 Symbol, stopLossPrice, takeProfitPrice, trailingStopPriceDistance, positionIdx,

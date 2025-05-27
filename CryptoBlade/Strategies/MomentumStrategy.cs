@@ -28,6 +28,7 @@ namespace CryptoBlade.Strategies
             : base(strategyOptions, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
             m_strategyOptions = strategyOptions.Value;
+            StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
         public override string Name => "Momentum";
@@ -121,14 +122,16 @@ namespace CryptoBlade.Strategies
                 bool breakoutLong = DetectBreakout(lastPrimary, lastBB, lastRSI, true);
                 bool breakoutShort = DetectBreakout(lastPrimary, lastBB, lastRSI, false);
 
-                if (breakoutLong && ValidateBreakoutCandles(primaryQuotes, true))
+                //&& ValidateBreakoutCandles(primaryQuotes, true)
+                if (breakoutLong)
                 {
                     decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
                     EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
                     return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
                 }
 
-                if (breakoutShort && ValidateBreakoutCandles(primaryQuotes, false))
+                // && ValidateBreakoutCandles(primaryQuotes, false)
+                if (breakoutShort)
                 {
                     decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
                     EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
@@ -335,7 +338,7 @@ namespace CryptoBlade.Strategies
         public int BollingerBandsPeriod { get; set; } = 10;  // Krótszy okres dla szybszej reakcji
         public double BollingerBandsStdDev { get; set; } = 1.4;  // Węższe pasma
         public int SqueezeLookback { get; set; } = 10;  // Krótszy lookback
-        public decimal SqueezeStdRatioThreshold { get; set; } = 0.7m;  // Łatwiejsza detekcja squeeze
+        public decimal SqueezeStdRatioThreshold { get; set; } = 0.8m;  // Łatwiejsza detekcja squeeze
 
         // Volume Analysis
         public int VolumeLookbackPeriod { get; set; } = 12;
