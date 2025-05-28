@@ -1,1 +1,0 @@
-docker build -f "CryptoBlade/Dockerfile" -t cryptoblade:latest .

@@ -18,6 +18,18 @@ namespace CryptoBlade.BackTesting
             TimeFrame.OneDay,
         };
 
+        private readonly HistoricalDayData m_dayData;
+        private int m_currentIndex;
+        // ... other members ...
+
+        public Candle? GetLastCandle()
+        {
+            // Assuming m_dayData.Candles is a collection of Candle sorted by StartTime ascending
+            if (m_dayData?.Candles == null || m_dayData.Candles.Count() == 0)
+                return null;
+            return m_dayData.Candles.Last();
+        }
+
         public BackTestDataProcessor(HistoricalDayData dayData)
         {
             m_candles = new Dictionary<TimeFrame, Queue<Candle>>();

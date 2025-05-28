@@ -31,7 +31,7 @@
   "NormalizedAverageTrueRangePeriod": 14,
   "MinNormalizedAverageTrueRangePeriod": 1.0,
   "BackTest": {
-    "Start": "2024-01-01T00:00:00",
+    "Start": "2025-05-01T00:00:00",
     "End": "2025-05-23T00:00:00",
     "InitialBalance": 100,
     "StartupCandleData": "1.00:00:00",
@@ -48,7 +48,30 @@
     "ForceKillTheWorst": true
   },
   "Strategies": {
-    "Momentum": {}
+    "Momentum": {
+      "CooldownPeriod": "00:01:00",
+      "RiskRewardRatio": 1.5,
+      "MaxSlippagePercent": 0.1,
+      "BollingerBandsPeriod": 10,
+      "BollingerBandsStdDev": 1.4,
+      "SqueezeLookback": 10,
+      "SqueezeStdRatioThreshold": 0.8,
+      "VolumeLookbackPeriod": 12,
+      "VolumeSpikeMultiplier": 2.0,
+      "RsiPeriod": 5,
+      "RsiLongThreshold": 60,
+      "RsiShortThreshold": 40,
+      "AdxPeriod": 12,
+      "AdxTrendThreshold": 25,
+      "TrendEmaPeriod": 15,
+      "RsiContextLongThresholdBase": 55,
+      "RsiContextShortThresholdBase": 45,
+      "RsiVolatilityFactor": 0.3,
+      "VolatilityPeriod": 8,
+      "AtrMultiplierSl": 1.0,
+      "AtrMultiplierTp": 1.5,
+      "BreakoutConfirmationCandles": 1
+    }
   },
   "CriticalMode": {
     "EnableCriticalModeLong": true,

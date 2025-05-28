@@ -32,9 +32,9 @@ namespace CryptoBlade.BackTesting
         private readonly Dictionary<string, OpenPositionWithOrders> m_shortPositions;
         private SymbolInfo[] m_tradingSymbols = Array.Empty<SymbolInfo>();
 
-        public BackTestExchange(IOptions<BackTestExchangeOptions> options, 
-            IBackTestDataDownloader backTestDataDownloader, 
-            IHistoricalDataStorage historicalDataStorage, 
+        public BackTestExchange(IOptions<BackTestExchangeOptions> options,
+            IBackTestDataDownloader backTestDataDownloader,
+            IHistoricalDataStorage historicalDataStorage,
             ICbFuturesRestClient cbFuturesRestClient,
             ITradingSymbolsManager symbolsManager)
         {
@@ -57,7 +57,7 @@ namespace CryptoBlade.BackTesting
             m_longPositions = new Dictionary<string, OpenPositionWithOrders>();
             m_shortPositions = new Dictionary<string, OpenPositionWithOrders>();
         }
-        
+
         public DateTime CurrentTime => m_currentTime;
 
         public decimal SpotBalance { get; private set; }
@@ -225,7 +225,7 @@ namespace CryptoBlade.BackTesting
                     await UpdateBalanceAsync(profitOrLoss);
                     decimal fee = price * qty * m_options.Value.TakerFeeRate;
                     await AddFeeToBalanceAsync(-fee);
-                    
+
                     if (position.Quantity != qty)
                     {
                         Order order = new Order
@@ -378,7 +378,7 @@ namespace CryptoBlade.BackTesting
                     },
                     m_options.Value.HistoricalDataDirectory,
                     cancel)).ToArray();
-            } 
+            }
             return m_tradingSymbols;
         }
 
@@ -413,11 +413,11 @@ namespace CryptoBlade.BackTesting
         {
             var currentTime = m_currentTime;
             var currentTimeOnMinute = new DateTime(
-                currentTime.Year, 
-                currentTime.Month, 
-                currentTime.Day, 
-                currentTime.Hour, 
-                currentTime.Minute, 
+                currentTime.Year,
+                currentTime.Month,
+                currentTime.Day,
+                currentTime.Hour,
+                currentTime.Minute,
                 0, DateTimeKind.Utc);
             var currentDay = currentTime.Date;
             var currentDayData = await m_historicalDataStorage.ReadAsync(symbol, currentDay, cancel);
@@ -651,7 +651,7 @@ namespace CryptoBlade.BackTesting
                                 m_longPositions.Remove(symbol);
                             }
                             await UpdateBalanceAsync(profitOrLoss);
-                            
+
                         }
 
                         if (filledOrder.PositionMode == OrderPositionMode.BothSideSell)
@@ -684,7 +684,7 @@ namespace CryptoBlade.BackTesting
                             {
                                 m_shortPositions.Remove(symbol);
                             }
-                            
+
                             await UpdateBalanceAsync(profitOrLoss);
                         }
 
@@ -783,7 +783,7 @@ namespace CryptoBlade.BackTesting
                 if (shortsPay)
                     await AddFundingRateFeeToBalanceAsync(symbol, fundingRateValue);
             }
-            else if(position.Position.Side == PositionSide.Sell)
+            else if (position.Position.Side == PositionSide.Sell)
             {
                 if (longsPay)
                     await AddFundingRateFeeToBalanceAsync(symbol, fundingRateValue);
@@ -840,9 +840,93 @@ namespace CryptoBlade.BackTesting
             return Task.CompletedTask;
         }
 
-        public Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop, BybtiEnums.PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, BybtiEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        public Candle? GetLastCandle(string symbol)
         {
-            throw new NotImplementedException();
+            // Return the last candle for the given symbol if available, otherwise null
+            if (m_candleProcessors.TryGetValue(symbol, out var processor))
+            {
+                return processor.GetLastCandle();
+            }
+            return null;
+        }
+
+        public async Task<bool> SetTradingStopAsync(
+            string symbol,
+            decimal stopLoss,
+            decimal? takeProfit,
+            decimal? trailingStop,
+            BybtiEnums.PositionIdx positionIdx,
+            decimal? activePrice = null,
+            decimal? takeProfitQuantity = null,
+            decimal? stopLossQuantity = null,
+            BybtiEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = null,
+            CancellationToken cancel = default)
+        {
+            // Uproszczona symulacja: tylko TP i SL, bez trailing stop
+            using (await m_lock.LockAsync())
+            {
+                OpenPositionWithOrders? position = null;
+                bool isLong = false;
+                if (positionIdx == BybtiEnums.PositionIdx.BuyHedgeMode)
+                {
+                    m_longPositions.TryGetValue(symbol, out position);
+                    isLong = true;
+                }
+                else if (positionIdx == BybtiEnums.PositionIdx.SellHedgeMode)
+                {
+                    m_shortPositions.TryGetValue(symbol, out position);
+                    isLong = false;
+                }
+
+                if (position == null)
+                    return false;
+
+                // Zapisz TP i SL do pozycji (symulacja)
+                position.TakeProfit = takeProfit;
+                position.StopLoss = stopLoss;
+
+                // Sprawdź czy obecna cena spełnia warunek TP lub SL
+                // Pobierz ostatnią świecę (jeśli jest)
+                if (m_candleProcessors.TryGetValue(symbol, out var processor))
+                {
+                    var lastCandle = processor.GetLastCandle();
+                    if (lastCandle != null)
+                    {
+                        decimal price = lastCandle.Close;
+                        decimal qty = position.Position.Quantity;
+
+                        // Take Profit
+                        if (takeProfit.HasValue)
+                        {
+                            if ((isLong && price >= takeProfit.Value) ||
+                                (!isLong && price <= takeProfit.Value))
+                            {
+                                // Wykonaj take profit (zamknij pozycję)
+                                if (isLong)
+                                    await PlaceLongTakeProfitOrderAsync(symbol, qty, takeProfit.Value, true, cancel);
+                                else
+                                    await PlaceShortTakeProfitOrderAsync(symbol, qty, takeProfit.Value, true, cancel);
+                                return true;
+                            }
+                        }
+                        // Stop Loss
+                        if (stopLoss > 0)
+                        {
+                            if ((isLong && price <= stopLoss) ||
+                                (!isLong && price >= stopLoss))
+                            {
+                                // Wykonaj stop loss (zamknij pozycję)
+                                if (isLong)
+                                    await PlaceLongTakeProfitOrderAsync(symbol, qty, stopLoss, true, cancel);
+                                else
+                                    await PlaceShortTakeProfitOrderAsync(symbol, qty, stopLoss, true, cancel);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
         }
 
         #region Subscriptions
@@ -863,7 +947,7 @@ namespace CryptoBlade.BackTesting
 
             public void Notify(string symbol, Candle candle)
             {
-                if(m_symbols.Contains(symbol) && candle.TimeFrame == m_timeFrame)
+                if (m_symbols.Contains(symbol) && candle.TimeFrame == m_timeFrame)
                     m_handler(symbol, candle);
             }
 
@@ -922,7 +1006,7 @@ namespace CryptoBlade.BackTesting
 
             public void Notify(string symbol, Ticker ticker)
             {
-                if(m_symbols.Contains(symbol))
+                if (m_symbols.Contains(symbol))
                     m_handler(symbol, ticker);
             }
 

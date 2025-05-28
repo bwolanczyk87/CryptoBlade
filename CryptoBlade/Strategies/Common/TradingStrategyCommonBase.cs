@@ -316,10 +316,26 @@ namespace CryptoBlade.Strategies.Common
                     && LongFundingWithinLimit(ticker))
                 {
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open long position");
-                    if (UseMarketOrdersForEntries)
-                        await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
-                    else
-                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                    if (UseMarketOrdersForEntries) {
+                        bool placed = await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        if (placed && stopLossPrice.HasValue)
+                        {
+                            await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.BuyHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+                        }
+                    }
+
+                    else {
+                        bool placed = await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        if (placed && stopLossPrice.HasValue)
+                        {
+                            await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+                        }
+                    }
+
                 }
 
                 if (hasSellSignal
@@ -332,10 +348,26 @@ namespace CryptoBlade.Strategies.Common
                     && ShortFundingWithinLimit(ticker))
                 {
                     m_logger.LogDebug($"{Name}: {Symbol} trying to open short position");
-                    if (UseMarketOrdersForEntries)
-                        await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
-                    else
-                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+
+                    if (UseMarketOrdersForEntries) {
+                        bool placed = await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        if (placed && stopLossPrice.HasValue)
+                        {
+                            await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+                        }
+                    }
+
+                    else {
+                        bool placed = await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                        if (placed && stopLossPrice.HasValue)
+                        {
+                            await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+                        }
+                    }
                 }
 
                 if (hasBuyExtraSignal
@@ -424,26 +456,6 @@ namespace CryptoBlade.Strategies.Common
                     await PlaceShortTakeProfitOrderAsync(shortPositionQuantity, shortTakeProfitPrice.Value, false, cancel);
                     NextShortProfitReplacement = utcNow + replacementTime;
                 }
-            }
-
-            if (longPosition != null
-                && stopLossPrice.HasValue
-                && !hasPlacedOrder
-                && !executeParams.LongUnstucking)
-            {
-                await PlaceTradingStopAsync(
-                    BybitEnums.PositionIdx.BuyHedgeMode, stopLossPrice.Value, takeProfitPrice, TrailingStopPriceDistance,
-                    takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
-            }
-
-            if (shortPosition != null
-                && stopLossPrice.HasValue
-                && !hasPlacedOrder
-                && !executeParams.LongUnstucking)
-            {
-                await PlaceTradingStopAsync(
-                    BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, TrailingStopPriceDistance,
-                    takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
             }
 
             m_logger.LogDebug($"{Name}: {Symbol} Finished executing strategy. TradingMode: {m_options.Value.TradingMode}");
@@ -622,7 +634,6 @@ namespace CryptoBlade.Strategies.Common
             }
 
             await CalculateTakeProfitAsync(indicators);
-            await CalculateStopLossTakeProfitAsync(indicators);
             Indicators = indicators.ToArray();
         }
 
@@ -656,32 +667,36 @@ namespace CryptoBlade.Strategies.Common
             return res;
         }
 
-        private async Task PlaceLimitBuyOrderAsync(decimal qty, decimal bidPrice, DateTime candleTime, CancellationToken cancel)
+        private async Task<bool> PlaceLimitBuyOrderAsync(decimal qty, decimal bidPrice, DateTime candleTime, CancellationToken cancel)
         {
             bool placed = await m_cbFuturesRestClient.PlaceLimitBuyOrderAsync(Symbol, qty, bidPrice, cancel);
             if (placed)
                 LastCandleLongOrder = candleTime;
+            return placed;
         }
 
-        private async Task PlaceLimitSellOrderAsync(decimal qty, decimal askPrice, DateTime candleTime, CancellationToken cancel)
+        private async Task<bool> PlaceLimitSellOrderAsync(decimal qty, decimal askPrice, DateTime candleTime, CancellationToken cancel)
         {
             bool placed = await m_cbFuturesRestClient.PlaceLimitSellOrderAsync(Symbol, qty, askPrice, cancel);
             if (placed)
                 LastCandleShortOrder = candleTime;
+            return placed;
         }
 
-        private async Task PlaceMarketBuyOrderAsync(decimal qty, decimal bidPrice, DateTime candleTime, CancellationToken cancel)
+        private async Task<bool> PlaceMarketBuyOrderAsync(decimal qty, decimal bidPrice, DateTime candleTime, CancellationToken cancel)
         {
             bool placed = await m_cbFuturesRestClient.PlaceMarketBuyOrderAsync(Symbol, qty, bidPrice, cancel);
             if (placed)
                 LastCandleLongOrder = candleTime;
+            return placed;
         }
 
-        private async Task PlaceMarketSellOrderAsync(decimal qty, decimal askPrice, DateTime candleTime, CancellationToken cancel)
+        private async Task<bool> PlaceMarketSellOrderAsync(decimal qty, decimal askPrice, DateTime candleTime, CancellationToken cancel)
         {
             bool placed = await m_cbFuturesRestClient.PlaceMarketSellOrderAsync(Symbol, qty, askPrice, cancel);
             if (placed)
                 LastCandleShortOrder = candleTime;
+            return placed;
         }
 
         private async Task<bool> PlaceLongTakeProfitOrderAsync(decimal qty, decimal price, bool force, CancellationToken cancel)

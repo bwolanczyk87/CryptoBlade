@@ -25,6 +25,9 @@ namespace CryptoBlade.BackTesting
 
         public Position Position => m_position;
 
+        public decimal? TakeProfit { get; set; }
+        public decimal? StopLoss { get; set; }
+
         public decimal UnrealizedProfitOrLoss { get; private set; }
 
         public IReadOnlyList<Order> FilledOrders => m_filledOrders;

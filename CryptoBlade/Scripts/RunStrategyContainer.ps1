@@ -15,10 +15,13 @@
 
 param (
     [Parameter(Mandatory = $true)]
-    [string]$Code,
+    [string]$Code = "524",
 
     [Parameter(Mandatory = $false)]
-    [bool]$Demo = $true
+    [bool]$Demo = $true,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$b
 )
 
 # Walidacja kodu
@@ -292,6 +295,15 @@ $env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
 $env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
 $env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
 $env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
+
+if ($b) {
+    Write-Host "Buduję obraz dockera: cryptoblade:latest"
+    docker build -f "$PSScriptRoot/../../CryptoBlade/Dockerfile" -t cryptoblade:latest "$PSScriptRoot/../.."
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Błąd podczas budowania obrazu dockera."
+        exit 1
+    }
+}
 
 Set-Location "$PSScriptRoot\..\Data\Strategies\$StrategyName\_docker"
 Write-Host "Uruchamianie docker compose up..."

@@ -186,11 +186,35 @@ namespace CryptoBlade.Strategies
         {
             var options = CreateTradeOptions<MomentumStrategyOptions>(config, symbol, strategyOptions =>
             {
+
+                // Mapowanie 1:1 zgodnie z MomentumStrategyOptions
+                var momentum = config.Strategies.Momentum;
+                strategyOptions.CooldownPeriod = momentum.CooldownPeriod ?? TimeSpan.FromMinutes(1);
+                strategyOptions.RiskRewardRatio = momentum.RiskRewardRatio;
+                strategyOptions.MaxSlippagePercent = momentum.MaxSlippagePercent;
+                strategyOptions.BollingerBandsPeriod = momentum.BollingerBandsPeriod;
+                strategyOptions.BollingerBandsStdDev = momentum.BollingerBandsStdDev;
+                strategyOptions.SqueezeLookback = momentum.SqueezeLookback;
+                strategyOptions.SqueezeStdRatioThreshold = momentum.SqueezeStdRatioThreshold;
+                strategyOptions.VolumeLookbackPeriod = momentum.VolumeLookbackPeriod;
+                strategyOptions.VolumeSpikeMultiplier = momentum.VolumeSpikeMultiplier;
+                strategyOptions.RsiPeriod = momentum.RsiPeriod;
+                strategyOptions.RsiLongThreshold = momentum.RsiLongThreshold;
+                strategyOptions.RsiShortThreshold = momentum.RsiShortThreshold;
+                strategyOptions.AdxPeriod = momentum.AdxPeriod;
+                strategyOptions.AdxTrendThreshold = momentum.AdxTrendThreshold;
+                strategyOptions.TrendEmaPeriod = momentum.TrendEmaPeriod;
+                strategyOptions.RsiContextLongThresholdBase = momentum.RsiContextLongThresholdBase;
+                strategyOptions.RsiContextShortThresholdBase = momentum.RsiContextShortThresholdBase;
+                strategyOptions.RsiVolatilityFactor = momentum.RsiVolatilityFactor;
+                strategyOptions.VolatilityPeriod = momentum.VolatilityPeriod;
+                strategyOptions.AtrMultiplierSl = momentum.AtrMultiplierSl;
+                strategyOptions.AtrMultiplierTp = momentum.AtrMultiplierTp;
+                strategyOptions.BreakoutConfirmationCandles = momentum.BreakoutConfirmationCandles;
             });
 
             return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
         }
-
 
         private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
             where TOptions : TradingStrategyBaseOptions, new()

@@ -5,11 +5,6 @@ using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace CryptoBlade.Strategies
 {
@@ -25,13 +20,14 @@ namespace CryptoBlade.Strategies
             string symbol,
             IWalletManager walletManager,
             ICbFuturesRestClient restClient)
-            : base(strategyOptions, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
+            : base(strategyOptions as IOptions<TradingStrategyBaseOptions>, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
             m_strategyOptions = strategyOptions.Value;
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
         public override string Name => "Momentum";
+        protected override bool UseMarketOrdersForEntries => true;
 
         private decimal? EntryPrice
         {
@@ -112,8 +108,8 @@ namespace CryptoBlade.Strategies
                     new StrategyIndicator("TrendContext", trendContextValid)
                 });
 
-                if (!isSqueeze || !volumeSpike || !adxValid || !trendContextValid)
-                    return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
+                // if (!isSqueeze || !volumeSpike || !adxValid || !trendContextValid)
+                //     return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
 
                 var lastPrimary = primaryQuotes.Last();
                 var lastBB = bollingerBands.Last();
@@ -125,18 +121,51 @@ namespace CryptoBlade.Strategies
                 //&& ValidateBreakoutCandles(primaryQuotes, true)
                 if (breakoutLong)
                 {
-                    decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                    EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
-                    return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
+                    if (Ticker != null)
+                    {
+                        decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
+                        EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
+
+                        if (!IsInTrade)
+                        {
+                            var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
+                            double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
+                            decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
+
+                            StopLossPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierSl,
+                                                    (int)SymbolInfo.PriceScale);
+                            TakeProfitPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierTp,
+                                                    (int)SymbolInfo.PriceScale);
+                        }
+                        return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
+                    }
+                    return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
                 }
 
                 // && ValidateBreakoutCandles(primaryQuotes, false)
                 if (breakoutShort)
                 {
-                    decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                    EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
-                    return Task.FromResult(GenerateSignal(indicators, false, "ShortBreakout"));
+                    if (Ticker != null)
+                    {
+                        decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
+                        EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
+                        if (!IsInTrade)
+                        {
+                            var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
+                            double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
+                            decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
+
+                            StopLossPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierSl,
+                                                      (int)SymbolInfo.PriceScale);
+                            TakeProfitPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierTp,
+                                                      (int)SymbolInfo.PriceScale);
+                        }
+                        return Task.FromResult(GenerateSignal(indicators, false, "ShortBreakout"));
+                    }
+                    return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
                 }
+
+                CalculateStopLossTakeProfitAsync(indicators);
             }
             catch (Exception ex)
             {
@@ -325,44 +354,5 @@ namespace CryptoBlade.Strategies
             var lastValues = emaResults.TakeLast(lookback).Select(x => x.Ema).ToList();
             return lastValues.Count == lookback && lastValues[^1] < lastValues[^2];
         }
-    }
-
-    public class MomentumStrategyOptions : TradingStrategyBaseOptions
-    {
-        // Core Parameters
-        public TimeSpan CooldownPeriod { get; set; } = TimeSpan.FromMinutes(1);  // Zmniejszony czas cooldown
-        public decimal RiskRewardRatio { get; set; } = 1.5m;
-        public decimal MaxSlippagePercent { get; set; } = 0.1m;
-
-        // Bollinger Bands
-        public int BollingerBandsPeriod { get; set; } = 10;  // Krótszy okres dla szybszej reakcji
-        public double BollingerBandsStdDev { get; set; } = 1.4;  // Węższe pasma
-        public int SqueezeLookback { get; set; } = 10;  // Krótszy lookback
-        public decimal SqueezeStdRatioThreshold { get; set; } = 0.8m;  // Łatwiejsza detekcja squeeze
-
-        // Volume Analysis
-        public int VolumeLookbackPeriod { get; set; } = 12;
-        public decimal VolumeSpikeMultiplier { get; set; } = 2.0m;  // Niższy próg spików
-
-        // Momentum Indicators
-        public int RsiPeriod { get; set; } = 5;  // Bardziej responsywny RSI
-        public decimal RsiLongThreshold { get; set; } = 60m;  // Obniżony próg
-        public decimal RsiShortThreshold { get; set; } = 40m;  // Podniesiony próg
-        public int AdxPeriod { get; set; } = 12;
-        public decimal AdxTrendThreshold { get; set; } = 25m;  // Niższy próg trendu
-
-        // Trend Context
-        public int TrendEmaPeriod { get; set; } = 15;
-        public decimal RsiContextLongThresholdBase { get; set; } = 55m;  // Łagodniejsze warunki trendu
-        public decimal RsiContextShortThresholdBase { get; set; } = 45m;
-        public decimal RsiVolatilityFactor { get; set; } = 0.3m;  // Mniejszy wpływ zmienności
-
-        // Risk Management
-        public int VolatilityPeriod { get; set; } = 8;
-        public decimal AtrMultiplierSl { get; set; } = 1.0m;  // Mniejszy SL
-        public decimal AtrMultiplierTp { get; set; } = 1.5m;  // Mniejszy TP
-
-        // Execution
-        public int BreakoutConfirmationCandles { get; set; } = 1;  // Mniej świec potwierdzenia
     }
 }
