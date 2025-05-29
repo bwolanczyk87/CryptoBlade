@@ -14,7 +14,7 @@ services:
         - CB_TradingBot__BackTest__End=2025-05-23T00:00:00
         - CB_TradingBot__BackTest__InitialBalance=100
         - CB_TradingBot__BackTest__InitialUntradableDays=0
-        - CB_TradingBot__BackTest__Start=2024-01-01T00:00:00
+        - CB_TradingBot__BackTest__Start=2025-05-01T00:00:00
         - CB_TradingBot__BackTest__StartupCandleData=1.00:00:00
         - CB_TradingBot__Blacklist__0=EOSUSDT
         - CB_TradingBot__BotMode=Backtest

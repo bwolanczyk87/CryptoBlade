@@ -307,7 +307,7 @@ Write-Host "Uruchamianie docker compose up..."
 
 docker network rm "$($containerName)_default"
 docker rm -f $containerName
-docker-compose -p $containerName up -d --force-recreate
+docker compose -p $containerName up -d --force-recreate
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1
