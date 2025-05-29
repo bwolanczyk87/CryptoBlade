@@ -58,15 +58,13 @@
     }
   },
   "Whitelist": [
-    [
-      "XRPUSDT",
-      "DOGEUSDT",
-      "ADAUSDT",
-      "SOLUSDT",
-      "TRXUSDT",
-      "DOTUSDT",
-      "BCHUSDT"
-    ]
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "SOLUSDT",
+    "TRXUSDT",
+    "DOTUSDT",
+    "BCHUSDT"
   ],
   "Blacklist": [
     "EOSUSDT"

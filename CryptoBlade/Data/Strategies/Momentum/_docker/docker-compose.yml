@@ -63,11 +63,11 @@ services:
         - CB_TradingBot__TradingMode=Normal
         - CB_TradingBot__WalletExposureLong=500
         - CB_TradingBot__WalletExposureShort=500
-        - CB_TradingBot__Whitelist__0__0=XRPUSDT
-        - CB_TradingBot__Whitelist__0__1=DOGEUSDT
-        - CB_TradingBot__Whitelist__0__2=ADAUSDT
-        - CB_TradingBot__Whitelist__0__3=SOLUSDT
-        - CB_TradingBot__Whitelist__0__4=TRXUSDT
-        - CB_TradingBot__Whitelist__0__5=DOTUSDT
-        - CB_TradingBot__Whitelist__0__6=BCHUSDT
+        - CB_TradingBot__Whitelist__0=XRPUSDT
+        - CB_TradingBot__Whitelist__1=DOGEUSDT
+        - CB_TradingBot__Whitelist__2=ADAUSDT
+        - CB_TradingBot__Whitelist__3=SOLUSDT
+        - CB_TradingBot__Whitelist__4=TRXUSDT
+        - CB_TradingBot__Whitelist__5=DOTUSDT
+        - CB_TradingBot__Whitelist__6=BCHUSDT
 
