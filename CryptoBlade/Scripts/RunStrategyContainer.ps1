@@ -21,7 +21,10 @@ param (
     [bool]$Demo = $true,
 
     [Parameter(Mandatory = $false)]
-    [switch]$b
+    [switch]$b,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$vm
 )
 
 # Walidacja kodu
@@ -51,10 +54,16 @@ if ($dockerStatus -ne "active") {
     }
 
     try {
-        sudo systemctl start docker
-        systemctl --user start docker-desktop
-        Start-Sleep -Seconds 3
-        $dockerStatus = & systemctl is-active docker 2>$null
+        if ( $vm ) {
+            $dockerStatus = "active"
+        }
+        else {
+            sudo systemctl start docker
+            systemctl --user start docker-desktop
+            Start-Sleep -Seconds 3
+            $dockerStatus = & systemctl is-active docker 2>$null
+        }
+
         if ($dockerStatus -eq "active") {
             Write-Host "Docker został uruchomiony."
 
@@ -77,15 +86,18 @@ if ($dockerStatus -ne "active") {
                 Write-Error "Błąd logowania do Docker."
                 exit 1
             }
-        } else {
+        }
+        else {
             Write-Error "Nie udało się uruchomić Dockera. Sprawdź uprawnienia lub zainstaluj Docker."
             exit 1
         }
-    } catch {
+    }
+    catch {
         Write-Error "Błąd podczas uruchamiania Dockera: $_"
         exit 1
     }
-} else {
+}
+else {
     Write-Host "Docker jest aktywny."
 }
 
@@ -163,8 +175,8 @@ for ($i = 0; $i -lt $tradingModeValues.Count; $i++) {
 }
 
 # Dekodowanie cyfr:
-$botModeDigit = $Code.Substring(1,1)
-$tradingModeDigit = $Code.Substring(2,1)
+$botModeDigit = $Code.Substring(1, 1)
+$tradingModeDigit = $Code.Substring(2, 1)
 if (-not $botModeMap.ContainsKey($botModeDigit) -or -not $tradingModeMap.ContainsKey($tradingModeDigit)) {
     Write-Error "Niepoprawny kod – brak mapowania dla BotMode lub TradingMode."
     exit 1
@@ -173,7 +185,7 @@ $BotMode = $botModeMap[$botModeDigit]
 $TradingMode = $tradingModeMap[$tradingModeDigit]
 
 # Wybór strategii:
-$strategyDigit = $Code.Substring(0,1)
+$strategyDigit = $Code.Substring(0, 1)
 if (-not $strategyMap.ContainsKey($strategyDigit)) {
     Write-Error "Niepoprawny kod – brak mapowania dla strategii."
     exit 1
@@ -197,7 +209,8 @@ $jsonContent.BotMode = $BotMode
 
 if ($BotMode -eq "Backtest") {
     $jsonContent.TradingMode = "DynamicBackTest"
-} else {
+}
+else {
     $jsonContent.TradingMode = $TradingMode
 }
 
@@ -236,7 +249,8 @@ function Flatten-Json {
     else {
         if ($Data -is [DateTime]) {
             $result[$Prefix] = $Data.ToString("yyyy-MM-ddTHH:mm:ss")
-        } else {
+        }
+        else {
             $result[$Prefix] = $Data.ToString()
         }
     }
@@ -265,7 +279,8 @@ $composeContent = Get-Content $composeFile -Raw
 $pattern = "(?ms)(^\s*environment:\s*\n(?:\s+- .*\n)*)"
 if ($composeContent -match $pattern) {
     $composeContent = $composeContent -replace $pattern, "    environment:`n$($envLines -join "`n")`n"
-} else {
+}
+else {
     $composeContent = $composeContent -replace "(environment:\s*\n)", "    environment:`n$($envLines -join "`n")`n"
 }
 
@@ -273,7 +288,8 @@ $containerName = "$($StrategyName.ToLower())_$($BotMode.ToLower())"
 if ($composeContent -match "container_name:\s*\S+") {
     # Zastępujemy istniejącą wartość
     $composeContent = $composeContent -replace "container_name:\s*\S+", "container_name: $containerName"
-} else {
+}
+else {
     # Jeżeli nie ma pola container_name, wstawiamy je pod sekcją usługi (przyjmujemy, że usługa ma nazwę 'cryptoblade:')
     $composeContent = $composeContent -replace "(cryptoblade:\s*\n)", "`$1    container_name: $containerName`n"
 }
@@ -283,18 +299,18 @@ Write-Host "Plik docker-compose.yml został zaktualizowany."
 
 $config = Get-Content "$PSScriptRoot\..\appsettings.Accounts.json" | ConvertFrom-Json
 $account = $config.TradingBot.Accounts | Where-Object { $_.Name -eq $jsonContent.AccountName }
-$env:CB_TradingBot__Accounts__0__Name=$account.Name
-$env:CB_TradingBot__Accounts__0__ApiKey=$account.ApiKey
-$env:CB_TradingBot__Accounts__0__ApiSecret=$account.ApiSecret
-$env:CB_TradingBot__Accounts__0__Exchange=$account.Exchange
-$env:CB_TradingBot__Accounts__0__IsDemo=$account.IsDemo
+$env:CB_TradingBot__Accounts__0__Name = $account.Name
+$env:CB_TradingBot__Accounts__0__ApiKey = $account.ApiKey
+$env:CB_TradingBot__Accounts__0__ApiSecret = $account.ApiSecret
+$env:CB_TradingBot__Accounts__0__Exchange = $account.Exchange
+$env:CB_TradingBot__Accounts__0__IsDemo = $account.IsDemo
 
 $secondaryAccount = $($config.TradingBot.Accounts | Where-Object { !$_.IsDemo })[0]
-$env:CB_TradingBot__Accounts__1__Name=$secondaryAccount.Name
-$env:CB_TradingBot__Accounts__1__ApiKey=$secondaryAccount.ApiKey
-$env:CB_TradingBot__Accounts__1__ApiSecret=$secondaryAccount.ApiSecret
-$env:CB_TradingBot__Accounts__1__Exchange=$secondaryAccount.Exchange
-$env:CB_TradingBot__Accounts__1__IsDemo=$secondaryAccount.IsDemo
+$env:CB_TradingBot__Accounts__1__Name = $secondaryAccount.Name
+$env:CB_TradingBot__Accounts__1__ApiKey = $secondaryAccount.ApiKey
+$env:CB_TradingBot__Accounts__1__ApiSecret = $secondaryAccount.ApiSecret
+$env:CB_TradingBot__Accounts__1__Exchange = $secondaryAccount.Exchange
+$env:CB_TradingBot__Accounts__1__IsDemo = $secondaryAccount.IsDemo
 
 if ($b) {
     Write-Host "Buduję obraz dockera: cryptoblade:latest"
