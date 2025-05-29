@@ -33,17 +33,13 @@ if ($Code -notmatch '^\d{3}$') {
     exit 1
 }
 
-if ( $vm ) {
+if ($vm) {
     $dockerStatus = "active"
 }
 else {
     Write-Host "Sprawdzam status Dockera..."
     $dockerStatus = & systemctl is-active docker 2>$null
 }
-
-# Sprawdź status Dockera i uruchom jeśli nie działa
-Write-Host "Sprawdzam status Dockera..."
-$dockerStatus = & systemctl is-active docker 2>$null
 
 if ($dockerStatus -ne "active") {
     Write-Host "Docker nie jest aktywny. Próbuję uruchomić..."
@@ -61,52 +57,29 @@ if ($dockerStatus -ne "active") {
         Write-Warning "Nie znaleziono socketa Docker. Sprawdź, czy Docker jest uruchomiony."
     }
 
-    try {
-        if ( $vm ) {
-            $dockerStatus = "active"
-        }
-        else {
-            sudo systemctl start docker
-            systemctl --user start docker-desktop
-            Start-Sleep -Seconds 3
-            $dockerStatus = & systemctl is-active docker 2>$null
-        }
+    sudo systemctl start docker
+    systemctl --user start docker-desktop
+    Start-Sleep -Seconds 3
+}
 
-        if ($dockerStatus -eq "active") {
-            Write-Host "Docker został uruchomiony."
+# Uruchomienie docker login
+Write-Host "Logowanie do Docker..."
+$accountsConfigPath = "$scriptRoot/../../appsettings.Accounts.json"
+$accountsConfig = Get-Content $accountsConfigPath | ConvertFrom-Json
+$dockerToken = $accountsConfig.Docker.Token
+$dockerLogin = $accountsConfig.Docker.Login 
 
-            # Uruchomienie docker login
-            Write-Host "Logowanie do Docker..."
-            $accountsConfigPath = "$scriptRoot/../../appsettings.Accounts.json"
-            $accountsConfig = Get-Content $accountsConfigPath | ConvertFrom-Json
-            $dockerToken = $accountsConfig.Docker.Token
-            $dockerLogin = $accountsConfig.Docker.Login 
-
-            if (-not $dockerToken -or -not $dockerLogin) {
-                Write-Error "Nie znaleziono tokena lub loginu do Dockera w pliku appsettings.Accounts.json."
-                exit 1
-            }
-            else {
-                $dockerToken | docker login --username $dockerLogin --password-stdin
-            }
-
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Błąd logowania do Docker."
-                exit 1
-            }
-        }
-        else {
-            Write-Error "Nie udało się uruchomić Dockera. Sprawdź uprawnienia lub zainstaluj Docker."
-            exit 1
-        }
-    }
-    catch {
-        Write-Error "Błąd podczas uruchamiania Dockera: $_"
-        exit 1
-    }
+if (-not $dockerToken -or -not $dockerLogin) {
+    Write-Error "Nie znaleziono tokena lub loginu do Dockera w pliku appsettings.Accounts.json."
+    exit 1
 }
 else {
-    Write-Host "Docker jest aktywny."
+    $dockerToken | docker login --username $dockerLogin --password-stdin
+}
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Błąd logowania do Docker."
+    exit 1
 }
 
 # Funkcja: Pobiera wartości enum z pliku źródłowym
