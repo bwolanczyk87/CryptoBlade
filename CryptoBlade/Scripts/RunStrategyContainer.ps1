@@ -64,7 +64,7 @@ if ($dockerStatus -ne "active") {
 
 # Uruchomienie docker login
 Write-Host "Logowanie do Docker..."
-$accountsConfigPath = "$scriptRoot/../../appsettings.Accounts.json"
+$accountsConfigPath = "$PSScriptRoot/../appsettings.Accounts.json"
 $accountsConfig = Get-Content $accountsConfigPath | ConvertFrom-Json
 $dockerToken = $accountsConfig.Docker.Token
 $dockerLogin = $accountsConfig.Docker.Login 
