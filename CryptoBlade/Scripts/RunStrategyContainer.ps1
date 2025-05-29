@@ -33,6 +33,14 @@ if ($Code -notmatch '^\d{3}$') {
     exit 1
 }
 
+if ( $vm ) {
+    $dockerStatus = "active"
+}
+else {
+    Write-Host "Sprawdzam status Dockera..."
+    $dockerStatus = & systemctl is-active docker 2>$null
+}
+
 # Sprawdź status Dockera i uruchom jeśli nie działa
 Write-Host "Sprawdzam status Dockera..."
 $dockerStatus = & systemctl is-active docker 2>$null
