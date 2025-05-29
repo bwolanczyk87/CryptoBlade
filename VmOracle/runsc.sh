@@ -33,34 +33,57 @@ git checkout gemini
 
 cd CryptoBlade/Scripts || { echo "Brak katalogu /CryptoBlade/Scripts"; exit 1; }
 
-# Zapisz timestamp przed uruchomieniem dockera
 START_TS=$(date +%s)
 
-# Uruchomienie PowerShell i skryptu z parametrem (z opcjonalną flagą -b)
 pwsh ./RunStrategyContainer.ps1 -Code "$CODE" -vm $BUILD_FLAG
 
-# Po wyjściu z PowerShella: znajdź ostatni uruchomiony kontener i pokaż logi
-container=$(docker ps --latest --format "{{.Names}}")
-if [[ -n "$container" ]]; then
-  echo "Ostatni uruchomiony kontener: $container"
-  docker logs "$container" -f
-else
+container=$(docker ps -a --format "{{.Names}} {{.CreatedAt}}" | sort -rk2 | head -n1 | awk '{print $1}')
+if [[ -z "$container" ]]; then
   echo "Nie znaleziono uruchomionych kontenerów."
+  exit 1
 fi
 
-# Jeśli podano -show, wyświetl result.json z najnowszego folderu utworzonego po starcie dockera
+echo "Monitoruję kontener: $container"
+
 if [[ $SHOW_FLAG -eq 1 ]]; then
-  # Szukaj we wszystkich strategiach
-  RESULTS_ROOT="CryptoBlade/CryptoBlade/Data/Strategies"
-  find "$RESULTS_ROOT" -type d -path "*/Backtest/Results/*" | while read -r folder; do
-    # Sprawdź datę utworzenia folderu (ctime)
-    FOLDER_TS=$(stat -c %Y "$folder")
-    if (( FOLDER_TS > START_TS )); then
-      RESULT_FILE="$folder/result.json"
-      if [[ -f "$RESULT_FILE" ]]; then
-        echo "Zawartość $RESULT_FILE:"
-        cat "$RESULT_FILE"
+  # Pokazuj logi w 10-sekundowych blokach, aż kontener zakończy działanie
+  while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
+      echo "Pokazuję logi kontenera $container przez 10 sekund..."
+      timeout 10s docker logs -f "$container"
+      if ! docker ps --format '{{.Names}}' | grep -q "^$container$"; then
+          echo "Kontener $container zakończył działanie!"
+          break
+      fi
+  done
+else
+  # Tylko sprawdzaj co 10s, czy kontener działa
+  while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
+      echo "Kontener $container nadal działa, czekam 10s..."
+      sleep 10
+  done
+  echo "Kontener $container zakończył działanie!"
+fi
+
+# Szukaj result.json w najnowszym folderze utworzonym po starcie dockera
+RESULTS_ROOT="../Data/Strategies"
+LATEST_RESULT=""
+LATEST_RESULT_TS=0
+
+while IFS= read -r -d '' folder; do
+  FOLDER_TS=$(stat -c %Y "$folder")
+  if (( FOLDER_TS > START_TS )); then
+    if (( FOLDER_TS > LATEST_RESULT_TS )); then
+      if [[ -f "$folder/result.json" ]]; then
+        LATEST_RESULT_TS=$FOLDER_TS
+        LATEST_RESULT="$folder/result.json"
       fi
     fi
-  done
+  fi
+done < <(find "$RESULTS_ROOT" -type d -path "*/Backtest/Results/*" -print0)
+
+if [[ -n "$LATEST_RESULT" ]]; then
+  echo "Zawartość $LATEST_RESULT:"
+  cat "$LATEST_RESULT"
+else
+  echo "Nie znaleziono pliku result.json utworzonego po starcie kontenera."
 fi

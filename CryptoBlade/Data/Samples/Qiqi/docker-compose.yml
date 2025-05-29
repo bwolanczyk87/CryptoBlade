@@ -225,6 +225,7 @@ services:
         - CB_TradingBot__Whitelist__168=GMTUSDT
         - CB_TradingBot__Whitelist__169=HFTUSDT
         - CB_TradingBot__Whitelist__170=SUNUSDT
+        - CB_TradingBot__Whitelist__170=SUNUSDT
         - CB_TradingBot__Whitelist__171=SPELLUSDT
         - CB_TradingBot__Whitelist__172=DUSKUSDT
         - CB_TradingBot__Whitelist__173=CTKUSDT
