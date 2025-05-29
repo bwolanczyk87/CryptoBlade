@@ -26,8 +26,12 @@ namespace CryptoBlade
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            {
+                builder.Configuration
+                    .AddJsonFile("appsettings.Development.json", optional: false, reloadOnChange: true);
+            }
             builder.Configuration
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddJsonFile("appsettings.Accounts.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables("CB_");
             var debugView = builder.Configuration.GetDebugView();
