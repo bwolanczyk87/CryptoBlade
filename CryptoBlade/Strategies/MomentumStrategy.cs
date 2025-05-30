@@ -42,92 +42,63 @@ namespace CryptoBlade.Strategies
 
         protected override Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
-            try
-            {
-                if (!IsInTrade || Ticker == null || !EntryPrice.HasValue)
-                    return Task.CompletedTask;
-
-                var quotes = QuoteQueues[TimeFrame.OneMinute].GetQuotes();
-                var atr = quotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
-                double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
-                decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
-
-                if (HasBuySignal)
-                {
-                    StopLossPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierSl,
-                                             (int)SymbolInfo.PriceScale);
-                    TakeProfitPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierTp,
-                                              (int)SymbolInfo.PriceScale);
-                }
-                else if (HasSellSignal)
-                {
-                    StopLossPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierSl,
-                                             (int)SymbolInfo.PriceScale);
-                    TakeProfitPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierTp,
-                                              (int)SymbolInfo.PriceScale);
-                }
-            }
-            catch (Exception ex)
-            {
-                indicators.Add(new StrategyIndicator("SL/TP Error", ex.Message));
-            }
             return Task.CompletedTask;
         }
 
         protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
             var indicators = new List<StrategyIndicator>();
-
             try
             {
-                if (DateTime.UtcNow - m_lastSignalTime < m_strategyOptions.CooldownPeriod)
-                    return Task.FromResult(NoSignal(indicators, "Cooldown"));
-
-                var primaryQuotes = QuoteQueues[TimeFrame.OneMinute].GetQuotes();
-                var secondaryQuotes = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
-
-                if (!ValidateData(primaryQuotes, secondaryQuotes, indicators))
-                    return Task.FromResult(NoSignal(indicators, "InvalidData"));
-
-                var (bollingerBands, rsi, adx, volumeSma) = CalculatePrimaryIndicators(primaryQuotes);
-                var (emaTrend, contextRsi, volatility) = CalculateSecondaryIndicators(secondaryQuotes);
-
-                if (!ValidateIndicators(bollingerBands, rsi, adx, emaTrend, contextRsi, indicators))
-                    return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
-
-                bool isSqueeze = DetectBollingerSqueeze(bollingerBands);
-                bool volumeSpike = DetectVolumeSpike(primaryQuotes, volumeSma);
-                bool adxValid = (decimal)(adx.Last().Adx ?? 0) >= m_strategyOptions.AdxTrendThreshold;
-                bool trendContextValid = ValidateTrendContext(secondaryQuotes, emaTrend, contextRsi, volatility);
-
-                indicators.AddRange(new[]
+                if (!IsInTrade)
                 {
+
+
+                    if (DateTime.UtcNow - m_lastSignalTime < m_strategyOptions.CooldownPeriod)
+                        return Task.FromResult(NoSignal(indicators, "Cooldown"));
+
+                    var primaryQuotes = QuoteQueues[TimeFrame.OneMinute].GetQuotes();
+                    var secondaryQuotes = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
+
+                    if (!ValidateData(primaryQuotes, secondaryQuotes, indicators))
+                        return Task.FromResult(NoSignal(indicators, "InvalidData"));
+
+                    var (bollingerBands, rsi, adx, volumeSma) = CalculatePrimaryIndicators(primaryQuotes);
+                    var (emaTrend, contextRsi, volatility) = CalculateSecondaryIndicators(secondaryQuotes);
+
+                    if (!ValidateIndicators(bollingerBands, rsi, adx, emaTrend, contextRsi, indicators))
+                        return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
+
+                    bool isSqueeze = DetectBollingerSqueeze(bollingerBands);
+                    bool volumeSpike = DetectVolumeSpike(primaryQuotes, volumeSma);
+                    bool adxValid = (decimal)(adx.Last().Adx ?? 0) >= m_strategyOptions.AdxTrendThreshold;
+                    bool trendContextValid = ValidateTrendContext(secondaryQuotes, emaTrend, contextRsi, volatility);
+
+                    indicators.AddRange(new[]
+                    {
                     new StrategyIndicator("Squeeze", isSqueeze),
                     new StrategyIndicator("VolumeSpike", volumeSpike),
                     new StrategyIndicator("ADX", (decimal)adx.Last().Adx),
                     new StrategyIndicator("TrendContext", trendContextValid)
                 });
 
-                // if (!isSqueeze || !volumeSpike || !adxValid || !trendContextValid)
-                //     return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
+                    if (/*!isSqueeze || */!volumeSpike || !adxValid || !trendContextValid)
+                        return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
 
-                var lastPrimary = primaryQuotes.Last();
-                var lastBB = bollingerBands.Last();
-                var lastRSI = rsi.Last();
+                    var lastPrimary = primaryQuotes.Last();
+                    var lastBB = bollingerBands.Last();
+                    var lastRSI = rsi.Last();
 
-                bool breakoutLong = DetectBreakout(lastPrimary, lastBB, lastRSI, true);
-                bool breakoutShort = DetectBreakout(lastPrimary, lastBB, lastRSI, false);
+                    bool breakoutLong = DetectBreakout(lastPrimary, lastBB, lastRSI, true);
+                    bool breakoutShort = DetectBreakout(lastPrimary, lastBB, lastRSI, false);
 
-                //&& ValidateBreakoutCandles(primaryQuotes, true)
-                if (breakoutLong)
-                {
-                    if (Ticker != null)
+                    //&& ValidateBreakoutCandles(primaryQuotes, true)
+                    if (breakoutLong)
                     {
-                        decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                        EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
-
-                        if (!IsInTrade)
+                        if (Ticker != null)
                         {
+                            decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
+                            EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
                             var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
                             double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
                             decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
@@ -136,21 +107,19 @@ namespace CryptoBlade.Strategies
                                                     (int)SymbolInfo.PriceScale);
                             TakeProfitPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierTp,
                                                     (int)SymbolInfo.PriceScale);
+                            return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
                         }
-                        return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
+                        return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
                     }
-                    return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
-                }
 
-                // && ValidateBreakoutCandles(primaryQuotes, false)
-                if (breakoutShort)
-                {
-                    if (Ticker != null)
+                    // && ValidateBreakoutCandles(primaryQuotes, false)
+                    if (breakoutShort)
                     {
-                        decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                        EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
-                        if (!IsInTrade)
+                        if (Ticker != null)
                         {
+                            decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
+                            EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
+
                             var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
                             double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
                             decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
@@ -159,13 +128,11 @@ namespace CryptoBlade.Strategies
                                                       (int)SymbolInfo.PriceScale);
                             TakeProfitPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierTp,
                                                       (int)SymbolInfo.PriceScale);
+                            return Task.FromResult(GenerateSignal(indicators, false, "ShortBreakout"));
                         }
-                        return Task.FromResult(GenerateSignal(indicators, false, "ShortBreakout"));
+                        return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
                     }
-                    return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
                 }
-
-                CalculateStopLossTakeProfitAsync(indicators);
             }
             catch (Exception ex)
             {

@@ -34,7 +34,7 @@
   "Strategies": {
     "Momentum": {
       "CooldownPeriod": "00:01:00",
-      "RiskRewardRatio": 1.5,
+      "RiskRewardRatio": 1,
       "MaxSlippagePercent": 0.1,
       "BollingerBandsPeriod": 10,
       "BollingerBandsStdDev": 1.4,
@@ -52,8 +52,8 @@
       "RsiContextShortThresholdBase": 45,
       "RsiVolatilityFactor": 0.3,
       "VolatilityPeriod": 8,
-      "AtrMultiplierSl": 1.0,
-      "AtrMultiplierTp": 1.5,
+      "AtrMultiplierSl": 2,
+      "AtrMultiplierTp": 2,
       "BreakoutConfirmationCandles": 1
     }
   },
