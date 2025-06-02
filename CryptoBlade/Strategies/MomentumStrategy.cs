@@ -10,7 +10,19 @@ namespace CryptoBlade.Strategies
 {
     public class MomentumStrategy : TradingStrategyBase
     {
-        private readonly MomentumStrategyOptions m_strategyOptions;
+        // Hardkodowane parametry zgodnie z taktyką
+        private const int TrendEmaPeriod = 200;
+        private const int MacdFastPeriod = 12;
+        private const int MacdSlowPeriod = 26;
+        private const int MacdSignalPeriod = 9;
+        private const int VolumeLookback = 20;
+        private const decimal VolumeSpikeMultiplier = 1.8m;
+        private const int AtrPeriod = 14;
+        private const decimal AtrMultiplierSl = 1.5m;
+        private const decimal RiskRewardRatio = 1.5m;
+        private const decimal MaxSlippagePercent = 0.05m;
+        private const int SwingLookback = 30;
+
         private DateTime m_lastSignalTime;
         private decimal? m_entryPrice;
 
@@ -22,27 +34,19 @@ namespace CryptoBlade.Strategies
             ICbFuturesRestClient restClient)
             : base(strategyOptions as IOptions<TradingStrategyBaseOptions>, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
-            m_strategyOptions = strategyOptions.Value;
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
-        public override string Name => "Momentum";
+        public override string Name => "MACD_Divergence";
         protected override bool UseMarketOrdersForEntries => true;
 
-        private decimal? EntryPrice
+        private static TimeFrameWindow[] BuildTimeFrameWindows()
         {
-            get => IsInLongTrade ? LongPosition?.AveragePrice
-                   : IsInShortTrade ? ShortPosition?.AveragePrice
-                   : m_entryPrice;
-            set => m_entryPrice = value;
-        }
-
-        protected override Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
-            => Task.CompletedTask;
-
-        protected override Task CalculateStopLossTakeProfitAsync(IList<StrategyIndicator> indicators)
-        {
-            return Task.CompletedTask;
+            return new[]
+            {
+                new TimeFrameWindow(TimeFrame.FourHours, 100, true),   // HTF dla trendu i dywergencji
+                new TimeFrameWindow(TimeFrame.FifteenMinutes, 50, false)  // LTF dla breakoutu
+            };
         }
 
         protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
@@ -52,85 +56,50 @@ namespace CryptoBlade.Strategies
             {
                 if (!IsInTrade)
                 {
+                    // Pobierz dane z timeframe'ów
+                    var htfQuotes = QuoteQueues[TimeFrame.FourHours].GetQuotes();
+                    var ltfQuotes = QuoteQueues[TimeFrame.FifteenMinutes].GetQuotes();
 
-
-                    if (DateTime.UtcNow - m_lastSignalTime < m_strategyOptions.CooldownPeriod)
-                        return Task.FromResult(NoSignal(indicators, "Cooldown"));
-
-                    var primaryQuotes = QuoteQueues[TimeFrame.OneMinute].GetQuotes();
-                    var secondaryQuotes = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
-
-                    if (!ValidateData(primaryQuotes, secondaryQuotes, indicators))
+                    // Walidacja danych
+                    if (!ValidateData(htfQuotes, ltfQuotes, indicators))
                         return Task.FromResult(NoSignal(indicators, "InvalidData"));
 
-                    var (bollingerBands, rsi, adx, volumeSma) = CalculatePrimaryIndicators(primaryQuotes);
-                    var (emaTrend, contextRsi, volatility) = CalculateSecondaryIndicators(secondaryQuotes);
-
-                    if (!ValidateIndicators(bollingerBands, rsi, adx, emaTrend, contextRsi, indicators))
+                    // Oblicz wskaźniki dla HTF (4h)
+                    var htfMacd = htfQuotes.GetMacd(MacdFastPeriod, MacdSlowPeriod, MacdSignalPeriod);
+                    var htfEma = htfQuotes.GetEma(TrendEmaPeriod);
+                    
+                    // Oblicz wskaźniki dla LTF (15m)
+                    var volumeSma = ltfQuotes.Use(CandlePart.Volume).GetSma(VolumeLookback);
+                    var atr = ltfQuotes.GetAtr(AtrPeriod);
+                    
+                    // Walidacja wskaźników
+                    if (!ValidateIndicators(htfMacd, htfEma, volumeSma, atr, indicators))
                         return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
 
-                    bool isSqueeze = DetectBollingerSqueeze(bollingerBands);
-                    bool volumeSpike = DetectVolumeSpike(primaryQuotes, volumeSma);
-                    bool adxValid = (decimal)(adx.Last().Adx ?? 0) >= m_strategyOptions.AdxTrendThreshold;
-                    bool trendContextValid = ValidateTrendContext(secondaryQuotes, emaTrend, contextRsi, volatility);
+                    // Detekcja trendu (główny filtr)
+                    var lastHtfQuote = htfQuotes.Last();
+                    decimal htfEmaValue = (decimal)htfEma.Last().Ema;
+                    bool isBullTrend = lastHtfQuote.Close > htfEmaValue;
+                    bool isBearTrend = lastHtfQuote.Close < htfEmaValue;
 
-                    indicators.AddRange(new[]
+                    // Detekcja dywergencji MACD
+                    bool bullishDivergence = DetectBullishDivergence(htfQuotes, htfMacd);
+                    bool bearishDivergence = DetectBearishDivergence(htfQuotes, htfMacd);
+
+                    // Detekcja spiku wolumenu na LTF
+                    bool volumeSpike = ltfQuotes.Last().Volume > (decimal)volumeSma.Last().Sma * VolumeSpikeMultiplier;
+
+                    // Warunki wejścia
+                    bool longSignal = isBullTrend && bullishDivergence && volumeSpike;
+                    bool shortSignal = isBearTrend && bearishDivergence && volumeSpike;
+
+                    if (longSignal)
                     {
-                    new StrategyIndicator("Squeeze", isSqueeze),
-                    new StrategyIndicator("VolumeSpike", volumeSpike),
-                    new StrategyIndicator("ADX", (decimal)adx.Last().Adx),
-                    new StrategyIndicator("TrendContext", trendContextValid)
-                });
-
-                    if (!isSqueeze || !volumeSpike || !adxValid || !trendContextValid)
-                        return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
-
-                    var lastPrimary = primaryQuotes.Last();
-                    var lastBB = bollingerBands.Last();
-                    var lastRSI = rsi.Last();
-
-                    bool breakoutLong = DetectBreakout(lastPrimary, lastBB, lastRSI, true);
-                    bool breakoutShort = DetectBreakout(lastPrimary, lastBB, lastRSI, false);
-
-                    //&& ValidateBreakoutCandles(primaryQuotes, true)
-                    if (breakoutLong)
-                    {
-                        if (Ticker != null)
-                        {
-                            decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                            EntryPrice = Math.Min(Ticker.BestAskPrice, lastPrimary.Close + allowedSlippage);
-                            var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
-                            double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
-                            decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
-
-                            StopLossPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierSl,
-                                                    (int)SymbolInfo.PriceScale);
-                            TakeProfitPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierTp,
-                                                    (int)SymbolInfo.PriceScale);
-                            return Task.FromResult(GenerateSignal(indicators, true, "LongBreakout"));
-                        }
-                        return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
+                        return Task.FromResult(EnterLong(ltfQuotes, atr, indicators));
                     }
-
-                    // && ValidateBreakoutCandles(primaryQuotes, false)
-                    if (breakoutShort)
+                    else if (shortSignal)
                     {
-                        if (Ticker != null)
-                        {
-                            decimal allowedSlippage = lastPrimary.Close * m_strategyOptions.MaxSlippagePercent;
-                            EntryPrice = Math.Max(Ticker.BestBidPrice, lastPrimary.Close - allowedSlippage);
-
-                            var atr = primaryQuotes.GetAtr(m_strategyOptions.VolatilityPeriod).Last();
-                            double fallbackAtr = (double)(SymbolInfo.QtyStep ?? 1m);
-                            decimal atrValue = (decimal)(atr.Atr ?? fallbackAtr);
-
-                            StopLossPrice = Math.Round(EntryPrice.Value + atrValue * m_strategyOptions.AtrMultiplierSl,
-                                                      (int)SymbolInfo.PriceScale);
-                            TakeProfitPrice = Math.Round(EntryPrice.Value - atrValue * m_strategyOptions.AtrMultiplierTp,
-                                                      (int)SymbolInfo.PriceScale);
-                            return Task.FromResult(GenerateSignal(indicators, false, "ShortBreakout"));
-                        }
-                        return Task.FromResult(NoSignal(indicators, "TickerNotAvailable"));
+                        return Task.FromResult(EnterShort(ltfQuotes, atr, indicators));
                     }
                 }
             }
@@ -139,116 +108,135 @@ namespace CryptoBlade.Strategies
                 indicators.Add(new StrategyIndicator("Error", ex.Message));
             }
 
-            return Task.FromResult(NoSignal(indicators, "NoBreakout"));
+            return Task.FromResult(NoSignal(indicators, "NoSignal"));
         }
 
-        private bool ValidateTrendContext(
-            IEnumerable<Quote> quotes,
-            IEnumerable<EmaResult> emaTrend,
-            IEnumerable<RsiResult> rsi,
-            decimal volatility)
+        private bool DetectBullishDivergence(IEnumerable<Quote> quotes, IEnumerable<MacdResult> macdResults)
         {
-            var lastQuote = quotes.Last();
-            decimal emaValue = (decimal)emaTrend.Last().Ema;
-            decimal rsiValue = (decimal)rsi.Last().Rsi;
+            var quotesList = quotes.TakeLast(SwingLookback).ToList();
+            var macdList = macdResults.TakeLast(SwingLookback).ToList();
 
-            decimal dynamicLongThreshold = Math.Min(65, m_strategyOptions.RsiContextLongThresholdBase
-                + (volatility * m_strategyOptions.RsiVolatilityFactor));
-
-            decimal dynamicShortThreshold = Math.Max(35, m_strategyOptions.RsiContextShortThresholdBase
-                - (volatility * m_strategyOptions.RsiVolatilityFactor));
-
-            bool isUptrend = lastQuote.Close > emaValue &&
-                             rsiValue > dynamicLongThreshold &&
-                             emaTrend.IsRising();
-
-            bool isDowntrend = lastQuote.Close < emaValue &&
-                               rsiValue < dynamicShortThreshold &&
-                               emaTrend.IsFalling();
-
-            return isUptrend || isDowntrend;
-        }
-
-        private (IEnumerable<EmaResult>, IEnumerable<RsiResult>, decimal)
-            CalculateSecondaryIndicators(IEnumerable<Quote> quotes)
-        {
-            var atr = quotes.GetAtr(m_strategyOptions.VolatilityPeriod);
-            decimal volatility = (decimal)(atr.Last().Atr ?? 0);
-
-            return (
-                quotes.GetEma(m_strategyOptions.TrendEmaPeriod),
-                quotes.GetRsi(m_strategyOptions.RsiPeriod),
-                volatility
-            );
-        }
-
-        private bool ValidateBreakoutCandles(IEnumerable<Quote> quotes, bool isLong)
-        {
-            int lookback = m_strategyOptions.BreakoutConfirmationCandles;
-            var candles = quotes.TakeLast(lookback + 1).ToArray();
-
-            if (candles.Length < lookback + 1)
+            // Znajdź dwa ostatnie dołki cenowe
+            var (lastLow, prevLow) = FindLastTwoLows(quotesList);
+            
+            if (!lastLow.HasValue || !prevLow.HasValue) 
                 return false;
 
-            decimal minBodySize = SymbolInfo.QtyStep.Value * 1;
+            // Znajdź odpowiadające im wartości MACD
+            int lastIndex = quotesList.Count - 1;
+            int prevIndex = quotesList.FindIndex(q => q.Low == prevLow);
 
-            return isLong
-                ? candles.Take(lookback).All(q => q.Close > q.Open + minBodySize)
-                : candles.Take(lookback).All(q => q.Close < q.Open - minBodySize);
+            decimal lastMacd = (decimal)macdList[lastIndex].Macd!;
+            decimal prevMacd = (decimal)macdList[prevIndex].Macd!;
+
+            // Warunek dywergencji: niższy dołek cenowy + wyższy dołek MACD
+            return lastLow < prevLow && lastMacd > prevMacd;
         }
 
-        private bool DetectBreakout(Quote quote, BollingerBandsResult bb, RsiResult rsi, bool isLong)
+        private bool DetectBearishDivergence(IEnumerable<Quote> quotes, IEnumerable<MacdResult> macdResults)
         {
-            decimal upperBand = (decimal)bb.UpperBand;
-            decimal lowerBand = (decimal)bb.LowerBand;
-            decimal rsiValue = (decimal)rsi.Rsi;
+            var quotesList = quotes.TakeLast(SwingLookback).ToList();
+            var macdList = macdResults.TakeLast(SwingLookback).ToList();
 
-            return isLong
-                ? quote.Close > upperBand && rsiValue > m_strategyOptions.RsiLongThreshold
-                : quote.Close < lowerBand && rsiValue < m_strategyOptions.RsiShortThreshold;
+            // Znajdź dwa ostatnie szczyty cenowe
+            var (lastHigh, prevHigh) = FindLastTwoHighs(quotesList);
+            
+            if (!lastHigh.HasValue || !prevHigh.HasValue) 
+                return false;
+
+            // Znajdź odpowiadające im wartości MACD
+            int lastIndex = quotesList.Count - 1;
+            int prevIndex = quotesList.FindIndex(q => q.High == prevHigh);
+
+            decimal lastMacd = (decimal)macdList[lastIndex].Macd!;
+            decimal prevMacd = (decimal)macdList[prevIndex].Macd!;
+
+            // Warunek dywergencji: wyższy szczyt cenowy + niższy szczyt MACD
+            return lastHigh > prevHigh && lastMacd < prevMacd;
         }
 
-        private bool DetectVolumeSpike(IEnumerable<Quote> quotes, IEnumerable<SmaResult> volumeSma)
+        private (decimal?, decimal?) FindLastTwoLows(List<Quote> quotes)
         {
-            decimal lastVolume = quotes.Last().Volume;
-            decimal avgVolume = (decimal)(volumeSma.Last().Sma ?? 1);
-            return lastVolume > avgVolume * m_strategyOptions.VolumeSpikeMultiplier;
+            decimal? lastLow = null;
+            decimal? prevLow = null;
+            
+            for (int i = 1; i < quotes.Count - 1; i++)
+            {
+                if (quotes[i].Low < quotes[i - 1].Low && quotes[i].Low < quotes[i + 1].Low)
+                {
+                    prevLow = lastLow;
+                    lastLow = quotes[i].Low;
+                }
+            }
+            return (lastLow, prevLow);
         }
 
-        private bool DetectBollingerSqueeze(IEnumerable<BollingerBandsResult> bbResults)
+        private (decimal?, decimal?) FindLastTwoHighs(List<Quote> quotes)
         {
-            var bbWidths = bbResults
-                .TakeLast(m_strategyOptions.SqueezeLookback)
-                .Select(b => (decimal)b.Width.GetValueOrDefault())
-                .ToList();
-
-            if (bbWidths.Count < 2) return false;
-
-            decimal currentWidth = bbWidths.Last();
-            decimal avgWidth = bbWidths.Average();
-            decimal widthRatio = currentWidth / avgWidth;
-
-            return widthRatio < m_strategyOptions.SqueezeStdRatioThreshold;
+            decimal? lastHigh = null;
+            decimal? prevHigh = null;
+            
+            for (int i = 1; i < quotes.Count - 1; i++)
+            {
+                if (quotes[i].High > quotes[i - 1].High && quotes[i].High > quotes[i + 1].High)
+                {
+                    prevHigh = lastHigh;
+                    lastHigh = quotes[i].High;
+                }
+            }
+            return (lastHigh, prevHigh);
         }
 
-        private (IEnumerable<BollingerBandsResult>, IEnumerable<RsiResult>, IEnumerable<AdxResult>, IEnumerable<SmaResult>)
-            CalculatePrimaryIndicators(IEnumerable<Quote> quotes)
+        private SignalEvaluation EnterLong(
+            IEnumerable<Quote> ltfQuotes, 
+            IEnumerable<AtrResult> atr, 
+            List<StrategyIndicator> indicators)
         {
-            var volumeSma = quotes
-                .Use(CandlePart.Volume)
-                .GetSma(m_strategyOptions.VolumeLookbackPeriod);
+            if (Ticker == null || SymbolInfo == null)
+                return NoSignal(indicators, "MissingData");
+            
+            var lastQuote = ltfQuotes.Last();
+            decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
+            
+            // Oblicz cenę wejścia z uwzględnieniem slippage'u
+            decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
+            m_entryPrice = Math.Min(Ticker.BestAskPrice, lastQuote.Close + allowedSlippage);
+            
+            // Oblicz SL i TP
+            StopLossPrice = Math.Round(m_entryPrice.Value - atrValue * AtrMultiplierSl,
+                                    (int)SymbolInfo.PriceScale);
+            TakeProfitPrice = Math.Round(m_entryPrice.Value + (m_entryPrice.Value - StopLossPrice.Value) * RiskRewardRatio,
+                                    (int)SymbolInfo.PriceScale);
 
-            return (
-                quotes.GetBollingerBands(m_strategyOptions.BollingerBandsPeriod, m_strategyOptions.BollingerBandsStdDev),
-                quotes.GetRsi(m_strategyOptions.RsiPeriod),
-                quotes.GetAdx(m_strategyOptions.AdxPeriod),
-                volumeSma
-            );
+            return GenerateSignal(indicators, true, "Long");
+        }
+
+        private SignalEvaluation EnterShort(
+            IEnumerable<Quote> ltfQuotes, 
+            IEnumerable<AtrResult> atr, 
+            List<StrategyIndicator> indicators)
+        {
+            if (Ticker == null || SymbolInfo == null)
+                return NoSignal(indicators, "MissingData");
+            
+            var lastQuote = ltfQuotes.Last();
+            decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
+            
+            // Oblicz cenę wejścia z uwzględnieniem slippage'u
+            decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
+            m_entryPrice = Math.Max(Ticker.BestBidPrice, lastQuote.Close - allowedSlippage);
+            
+            // Oblicz SL i TP
+            StopLossPrice = Math.Round(m_entryPrice.Value + atrValue * AtrMultiplierSl,
+                                    (int)SymbolInfo.PriceScale);
+            TakeProfitPrice = Math.Round(m_entryPrice.Value - (StopLossPrice.Value - m_entryPrice.Value) * RiskRewardRatio,
+                                    (int)SymbolInfo.PriceScale);
+
+            return GenerateSignal(indicators, false, "Short");
         }
 
         private SignalEvaluation GenerateSignal(List<StrategyIndicator> indicators, bool isLong, string condition)
         {
-            m_lastSignalTime = DateTime.UtcNow;
             indicators.Add(new StrategyIndicator("Condition", condition));
             return new SignalEvaluation(
                 isLong,
@@ -260,66 +248,39 @@ namespace CryptoBlade.Strategies
 
         private SignalEvaluation NoSignal(List<StrategyIndicator> indicators, string reason)
         {
-            indicators.Add(new StrategyIndicator("Condition", reason));
-            if (!IsInTrade) EntryPrice = null;
+            indicators.Add(new StrategyIndicator("Reason", reason));
             return new SignalEvaluation(false, false, false, false, indicators.ToArray());
         }
 
         private bool ValidateData(
-            IReadOnlyList<Quote> primaryQuotes,
-            IReadOnlyList<Quote> secondaryQuotes,
+            IReadOnlyList<Quote> htfQuotes,
+            IReadOnlyList<Quote> ltfQuotes,
             List<StrategyIndicator> indicators)
         {
-            bool isValid = primaryQuotes.Count >= m_strategyOptions.BollingerBandsPeriod + m_strategyOptions.SqueezeLookback
-                          && secondaryQuotes.Count >= Math.Max(m_strategyOptions.TrendEmaPeriod, m_strategyOptions.RsiPeriod)
-                          && Ticker != null
-                          && SymbolInfo != null;
+            bool isValid = htfQuotes.Count >= SwingLookback && 
+                          ltfQuotes.Count >= VolumeLookback &&
+                          Ticker != null &&
+                          SymbolInfo != null;
 
             if (!isValid) indicators.Add(new StrategyIndicator("Error", "InsufficientData"));
             return isValid;
         }
 
         private bool ValidateIndicators(
-            IEnumerable<BollingerBandsResult> bb,
-            IEnumerable<RsiResult> rsi,
-            IEnumerable<AdxResult> adx,
+            IEnumerable<MacdResult> macd,
             IEnumerable<EmaResult> ema,
-            IEnumerable<RsiResult> contextRsi,
+            IEnumerable<SmaResult> volumeSma,
+            IEnumerable<AtrResult> atr,
             List<StrategyIndicator> indicators)
         {
-            bool isValid = bb.Any() && rsi.Any() && adx.Any() && ema.Any() && contextRsi.Any()
-                           && bb.Last().UpperBand.HasValue
-                           && rsi.Last().Rsi.HasValue
-                           && adx.Last().Adx.HasValue
-                           && ema.Last().Ema.HasValue
-                           && contextRsi.Last().Rsi.HasValue;
+            bool isValid = macd.Any() && ema.Any() && volumeSma.Any() && atr.Any() &&
+                          macd.Last().Macd.HasValue &&
+                          ema.Last().Ema.HasValue &&
+                          volumeSma.Last().Sma.HasValue &&
+                          atr.Last().Atr.HasValue;
 
             if (!isValid) indicators.Add(new StrategyIndicator("Error", "InvalidIndicatorValues"));
             return isValid;
-        }
-
-        private static TimeFrameWindow[] BuildTimeFrameWindows()
-        {
-            return new[]
-            {
-                new TimeFrameWindow(TimeFrame.OneMinute, 200, true),
-                new TimeFrameWindow(TimeFrame.FiveMinutes, 100, false)
-            };
-        }
-    }
-
-    public static class EmaExtensions
-    {
-        public static bool IsRising(this IEnumerable<EmaResult> emaResults, int lookback = 2)
-        {
-            var lastValues = emaResults.TakeLast(lookback).Select(x => x.Ema).ToList();
-            return lastValues.Count == lookback && lastValues[^1] > lastValues[^2];
-        }
-
-        public static bool IsFalling(this IEnumerable<EmaResult> emaResults, int lookback = 2)
-        {
-            var lastValues = emaResults.TakeLast(lookback).Select(x => x.Ema).ToList();
-            return lastValues.Count == lookback && lastValues[^1] < lastValues[^2];
         }
     }
 }
