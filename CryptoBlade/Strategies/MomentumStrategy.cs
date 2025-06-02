@@ -82,7 +82,7 @@ namespace CryptoBlade.Strategies
                     new StrategyIndicator("TrendContext", trendContextValid)
                 });
 
-                    if (/*!isSqueeze || */!volumeSpike || !adxValid || !trendContextValid)
+                    if (!isSqueeze || !volumeSpike || !adxValid || !trendContextValid)
                         return Task.FromResult(NoSignal(indicators, "ConditionsNotMet"));
 
                     var lastPrimary = primaryQuotes.Last();
