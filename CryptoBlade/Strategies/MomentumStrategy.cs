@@ -37,14 +37,14 @@ namespace CryptoBlade.Strategies
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
-        public override string Name => "MACD_Divergence";
+        public override string Name => "Momentum";
         protected override bool UseMarketOrdersForEntries => true;
 
         private static TimeFrameWindow[] BuildTimeFrameWindows()
         {
             return new[]
             {
-                new TimeFrameWindow(TimeFrame.FourHours, 100, true),   // HTF dla trendu i dywergencji
+                new TimeFrameWindow(TimeFrame.FourHours, 250, true),   // HTF dla trendu i dywergencji
                 new TimeFrameWindow(TimeFrame.FifteenMinutes, 50, false)  // LTF dla breakoutu
             };
         }
@@ -67,11 +67,11 @@ namespace CryptoBlade.Strategies
                     // Oblicz wskaźniki dla HTF (4h)
                     var htfMacd = htfQuotes.GetMacd(MacdFastPeriod, MacdSlowPeriod, MacdSignalPeriod);
                     var htfEma = htfQuotes.GetEma(TrendEmaPeriod);
-                    
+
                     // Oblicz wskaźniki dla LTF (15m)
                     var volumeSma = ltfQuotes.Use(CandlePart.Volume).GetSma(VolumeLookback);
                     var atr = ltfQuotes.GetAtr(AtrPeriod);
-                    
+
                     // Walidacja wskaźników
                     if (!ValidateIndicators(htfMacd, htfEma, volumeSma, atr, indicators))
                         return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
@@ -118,8 +118,8 @@ namespace CryptoBlade.Strategies
 
             // Znajdź dwa ostatnie dołki cenowe
             var (lastLow, prevLow) = FindLastTwoLows(quotesList);
-            
-            if (!lastLow.HasValue || !prevLow.HasValue) 
+
+            if (!lastLow.HasValue || !prevLow.HasValue)
                 return false;
 
             // Znajdź odpowiadające im wartości MACD
@@ -140,8 +140,8 @@ namespace CryptoBlade.Strategies
 
             // Znajdź dwa ostatnie szczyty cenowe
             var (lastHigh, prevHigh) = FindLastTwoHighs(quotesList);
-            
-            if (!lastHigh.HasValue || !prevHigh.HasValue) 
+
+            if (!lastHigh.HasValue || !prevHigh.HasValue)
                 return false;
 
             // Znajdź odpowiadające im wartości MACD
@@ -159,7 +159,7 @@ namespace CryptoBlade.Strategies
         {
             decimal? lastLow = null;
             decimal? prevLow = null;
-            
+
             for (int i = 1; i < quotes.Count - 1; i++)
             {
                 if (quotes[i].Low < quotes[i - 1].Low && quotes[i].Low < quotes[i + 1].Low)
@@ -175,7 +175,7 @@ namespace CryptoBlade.Strategies
         {
             decimal? lastHigh = null;
             decimal? prevHigh = null;
-            
+
             for (int i = 1; i < quotes.Count - 1; i++)
             {
                 if (quotes[i].High > quotes[i - 1].High && quotes[i].High > quotes[i + 1].High)
@@ -188,20 +188,20 @@ namespace CryptoBlade.Strategies
         }
 
         private SignalEvaluation EnterLong(
-            IEnumerable<Quote> ltfQuotes, 
-            IEnumerable<AtrResult> atr, 
+            IEnumerable<Quote> ltfQuotes,
+            IEnumerable<AtrResult> atr,
             List<StrategyIndicator> indicators)
         {
             if (Ticker == null || SymbolInfo == null)
                 return NoSignal(indicators, "MissingData");
-            
+
             var lastQuote = ltfQuotes.Last();
             decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
-            
+
             // Oblicz cenę wejścia z uwzględnieniem slippage'u
             decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
             m_entryPrice = Math.Min(Ticker.BestAskPrice, lastQuote.Close + allowedSlippage);
-            
+
             // Oblicz SL i TP
             StopLossPrice = Math.Round(m_entryPrice.Value - atrValue * AtrMultiplierSl,
                                     (int)SymbolInfo.PriceScale);
@@ -212,20 +212,20 @@ namespace CryptoBlade.Strategies
         }
 
         private SignalEvaluation EnterShort(
-            IEnumerable<Quote> ltfQuotes, 
-            IEnumerable<AtrResult> atr, 
+            IEnumerable<Quote> ltfQuotes,
+            IEnumerable<AtrResult> atr,
             List<StrategyIndicator> indicators)
         {
             if (Ticker == null || SymbolInfo == null)
                 return NoSignal(indicators, "MissingData");
-            
+
             var lastQuote = ltfQuotes.Last();
             decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
-            
+
             // Oblicz cenę wejścia z uwzględnieniem slippage'u
             decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
             m_entryPrice = Math.Max(Ticker.BestBidPrice, lastQuote.Close - allowedSlippage);
-            
+
             // Oblicz SL i TP
             StopLossPrice = Math.Round(m_entryPrice.Value + atrValue * AtrMultiplierSl,
                                     (int)SymbolInfo.PriceScale);
@@ -253,16 +253,21 @@ namespace CryptoBlade.Strategies
         }
 
         private bool ValidateData(
-            IReadOnlyList<Quote> htfQuotes,
-            IReadOnlyList<Quote> ltfQuotes,
-            List<StrategyIndicator> indicators)
+    IReadOnlyList<Quote> htfQuotes,
+    IReadOnlyList<Quote> ltfQuotes,
+    List<StrategyIndicator> indicators)
         {
-            bool isValid = htfQuotes.Count >= SwingLookback && 
-                          ltfQuotes.Count >= VolumeLookback &&
-                          Ticker != null &&
-                          SymbolInfo != null;
+            int minHtfQuotes = Math.Max(SwingLookback, TrendEmaPeriod); // 200
+            bool isValid = htfQuotes.Count >= minHtfQuotes
+                          && ltfQuotes.Count >= VolumeLookback
+                          && Ticker != null
+                          && SymbolInfo != null;
 
-            if (!isValid) indicators.Add(new StrategyIndicator("Error", "InsufficientData"));
+            if (!isValid)
+            {
+                indicators.Add(new StrategyIndicator("Error",
+                    $"Insufficient data: HTF={htfQuotes.Count}/{minHtfQuotes}"));
+            }
             return isValid;
         }
 
