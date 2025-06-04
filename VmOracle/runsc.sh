@@ -45,23 +45,25 @@ fi
 
 echo "Monitoruję kontener: $container"
 
-if [[ $SHOW_FLAG -eq 1 ]]; then
-  # Pokazuj logi w 10-sekundowych blokach, aż kontener zakończy działanie
-  while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
-      echo "Pokazuję logi kontenera $container przez 10 sekund..."
-      timeout 10s docker logs -f "$container"
-      if ! docker ps --format '{{.Names}}' | grep -q "^$container$"; then
-          echo "Kontener $container zakończył działanie!"
-          break
-      fi
-  done
-else
-  # Tylko sprawdzaj co 10s, czy kontener działa
-  while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
-      echo "Kontener $container nadal działa, czekam 10s..."
-      sleep 10
-  done
-  echo "Kontener $container zakończył działanie!"
+if [[ ${CODE:1:1} == "1" ]]; then
+  if [[ $SHOW_FLAG -eq 1 ]]; then
+    # Pokazuj logi w 10-sekundowych blokach, aż kontener zakończy działanie
+    while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
+        echo "Pokazuję logi kontenera $container przez 10 sekund..."
+        timeout 10s docker logs -f "$container"
+        if ! docker ps --format '{{.Names}}' | grep -q "^$container$"; then
+            echo "Kontener $container zakończył działanie!"
+            break
+        fi
+    done
+  else
+    # Tylko sprawdzaj co 10s, czy kontener działa
+    while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
+        echo "Kontener $container nadal działa, czekam 10s..."
+        sleep 10
+    done
+    echo "Kontener $container zakończył działanie!"
+  fi
 fi
 
 # Szukaj result.json w najnowszym folderze utworzonym po starcie dockera
