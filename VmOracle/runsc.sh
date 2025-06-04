@@ -43,9 +43,9 @@ if [[ -z "$container" ]]; then
   exit 1
 fi
 
-echo "Monitoruję kontener: $container"
+if [[ ${CODE:1:1} -ne "1" ]]; then
+  echo "Monitoruję kontener: $container"
 
-if [[ ${CODE:1:1} == "1" ]]; then
   if [[ $SHOW_FLAG -eq 1 ]]; then
     # Pokazuj logi w 10-sekundowych blokach, aż kontener zakończy działanie
     while docker ps --format '{{.Names}}' | grep -q "^$container$"; do
@@ -64,28 +64,29 @@ if [[ ${CODE:1:1} == "1" ]]; then
     done
     echo "Kontener $container zakończył działanie!"
   fi
-fi
 
-# Szukaj result.json w najnowszym folderze utworzonym po starcie dockera
-RESULTS_ROOT="../Data/Strategies"
-LATEST_RESULT=""
-LATEST_RESULT_TS=0
 
-while IFS= read -r -d '' folder; do
-  FOLDER_TS=$(stat -c %Y "$folder")
-  if (( FOLDER_TS > START_TS )); then
-    if (( FOLDER_TS > LATEST_RESULT_TS )); then
-      if [[ -f "$folder/result.json" ]]; then
-        LATEST_RESULT_TS=$FOLDER_TS
-        LATEST_RESULT="$folder/result.json"
+  # Szukaj result.json w najnowszym folderze utworzonym po starcie dockera
+  RESULTS_ROOT="../Data/Strategies"
+  LATEST_RESULT=""
+  LATEST_RESULT_TS=0
+
+  while IFS= read -r -d '' folder; do
+    FOLDER_TS=$(stat -c %Y "$folder")
+    if (( FOLDER_TS > START_TS )); then
+      if (( FOLDER_TS > LATEST_RESULT_TS )); then
+        if [[ -f "$folder/result.json" ]]; then
+          LATEST_RESULT_TS=$FOLDER_TS
+          LATEST_RESULT="$folder/result.json"
+        fi
       fi
     fi
-  fi
-done < <(find "$RESULTS_ROOT" -type d -path "*/Backtest/Results/*" -print0)
+  done < <(find "$RESULTS_ROOT" -type d -path "*/Backtest/Results/*" -print0)
 
-if [[ -n "$LATEST_RESULT" ]]; then
-  echo "Zawartość $LATEST_RESULT:"
-  cat "$LATEST_RESULT"
-else
-  echo "Nie znaleziono pliku result.json utworzonego po starcie kontenera."
+  if [[ -n "$LATEST_RESULT" ]]; then
+    echo "Zawartość $LATEST_RESULT:"
+    cat "$LATEST_RESULT"
+  else
+    echo "Nie znaleziono pliku result.json utworzonego po starcie kontenera."
+  fi
 fi

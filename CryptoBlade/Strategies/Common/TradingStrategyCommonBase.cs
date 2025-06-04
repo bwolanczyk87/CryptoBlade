@@ -169,7 +169,7 @@ namespace CryptoBlade.Strategies.Common
                 m_logger.LogInformation($"Setting up trading configuration for symbol {symbol.Name}");
                 bool leverageOk = await m_cbFuturesRestClient.SetLeverageAsync(symbol, cancel);
                 if (!leverageOk)
-                    throw new InvalidOperationException("Failed to setup leverage.");
+                    throw new InvalidOperationException($"Failed to setup leverage for {symbol}");
 
                 m_logger.LogInformation($"Leverage set to {symbol.MaxLeverage} for {symbol.Name}");
 
@@ -177,7 +177,7 @@ namespace CryptoBlade.Strategies.Common
                 {
                     bool modeOk = await m_cbFuturesRestClient.SwitchPositionModeAsync(PositionMode.Hedge, symbol.Name, cancel);
                     if (!modeOk)
-                        throw new InvalidOperationException("Failed to setup position mode.");
+                        throw new InvalidOperationException($"Failed to setup position mode for {symbol}.");
 
                     m_logger.LogInformation($"Position mode set to {PositionMode.Hedge} for {symbol.Name}");
                 }

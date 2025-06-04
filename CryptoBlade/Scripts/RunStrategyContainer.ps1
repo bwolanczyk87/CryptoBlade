@@ -312,6 +312,3 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "Błąd przy uruchamianiu docker compose."
     exit 1
 }
-
-
-Write-Host "Kontenery zostały uruchomione, a wyniki backtestu będą zapisywane zgodnie z konfiguracją."

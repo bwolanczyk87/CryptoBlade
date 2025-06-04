@@ -10,18 +10,20 @@ namespace CryptoBlade.Strategies
 {
     public class MomentumStrategy : TradingStrategyBase
     {
-        // Hardkodowane parametry zgodnie z taktyką
-        private const int TrendEmaPeriod = 200;
-        private const int MacdFastPeriod = 12;
-        private const int MacdSlowPeriod = 26;
-        private const int MacdSignalPeriod = 9;
-        private const int VolumeLookback = 20;
-        private const decimal VolumeSpikeMultiplier = 1.8m;
+        // Hiperparametry zoptymalizowane pod 5min/1h
+        private const int TrendEmaPeriod = 100;
+        private const int MacdFastPeriod = 8;
+        private const int MacdSlowPeriod = 21;
+        private const int MacdSignalPeriod = 5;  // Szybszy sygnał
+        private const int VolumeLookback = 12;
+        private const decimal VolumeSpikeMultiplier = 1.5m;
         private const int AtrPeriod = 14;
+        private const int AdxPeriod = 14;  // Filtr siły trendu
+        private const decimal AdxThreshold = 25m;
         private const decimal AtrMultiplierSl = 1.5m;
-        private const decimal RiskRewardRatio = 1.5m;
-        private const decimal MaxSlippagePercent = 0.05m;
-        private const int SwingLookback = 30;
+        private const decimal RiskRewardRatio = 1.7m;  // Zwiększony RR
+        private const decimal MaxSlippagePercent = 0.03m;
+        private const decimal MinAtrPercent = 0.4m;
 
         private DateTime m_lastSignalTime;
         private decimal? m_entryPrice;
@@ -44,8 +46,8 @@ namespace CryptoBlade.Strategies
         {
             return new[]
             {
-                new TimeFrameWindow(TimeFrame.FourHours, 250, true),   // HTF dla trendu i dywergencji
-                new TimeFrameWindow(TimeFrame.FifteenMinutes, 50, false)  // LTF dla breakoutu
+                new TimeFrameWindow(TimeFrame.OneHour, 150, true),    // HTF: trend + ADX
+                new TimeFrameWindow(TimeFrame.FiveMinutes, 120, false) // LTF: entry signals
             };
         }
 
@@ -57,41 +59,58 @@ namespace CryptoBlade.Strategies
                 if (!IsInTrade)
                 {
                     // Pobierz dane z timeframe'ów
-                    var htfQuotes = QuoteQueues[TimeFrame.FourHours].GetQuotes();
-                    var ltfQuotes = QuoteQueues[TimeFrame.FifteenMinutes].GetQuotes();
+                    var htfQuotes = QuoteQueues[TimeFrame.OneHour].GetQuotes();
+                    var ltfQuotes = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
 
                     // Walidacja danych
                     if (!ValidateData(htfQuotes, ltfQuotes, indicators))
                         return Task.FromResult(NoSignal(indicators, "InvalidData"));
 
-                    // Oblicz wskaźniki dla HTF (4h)
-                    var htfMacd = htfQuotes.GetMacd(MacdFastPeriod, MacdSlowPeriod, MacdSignalPeriod);
+                    // Wskaźniki HTF (1h)
                     var htfEma = htfQuotes.GetEma(TrendEmaPeriod);
+                    var htfAdx = htfQuotes.GetAdx(AdxPeriod);
 
-                    // Oblicz wskaźniki dla LTF (15m)
+                    // Wskaźniki LTF (5min)
+                    var ltfMacd = ltfQuotes.GetMacd(MacdFastPeriod, MacdSlowPeriod, MacdSignalPeriod);
                     var volumeSma = ltfQuotes.Use(CandlePart.Volume).GetSma(VolumeLookback);
                     var atr = ltfQuotes.GetAtr(AtrPeriod);
 
-                    // Walidacja wskaźników
-                    if (!ValidateIndicators(htfMacd, htfEma, volumeSma, atr, indicators))
+                    // Walidacja
+                    if (!ValidateIndicators(ltfMacd, htfEma, volumeSma, atr, htfAdx, indicators))
                         return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
 
-                    // Detekcja trendu (główny filtr)
+                    // Ostatnie wartości
                     var lastHtfQuote = htfQuotes.Last();
+                    var lastLtfQuote = ltfQuotes.Last();
                     decimal htfEmaValue = (decimal)htfEma.Last().Ema;
+                    var lastMacd = ltfMacd.Last();
+                    decimal volumeSmaValue = (decimal)volumeSma.Last().Sma;
+                    decimal atrValue = (decimal)atr.Last().Atr;
+                    decimal adxValue = (decimal)htfAdx.Last().Adx;
+
+                    // Filtr zmienności
+                    decimal atrPercent = (atrValue / lastLtfQuote.Close) * 100;
+                    if (atrPercent < MinAtrPercent)
+                        return Task.FromResult(NoSignal(indicators, $"LowVolatility({atrPercent:F2}%)"));
+
+                    // Główny filtr trendu
                     bool isBullTrend = lastHtfQuote.Close > htfEmaValue;
                     bool isBearTrend = lastHtfQuote.Close < htfEmaValue;
 
-                    // Detekcja dywergencji MACD
-                    bool bullishDivergence = DetectBullishDivergence(htfQuotes, htfMacd);
-                    bool bearishDivergence = DetectBearishDivergence(htfQuotes, htfMacd);
+                    // Filtr siły trendu (ADX)
+                    bool strongTrend = adxValue >= AdxThreshold;
 
-                    // Detekcja spiku wolumenu na LTF
-                    bool volumeSpike = ltfQuotes.Last().Volume > (decimal)volumeSma.Last().Sma * VolumeSpikeMultiplier;
+                    // Spik wolumenu
+                    bool volumeSpike = lastLtfQuote.Volume > volumeSmaValue * VolumeSpikeMultiplier;
+
+                    // Analiza histogramu MACD (szybsze sygnały)
+                    var macdHistogram = ltfMacd.Select(x => x.Histogram ?? 0).ToList();
+                    bool bullishMomentum = IsHistogramRising(macdHistogram);
+                    bool bearishMomentum = IsHistogramFalling(macdHistogram);
 
                     // Warunki wejścia
-                    bool longSignal = isBullTrend && bullishDivergence && volumeSpike;
-                    bool shortSignal = isBearTrend && bearishDivergence && volumeSpike;
+                    bool longSignal = isBullTrend && strongTrend && bullishMomentum && volumeSpike;
+                    bool shortSignal = isBearTrend && strongTrend && bearishMomentum && volumeSpike;
 
                     if (longSignal)
                     {
@@ -111,80 +130,29 @@ namespace CryptoBlade.Strategies
             return Task.FromResult(NoSignal(indicators, "NoSignal"));
         }
 
-        private bool DetectBullishDivergence(IEnumerable<Quote> quotes, IEnumerable<MacdResult> macdResults)
+        private bool IsHistogramRising(List<double> histogram)
         {
-            var quotesList = quotes.TakeLast(SwingLookback).ToList();
-            var macdList = macdResults.TakeLast(SwingLookback).ToList();
+            if (histogram.Count < 3) return false;
+            
+            // Obecna i poprzednia wartość
+            double current = histogram[^1];
+            double prev = histogram[^2];
+            double prev2 = histogram[^3];
 
-            // Znajdź dwa ostatnie dołki cenowe
-            var (lastLow, prevLow) = FindLastTwoLows(quotesList);
-
-            if (!lastLow.HasValue || !prevLow.HasValue)
-                return false;
-
-            // Znajdź odpowiadające im wartości MACD
-            int lastIndex = quotesList.Count - 1;
-            int prevIndex = quotesList.FindIndex(q => q.Low == prevLow);
-
-            decimal lastMacd = (decimal)macdList[lastIndex].Macd!;
-            decimal prevMacd = (decimal)macdList[prevIndex].Macd!;
-
-            // Warunek dywergencji: niższy dołek cenowy + wyższy dołek MACD
-            return lastLow < prevLow && lastMacd > prevMacd;
+            // Warunek: histogram rośnie i jest powyżej zera
+            return current > prev && prev > prev2 && current > 0;
         }
 
-        private bool DetectBearishDivergence(IEnumerable<Quote> quotes, IEnumerable<MacdResult> macdResults)
+        private bool IsHistogramFalling(List<double> histogram)
         {
-            var quotesList = quotes.TakeLast(SwingLookback).ToList();
-            var macdList = macdResults.TakeLast(SwingLookback).ToList();
+            if (histogram.Count < 3) return false;
+            
+            double current = histogram[^1];
+            double prev = histogram[^2];
+            double prev2 = histogram[^3];
 
-            // Znajdź dwa ostatnie szczyty cenowe
-            var (lastHigh, prevHigh) = FindLastTwoHighs(quotesList);
-
-            if (!lastHigh.HasValue || !prevHigh.HasValue)
-                return false;
-
-            // Znajdź odpowiadające im wartości MACD
-            int lastIndex = quotesList.Count - 1;
-            int prevIndex = quotesList.FindIndex(q => q.High == prevHigh);
-
-            decimal lastMacd = (decimal)macdList[lastIndex].Macd!;
-            decimal prevMacd = (decimal)macdList[prevIndex].Macd!;
-
-            // Warunek dywergencji: wyższy szczyt cenowy + niższy szczyt MACD
-            return lastHigh > prevHigh && lastMacd < prevMacd;
-        }
-
-        private (decimal?, decimal?) FindLastTwoLows(List<Quote> quotes)
-        {
-            decimal? lastLow = null;
-            decimal? prevLow = null;
-
-            for (int i = 1; i < quotes.Count - 1; i++)
-            {
-                if (quotes[i].Low < quotes[i - 1].Low && quotes[i].Low < quotes[i + 1].Low)
-                {
-                    prevLow = lastLow;
-                    lastLow = quotes[i].Low;
-                }
-            }
-            return (lastLow, prevLow);
-        }
-
-        private (decimal?, decimal?) FindLastTwoHighs(List<Quote> quotes)
-        {
-            decimal? lastHigh = null;
-            decimal? prevHigh = null;
-
-            for (int i = 1; i < quotes.Count - 1; i++)
-            {
-                if (quotes[i].High > quotes[i - 1].High && quotes[i].High > quotes[i + 1].High)
-                {
-                    prevHigh = lastHigh;
-                    lastHigh = quotes[i].High;
-                }
-            }
-            return (lastHigh, prevHigh);
+            // Warunek: histogram spada i jest poniżej zera
+            return current < prev && prev < prev2 && current < 0;
         }
 
         private SignalEvaluation EnterLong(
@@ -198,11 +166,11 @@ namespace CryptoBlade.Strategies
             var lastQuote = ltfQuotes.Last();
             decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
 
-            // Oblicz cenę wejścia z uwzględnieniem slippage'u
+            // Wejście z minimalnym slippage'iem
             decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
             m_entryPrice = Math.Min(Ticker.BestAskPrice, lastQuote.Close + allowedSlippage);
 
-            // Oblicz SL i TP
+            // Dynamiczne SL/TP
             StopLossPrice = Math.Round(m_entryPrice.Value - atrValue * AtrMultiplierSl,
                                     (int)SymbolInfo.PriceScale);
             TakeProfitPrice = Math.Round(m_entryPrice.Value + (m_entryPrice.Value - StopLossPrice.Value) * RiskRewardRatio,
@@ -222,11 +190,9 @@ namespace CryptoBlade.Strategies
             var lastQuote = ltfQuotes.Last();
             decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
 
-            // Oblicz cenę wejścia z uwzględnieniem slippage'u
             decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
             m_entryPrice = Math.Max(Ticker.BestBidPrice, lastQuote.Close - allowedSlippage);
 
-            // Oblicz SL i TP
             StopLossPrice = Math.Round(m_entryPrice.Value + atrValue * AtrMultiplierSl,
                                     (int)SymbolInfo.PriceScale);
             TakeProfitPrice = Math.Round(m_entryPrice.Value - (StopLossPrice.Value - m_entryPrice.Value) * RiskRewardRatio,
@@ -253,20 +219,22 @@ namespace CryptoBlade.Strategies
         }
 
         private bool ValidateData(
-    IReadOnlyList<Quote> htfQuotes,
-    IReadOnlyList<Quote> ltfQuotes,
-    List<StrategyIndicator> indicators)
+            IReadOnlyList<Quote> htfQuotes,
+            IReadOnlyList<Quote> ltfQuotes,
+            List<StrategyIndicator> indicators)
         {
-            int minHtfQuotes = Math.Max(SwingLookback, TrendEmaPeriod); // 200
+            int minHtfQuotes = Math.Max(TrendEmaPeriod, AdxPeriod) + 20; // 120
+            int minLtfQuotes = MacdSlowPeriod + MacdSignalPeriod + 20; // 46
+            
             bool isValid = htfQuotes.Count >= minHtfQuotes
-                          && ltfQuotes.Count >= VolumeLookback
+                          && ltfQuotes.Count >= minLtfQuotes
                           && Ticker != null
                           && SymbolInfo != null;
 
             if (!isValid)
             {
                 indicators.Add(new StrategyIndicator("Error",
-                    $"Insufficient data: HTF={htfQuotes.Count}/{minHtfQuotes}"));
+                    $"Insufficient data: HTF={htfQuotes.Count}/{minHtfQuotes}, LTF={ltfQuotes.Count}/{minLtfQuotes}"));
             }
             return isValid;
         }
@@ -276,15 +244,33 @@ namespace CryptoBlade.Strategies
             IEnumerable<EmaResult> ema,
             IEnumerable<SmaResult> volumeSma,
             IEnumerable<AtrResult> atr,
+            IEnumerable<AdxResult> adx,
             List<StrategyIndicator> indicators)
         {
-            bool isValid = macd.Any() && ema.Any() && volumeSma.Any() && atr.Any() &&
-                          macd.Last().Macd.HasValue &&
-                          ema.Last().Ema.HasValue &&
-                          volumeSma.Last().Sma.HasValue &&
-                          atr.Last().Atr.HasValue;
+            var macdList = macd.ToList();
+            var emaList = ema.ToList();
+            var volumeSmaList = volumeSma.ToList();
+            var atrList = atr.ToList();
+            var adxList = adx.ToList();
 
-            if (!isValid) indicators.Add(new StrategyIndicator("Error", "InvalidIndicatorValues"));
+            bool isValid = 
+                macdList.Count > 0 && 
+                emaList.Count > 0 && 
+                volumeSmaList.Count > 0 && 
+                atrList.Count > 0 &&
+                adxList.Count > 0 &&
+                macdList.Last().Histogram.HasValue &&
+                emaList.Last().Ema.HasValue &&
+                volumeSmaList.Last().Sma.HasValue &&
+                atrList.Last().Atr.HasValue &&
+                adxList.Last().Adx.HasValue;
+
+            if (!isValid) 
+            {
+                indicators.Add(new StrategyIndicator("Error", "InvalidIndicatorValues"));
+                indicators.Add(new StrategyIndicator("Debug", 
+                    $"MACD: {macdList.Count}, EMA: {emaList.Count}, VolSMA: {volumeSmaList.Count}, ATR: {atrList.Count}, ADX: {adxList.Count}"));
+            }
             return isValid;
         }
     }
