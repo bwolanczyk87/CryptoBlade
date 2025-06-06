@@ -42,6 +42,17 @@ namespace CryptoBlade
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
 
+            // Program.cs
+            builder.Services.Configure<DeepSeekConfig>(builder.Configuration.GetSection("DeepSeek"));
+            builder.Services.AddHttpClient<IDeepSeekClient, DeepSeekClient>();
+            builder.Services.AddSingleton<DeepSeekClient>();
+
+            // Wczytaj konfigurację kont
+            var configReader = new DeepSeekAccountReader("appsettings.Accounts.json");
+            DeepSeekAccountConfig deepSeekConfig = configReader.ReadConfig();
+            builder.Services.AddSingleton(deepSeekConfig);
+
+
             // Add services to the container.
             builder.Services.AddRazorPages();
             var healthChecksBuilder = builder.Services.AddHealthChecks();
@@ -56,7 +67,7 @@ namespace CryptoBlade
                 });
             });
 
-            if(tradingBotOptions == null)
+            if (tradingBotOptions == null)
             {
                 Console.WriteLine("No configuration found.");
                 return;
@@ -117,7 +128,7 @@ namespace CryptoBlade
         }
 
         private static void AddBackTestDependencies(WebApplicationBuilder builder, IHealthChecksBuilder healthChecksBuilder)
-        { 
+        {
             builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
             builder.Services.AddSingleton<ITradingStrategyFactory, TradingStrategyFactory>();
             builder.Services.AddSingleton<IBackTestIdProvider, BackTestIdProvider>();
@@ -138,8 +149,8 @@ namespace CryptoBlade
                 var symbolManager = sp.GetRequiredService<ITradingSymbolsManager>();
 
                 var exchange = new BackTestExchange(
-                    options, 
-                    backtestDownloader, 
+                    options,
+                    backtestDownloader,
                     historicalDataStorage,
                     cbRestClient,
                     symbolManager);
@@ -190,7 +201,7 @@ namespace CryptoBlade
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
-                
+
                 return downloader;
             });
             builder.Services.AddSingleton<IHistoricalDataStorage, ProtoHistoricalDataStorage>();
@@ -211,7 +222,7 @@ namespace CryptoBlade
             {
                 PlaceOrderAttempts = 5
             });
-            var cbRestClient = new BybitCbFuturesRestClient(cbRestClientOptions, 
+            var cbRestClient = new BybitCbFuturesRestClient(cbRestClientOptions,
                 tradingBotOptions,
                 bybit,
                 ApplicationLogging.CreateLogger<BybitCbFuturesRestClient>());
@@ -246,7 +257,7 @@ namespace CryptoBlade
                 builder.Services.AddSingleton<ITradeStrategyManager, DefaultTradingStrategyManager>();
             }
 
-            var mainAccount = tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal)) ?? 
+            var mainAccount = tradingBotOptions.Accounts.FirstOrDefault(x => string.Equals(x.Name, tradingBotOptions.AccountName, StringComparison.Ordinal)) ??
                 throw new InvalidOperationException("No account found with the name specified in the configuration.");
 
             if (mainAccount.HasApiCredentials())
@@ -282,7 +293,7 @@ namespace CryptoBlade
                     {
                         socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
                     }
-                    if(mainAccount.IsDemo)
+                    if (mainAccount.IsDemo)
                     {
                         socketClientOptions.Environment = (BybitEnvironment)BybitEnvironment.CreateCustom("BybitEnvironment.Demo", "https://api-demo.bybit.com", "wss://stream-demo.bybit.com");
                     }

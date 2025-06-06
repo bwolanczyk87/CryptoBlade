@@ -1,6 +1,9 @@
-﻿using CryptoBlade.Configuration;
+﻿using System.Text;
+using System.Text.Json;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
+using CryptoBlade.Services;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
@@ -10,32 +13,25 @@ namespace CryptoBlade.Strategies
 {
     public class MomentumStrategy : TradingStrategyBase
     {
-        // Hiperparametry zoptymalizowane pod 5min/1h
-        private const int TrendEmaPeriod = 100;
-        private const int MacdFastPeriod = 8;
-        private const int MacdSlowPeriod = 21;
-        private const int MacdSignalPeriod = 5;  // Szybszy sygnał
-        private const int VolumeLookback = 12;
-        private const decimal VolumeSpikeMultiplier = 1.5m;
-        private const int AtrPeriod = 14;
-        private const int AdxPeriod = 14;  // Filtr siły trendu
-        private const decimal AdxThreshold = 25m;
-        private const decimal AtrMultiplierSl = 1.5m;
-        private const decimal RiskRewardRatio = 1.7m;  // Zwiększony RR
-        private const decimal MaxSlippagePercent = 0.03m;
+        private const int MaxCandlesPerTimeframe = 100;
         private const decimal MinAtrPercent = 0.4m;
-
-        private DateTime m_lastSignalTime;
-        private decimal? m_entryPrice;
+        private readonly IDeepSeekClient _deepSeekClient;
+        private readonly DeepSeekAccount? _deepSeekAccount;
+        private readonly Random _random = new();
+        private int _currentApiKeyIndex;
 
         public MomentumStrategy(
             IOptions<MomentumStrategyOptions> strategyOptions,
             IOptions<TradingBotOptions> botOptions,
             string symbol,
             IWalletManager walletManager,
-            ICbFuturesRestClient restClient)
+            ICbFuturesRestClient restClient,
+            IDeepSeekClient deepSeekClient,
+            DeepSeekAccountConfig deepSeekConfig)
             : base(strategyOptions as IOptions<TradingStrategyBaseOptions>, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
+            _deepSeekClient = deepSeekClient;
+            _deepSeekAccount = deepSeekConfig.Accounts.Where(a => a.ApiName == symbol.ToLower()).FirstOrDefault();
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
@@ -46,164 +42,173 @@ namespace CryptoBlade.Strategies
         {
             return new[]
             {
-                new TimeFrameWindow(TimeFrame.OneHour, 150, true),    // HTF: trend + ADX
-                new TimeFrameWindow(TimeFrame.FiveMinutes, 120, false) // LTF: entry signals
+                new TimeFrameWindow(TimeFrame.OneHour, MaxCandlesPerTimeframe, true),
+                new TimeFrameWindow(TimeFrame.FiveMinutes, MaxCandlesPerTimeframe, false)
             };
         }
 
-        protected override Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
+        protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
-            var indicators = new List<StrategyIndicator>();
-            try
+            if (_deepSeekAccount != null)
             {
-                if (!IsInTrade)
+                var indicators = new List<StrategyIndicator>();
+                try
                 {
-                    // Pobierz dane z timeframe'ów
+                    if (IsInTrade)
+                        return NoSignal(indicators, "Already in trade");
+
+                    // Pobierz dane historyczne
                     var htfQuotes = QuoteQueues[TimeFrame.OneHour].GetQuotes();
                     var ltfQuotes = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
 
-                    // Walidacja danych
-                    if (!ValidateData(htfQuotes, ltfQuotes, indicators))
-                        return Task.FromResult(NoSignal(indicators, "InvalidData"));
+                    // Oblicz wskaźniki
+                    var indicatorsData = CalculateIndicators(htfQuotes, ltfQuotes);
 
-                    // Wskaźniki HTF (1h)
-                    var htfEma = htfQuotes.GetEma(TrendEmaPeriod);
-                    var htfAdx = htfQuotes.GetAdx(AdxPeriod);
+                    // // Waliduj zmienność
+                    // if (!ValidateVolatility(ltfQuotes, indicatorsData.Atr, indicators))
+                    //     return NoSignal(indicators, "Low volatility");
 
-                    // Wskaźniki LTF (5min)
-                    var ltfMacd = ltfQuotes.GetMacd(MacdFastPeriod, MacdSlowPeriod, MacdSignalPeriod);
-                    var volumeSma = ltfQuotes.Use(CandlePart.Volume).GetSma(VolumeLookback);
-                    var atr = ltfQuotes.GetAtr(AtrPeriod);
+                    // Przygotuj dane dla AI
+                    var aiRequest = BuildAIRequest(htfQuotes, ltfQuotes, indicatorsData);
 
-                    // Walidacja
-                    if (!ValidateIndicators(ltfMacd, htfEma, volumeSma, atr, htfAdx, indicators))
-                        return Task.FromResult(NoSignal(indicators, "InvalidIndicators"));
+                    var apiKey = _deepSeekAccount.ApiKey;
+                    var aiResponse = await _deepSeekClient.GetTradingSignalAsync(aiRequest, apiKey, cancel);
 
-                    // Ostatnie wartości
-                    var lastHtfQuote = htfQuotes.Last();
-                    var lastLtfQuote = ltfQuotes.Last();
-                    decimal htfEmaValue = (decimal)htfEma.Last().Ema;
-                    var lastMacd = ltfMacd.Last();
-                    decimal volumeSmaValue = (decimal)volumeSma.Last().Sma;
-                    decimal atrValue = (decimal)atr.Last().Atr;
-                    decimal adxValue = (decimal)htfAdx.Last().Adx;
-
-                    // Filtr zmienności
-                    decimal atrPercent = (atrValue / lastLtfQuote.Close) * 100;
-                    if (atrPercent < MinAtrPercent)
-                        return Task.FromResult(NoSignal(indicators, $"LowVolatility({atrPercent:F2}%)"));
-
-                    // Główny filtr trendu
-                    bool isBullTrend = lastHtfQuote.Close > htfEmaValue;
-                    bool isBearTrend = lastHtfQuote.Close < htfEmaValue;
-
-                    // Filtr siły trendu (ADX)
-                    bool strongTrend = adxValue >= AdxThreshold;
-
-                    // Spik wolumenu
-                    bool volumeSpike = lastLtfQuote.Volume > volumeSmaValue * VolumeSpikeMultiplier;
-
-                    // Analiza histogramu MACD (szybsze sygnały)
-                    var macdHistogram = ltfMacd.Select(x => x.Histogram ?? 0).ToList();
-                    bool bullishMomentum = IsHistogramRising(macdHistogram);
-                    bool bearishMomentum = IsHistogramFalling(macdHistogram);
-
-                    // Warunki wejścia
-                    bool longSignal = isBullTrend && strongTrend && bullishMomentum && volumeSpike;
-                    bool shortSignal = isBearTrend && strongTrend && bearishMomentum && volumeSpike;
-
-                    if (longSignal)
-                    {
-                        return Task.FromResult(EnterLong(ltfQuotes, atr, indicators));
-                    }
-                    else if (shortSignal)
-                    {
-                        return Task.FromResult(EnterShort(ltfQuotes, atr, indicators));
-                    }
+                    // Przetwórz odpowiedź AI
+                    return ProcessAIResponse(aiResponse, indicators);
+                }
+                catch (Exception ex)
+                {
+                    indicators.Add(new StrategyIndicator("Error", ex.Message));
+                    return NoSignal(indicators, "AI Error");
                 }
             }
-            catch (Exception ex)
+            return NoSignal([], "DeepSeek account not configured");
+        }
+
+        private (IEnumerable<MacdResult> Macd, IEnumerable<EmaResult> Ema,
+                 IEnumerable<SmaResult> VolumeSma, IEnumerable<AtrResult> Atr,
+                 IEnumerable<AdxResult> Adx) CalculateIndicators(
+            IEnumerable<Quote> htfQuotes,
+            IEnumerable<Quote> ltfQuotes)
+        {
+            return (
+                Macd: ltfQuotes.GetMacd(8, 21, 5),
+                Ema: htfQuotes.GetEma(100),
+                VolumeSma: ltfQuotes.Use(CandlePart.Volume).GetSma(12),
+                Atr: ltfQuotes.GetAtr(14),
+                Adx: htfQuotes.GetAdx(14)
+            );
+        }
+
+        private bool ValidateVolatility(
+            IEnumerable<Quote> quotes,
+            IEnumerable<AtrResult> atrResults,
+            List<StrategyIndicator> indicators)
+        {
+            var lastQuote = quotes.Last();
+            var lastAtr = atrResults.Last().Atr ?? 0;
+            decimal atrPercent = (decimal)(lastAtr / (double)lastQuote.Close) * 100;
+
+            if (atrPercent < MinAtrPercent)
             {
-                indicators.Add(new StrategyIndicator("Error", ex.Message));
+                indicators.Add(new StrategyIndicator("ATR%", $"{atrPercent:F2}%"));
+                return false;
+            }
+            return true;
+        }
+
+        private AISignalRequest BuildAIRequest(
+            IReadOnlyList<Quote> htfQuotes,
+            IReadOnlyList<Quote> ltfQuotes,
+            (IEnumerable<MacdResult> Macd, IEnumerable<EmaResult> Ema,
+             IEnumerable<SmaResult> VolumeSma, IEnumerable<AtrResult> Atr,
+             IEnumerable<AdxResult> Adx) indicators)
+        {
+            var context = new TradingContext
+            {
+                Symbol = Symbol,
+                Leverage = SymbolInfo.MaxLeverage.Value,
+                Balance = WalletManager.Contract.WalletBalance.Value,
+                CurrentPrice = Ticker?.LastPrice ?? 0,
+                OpenPositions = this.LongPosition != null ? 1 : 0 + (this.ShortPosition != null ? 1 : 0)
+            };
+
+            return new AISignalRequest
+            {
+                Context = context,
+                HtfQuotes = CompressQuotes(htfQuotes, TimeFrame.OneHour),
+                LtfQuotes = CompressQuotes(ltfQuotes, TimeFrame.FiveMinutes),
+                Indicators = new TradingIndicators
+                {
+                    Ema100 = indicators.Ema.Last().Ema ?? 0,
+                    Adx = indicators.Adx.Last().Adx ?? 0,
+                    MacdHistogram = indicators.Macd.Last().Histogram ?? 0,
+                    VolumeSma = indicators.VolumeSma.Last().Sma ?? 0,
+                    CurrentVolume = (double)ltfQuotes.Last().Volume,
+                    Atr = indicators.Atr.Last().Atr ?? 0
+                }
+            };
+        }
+
+        private List<CompressedQuote> CompressQuotes(IEnumerable<Quote> quotes, TimeFrame timeframe)
+        {
+            return quotes
+                .TakeLast(MaxCandlesPerTimeframe)
+                .Select(q => new CompressedQuote(
+                    q.Date,
+                    (float)q.Open,
+                    (float)q.High,
+                    (float)q.Low,
+                    (float)q.Close,
+                    (float)q.Volume,
+                    timeframe.ToString()))
+                .ToList();
+        }
+
+        private SignalEvaluation ProcessAIResponse(AISignalResponse response, List<StrategyIndicator> indicators)
+        {
+            indicators.Add(new StrategyIndicator("AI-Confidence", $"{response.Confidence}%"));
+            indicators.Add(new StrategyIndicator("AI-Reason", response.Reason));
+
+            if (response.Confidence < 70)
+                return NoSignal(indicators, $"Low confidence: {response.Confidence}%");
+
+            if (response.BuySignal)
+            {
+                return GenerateSignal(
+                    isLong: true,
+                    entryPrice: response.EntryPrice ?? Ticker?.BestAskPrice ?? 0,
+                    stopLoss: response.StopLoss,
+                    takeProfit: response.TakeProfit,
+                    quantity: response.Quantity,
+                    indicators: indicators);
             }
 
-            return Task.FromResult(NoSignal(indicators, "NoSignal"));
+            if (response.SellSignal)
+            {
+                return GenerateSignal(
+                    isLong: false,
+                    entryPrice: response.EntryPrice ?? Ticker?.BestBidPrice ?? 0,
+                    stopLoss: response.StopLoss,
+                    takeProfit: response.TakeProfit,
+                    quantity: response.Quantity,
+                    indicators: indicators);
+            }
+
+            return NoSignal(indicators, "No AI signal");
         }
 
-        private bool IsHistogramRising(List<double> histogram)
-        {
-            if (histogram.Count < 3) return false;
-            
-            // Obecna i poprzednia wartość
-            double current = histogram[^1];
-            double prev = histogram[^2];
-            double prev2 = histogram[^3];
-
-            // Warunek: histogram rośnie i jest powyżej zera
-            return current > prev && prev > prev2 && current > 0;
-        }
-
-        private bool IsHistogramFalling(List<double> histogram)
-        {
-            if (histogram.Count < 3) return false;
-            
-            double current = histogram[^1];
-            double prev = histogram[^2];
-            double prev2 = histogram[^3];
-
-            // Warunek: histogram spada i jest poniżej zera
-            return current < prev && prev < prev2 && current < 0;
-        }
-
-        private SignalEvaluation EnterLong(
-            IEnumerable<Quote> ltfQuotes,
-            IEnumerable<AtrResult> atr,
+        private SignalEvaluation GenerateSignal(
+            bool isLong,
+            decimal entryPrice,
+            decimal stopLoss,
+            decimal takeProfit,
+            decimal quantity,
             List<StrategyIndicator> indicators)
         {
-            if (Ticker == null || SymbolInfo == null)
-                return NoSignal(indicators, "MissingData");
+            indicators.Add(new StrategyIndicator("Signal", isLong ? "LONG" : "SHORT"));
 
-            var lastQuote = ltfQuotes.Last();
-            decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
-
-            // Wejście z minimalnym slippage'iem
-            decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
-            m_entryPrice = Math.Min(Ticker.BestAskPrice, lastQuote.Close + allowedSlippage);
-
-            // Dynamiczne SL/TP
-            StopLossPrice = Math.Round(m_entryPrice.Value - atrValue * AtrMultiplierSl,
-                                    (int)SymbolInfo.PriceScale);
-            TakeProfitPrice = Math.Round(m_entryPrice.Value + (m_entryPrice.Value - StopLossPrice.Value) * RiskRewardRatio,
-                                    (int)SymbolInfo.PriceScale);
-
-            return GenerateSignal(indicators, true, "Long");
-        }
-
-        private SignalEvaluation EnterShort(
-            IEnumerable<Quote> ltfQuotes,
-            IEnumerable<AtrResult> atr,
-            List<StrategyIndicator> indicators)
-        {
-            if (Ticker == null || SymbolInfo == null)
-                return NoSignal(indicators, "MissingData");
-
-            var lastQuote = ltfQuotes.Last();
-            decimal atrValue = (decimal)(atr.Last().Atr ?? 1);
-
-            decimal allowedSlippage = lastQuote.Close * MaxSlippagePercent;
-            m_entryPrice = Math.Max(Ticker.BestBidPrice, lastQuote.Close - allowedSlippage);
-
-            StopLossPrice = Math.Round(m_entryPrice.Value + atrValue * AtrMultiplierSl,
-                                    (int)SymbolInfo.PriceScale);
-            TakeProfitPrice = Math.Round(m_entryPrice.Value - (StopLossPrice.Value - m_entryPrice.Value) * RiskRewardRatio,
-                                    (int)SymbolInfo.PriceScale);
-
-            return GenerateSignal(indicators, false, "Short");
-        }
-
-        private SignalEvaluation GenerateSignal(List<StrategyIndicator> indicators, bool isLong, string condition)
-        {
-            indicators.Add(new StrategyIndicator("Condition", condition));
             return new SignalEvaluation(
                 isLong,
                 !isLong,
@@ -217,61 +222,180 @@ namespace CryptoBlade.Strategies
             indicators.Add(new StrategyIndicator("Reason", reason));
             return new SignalEvaluation(false, false, false, false, indicators.ToArray());
         }
+    }
 
-        private bool ValidateData(
-            IReadOnlyList<Quote> htfQuotes,
-            IReadOnlyList<Quote> ltfQuotes,
-            List<StrategyIndicator> indicators)
+    public interface IDeepSeekClient
+    {
+        Task<AISignalResponse> GetTradingSignalAsync(AISignalRequest request, string apiKey, CancellationToken cancel);
+    }
+
+    public class DeepSeekClient : IDeepSeekClient
+    {
+        private readonly HttpClient _httpClient;
+
+        public DeepSeekClient(HttpClient httpClient)
         {
-            int minHtfQuotes = Math.Max(TrendEmaPeriod, AdxPeriod) + 20; // 120
-            int minLtfQuotes = MacdSlowPeriod + MacdSignalPeriod + 20; // 46
-            
-            bool isValid = htfQuotes.Count >= minHtfQuotes
-                          && ltfQuotes.Count >= minLtfQuotes
-                          && Ticker != null
-                          && SymbolInfo != null;
-
-            if (!isValid)
-            {
-                indicators.Add(new StrategyIndicator("Error",
-                    $"Insufficient data: HTF={htfQuotes.Count}/{minHtfQuotes}, LTF={ltfQuotes.Count}/{minLtfQuotes}"));
-            }
-            return isValid;
+            _httpClient = httpClient;
         }
 
-        private bool ValidateIndicators(
-            IEnumerable<MacdResult> macd,
-            IEnumerable<EmaResult> ema,
-            IEnumerable<SmaResult> volumeSma,
-            IEnumerable<AtrResult> atr,
-            IEnumerable<AdxResult> adx,
-            List<StrategyIndicator> indicators)
+        public async Task<AISignalResponse> GetTradingSignalAsync(
+            AISignalRequest request,
+            string apiKey,
+            CancellationToken cancel)
         {
-            var macdList = macd.ToList();
-            var emaList = ema.ToList();
-            var volumeSmaList = volumeSma.ToList();
-            var atrList = atr.ToList();
-            var adxList = adx.ToList();
+            // Budowanie promptu dla AI
+            var prompt = BuildPrompt(request);
 
-            bool isValid = 
-                macdList.Count > 0 && 
-                emaList.Count > 0 && 
-                volumeSmaList.Count > 0 && 
-                atrList.Count > 0 &&
-                adxList.Count > 0 &&
-                macdList.Last().Histogram.HasValue &&
-                emaList.Last().Ema.HasValue &&
-                volumeSmaList.Last().Sma.HasValue &&
-                atrList.Last().Atr.HasValue &&
-                adxList.Last().Adx.HasValue;
+            // Wywołanie API DeepSeek
+            var response = await SendDeepSeekRequest(prompt, apiKey, cancel);
 
-            if (!isValid) 
-            {
-                indicators.Add(new StrategyIndicator("Error", "InvalidIndicatorValues"));
-                indicators.Add(new StrategyIndicator("Debug", 
-                    $"MACD: {macdList.Count}, EMA: {emaList.Count}, VolSMA: {volumeSmaList.Count}, ATR: {atrList.Count}, ADX: {adxList.Count}"));
-            }
-            return isValid;
+            // Parsowanie odpowiedzi
+            return ParseResponse(response);
         }
+
+        private string BuildPrompt(AISignalRequest request)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Jesteś ekspertem tradingowym analizującym rynek kryptowalut. Wygeneruj sygnał w formacie JSON:");
+            sb.AppendLine("{\"BuySignal\":bool,\"SellSignal\":bool,\"EntryPrice\":float,\"StopLoss\":float,");
+            sb.AppendLine("\"TakeProfit\":float,\"Quantity\":float,\"Confidence\":0-100,\"Reason\":string}");
+            sb.AppendLine("Zasady:");
+            sb.AppendLine("- Tylko 1 aktywny sygnał (Buy LUB Sell)");
+            sb.AppendLine("- Confidence < 70 = brak sygnału");
+            sb.AppendLine("- Quantity: ryzykuj max 2% kapitału");
+            sb.AppendLine();
+            sb.AppendLine($"### Kontekst:");
+            sb.AppendLine($"- Symbol: {request.Context.Symbol}");
+            sb.AppendLine($"- Balance: {request.Context.Balance:F2} USDT");
+            sb.AppendLine($"- Price: {request.Context.CurrentPrice:F2}");
+            sb.AppendLine();
+            sb.AppendLine("### Wskaźniki:");
+            sb.AppendLine($"- EMA100(1h): {request.Indicators.Ema100:F2}");
+            sb.AppendLine($"- ADX(1h): {request.Indicators.Adx:F2}");
+            sb.AppendLine($"- MACD Hist(5m): {request.Indicators.MacdHistogram:F4}");
+            sb.AppendLine($"- Volume(5m): {request.Indicators.CurrentVolume:F2} vs SMA: {request.Indicators.VolumeSma:F2}");
+            sb.AppendLine($"- ATR(5m): {request.Indicators.Atr:F2}");
+            sb.AppendLine();
+            sb.AppendLine("### Dane historyczne (skompresowane):");
+            sb.AppendLine(CompressToCsv(request.HtfQuotes, "HTF"));
+            sb.AppendLine(CompressToCsv(request.LtfQuotes, "LTF"));
+
+            return sb.ToString();
+        }
+
+        private string CompressToCsv(List<CompressedQuote> quotes, string prefix)
+        {
+            var sb = new StringBuilder();
+            foreach (var q in quotes)
+            {
+                sb.AppendLine($"{prefix},{q.Timestamp:yyyy-MM-dd HH:mm:ss},{q.Open:F1},{q.High:F1},{q.Low:F1},{q.Close:F1},{q.Volume:F2}");
+            }
+            return sb.ToString();
+        }
+
+        private async Task<string> SendDeepSeekRequest(string prompt, string apiKey, CancellationToken cancel)
+        {
+            var request = new
+            {
+                model = "deepseek-reasoner",
+                messages = new[] { new { role = "user", content = prompt } },
+                temperature = 0.3,
+                max_tokens = 500
+            };
+
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.deepseek.com/chat/completions");
+            httpRequest.Headers.Add("Authorization", $"Bearer {apiKey}");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
+
+            using var response = await _httpClient.SendAsync(httpRequest, cancel);
+
+            if ((int)response.StatusCode == 429)
+                throw new ApiRateLimitException("Rate limit exceeded");
+
+            response.EnsureSuccessStatusCode();
+
+            var jsonResponse = await response.Content.ReadAsStringAsync(cancel);
+            using var doc = JsonDocument.Parse(jsonResponse);
+            return doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+        }
+
+        private AISignalResponse ParseResponse(string aiResponse)
+        {
+            try
+            {
+                var start = aiResponse.IndexOf('{');
+                var end = aiResponse.LastIndexOf('}') + 1;
+                var json = aiResponse[start..end];
+
+                return JsonSerializer.Deserialize<AISignalResponse>(json);
+            }
+            catch
+            {
+                // Fallback dla błędów parsowania
+                return new AISignalResponse { Confidence = 0, Reason = "Invalid response format" };
+            }
+        }
+    }
+
+    public class ApiRateLimitException : Exception
+    {
+        public ApiRateLimitException(string message) : base(message) { }
+    }
+
+    public class AISignalRequest
+    {
+        public TradingContext Context { get; set; }
+        public List<CompressedQuote> HtfQuotes { get; set; }
+        public List<CompressedQuote> LtfQuotes { get; set; }
+        public TradingIndicators Indicators { get; set; }
+    }
+
+    public class AISignalResponse
+    {
+        public bool BuySignal { get; set; }
+        public bool SellSignal { get; set; }
+        public decimal? EntryPrice { get; set; }
+        public decimal StopLoss { get; set; }
+        public decimal TakeProfit { get; set; }
+        public decimal Quantity { get; set; }
+        public int Confidence { get; set; }
+        public string Reason { get; set; }
+    }
+
+    public class TradingContext
+    {
+        public string Symbol { get; set; }
+        public decimal Leverage { get; set; }
+        public decimal Balance { get; set; }
+        public decimal CurrentPrice { get; set; }
+        public int OpenPositions { get; set; }
+    }
+
+    public class TradingIndicators
+    {
+        public double Ema100 { get; set; }
+        public double Adx { get; set; }
+        public double MacdHistogram { get; set; }
+        public double VolumeSma { get; set; }
+        public double CurrentVolume { get; set; }
+        public double Atr { get; set; }
+    }
+
+    public record CompressedQuote(
+        DateTime Timestamp,
+        float Open,
+        float High,
+        float Low,
+        float Close,
+        float Volume,
+        string Timeframe);
+
+    public class DeepSeekConfig
+    {
+        public List<string> ApiKeys { get; set; } = new();
     }
 }

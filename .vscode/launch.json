@@ -27,6 +27,19 @@
             "name": "PowerShell: Launch Script",
             "script": "${file}",
             "args": []
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": [],
+            "python": "${workspaceFolder}/.venv/bin/python"
         }
     ]
 }

@@ -3,6 +3,11 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+.venv/
+__pycache__/
+.encryption_key
+appsettings.Accounts.json
+
 /CBClone/
 /CryptoBlade/Data/HistoricalData
 /CryptoBlade/Data/Strategies/*/Backtest/Results/
