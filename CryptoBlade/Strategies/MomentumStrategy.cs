@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
@@ -16,45 +11,37 @@ using Skender.Stock.Indicators;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
+using Microsoft.Extensions.ObjectPool;
 
 namespace CryptoBlade.Strategies
 {
     public class MomentumStrategy : TradingStrategyBase
     {
+        public override string Name => "Momentum";
+        protected override bool UseMarketOrdersForEntries => true;
         private const int MaxConversationHistory = 5;
         private const int MaxCandlesPerTimeframe = 100;
-        private readonly OpenAIClient _deepSeekClient;
+        private readonly ChatClient _chatClient;
         private readonly List<ChatMessage> _conversationHistory = new();
         private readonly Dictionary<string, Func<IEnumerable<Quote>, object>> _indicatorCalculators;
-        private List<string> _activeIndicators = new() { "EMA", "MACD", "RSI", "Volume", "ATR" };
+        private List<string> _activeIndicators = ["EMA", "MACD", "RSI", "Volume", "ATR"];
+        private List<string> _activeCandles = ["1H|12", "15M|16", "5M|60"];
         private bool _isInitialized = false;
 
-        public MomentumStrategy(
-            IOptions<MomentumStrategyOptions> strategyOptions,
-            IOptions<TradingBotOptions> botOptions,
-            string symbol,
-            IWalletManager walletManager,
-            ICbFuturesRestClient restClient,
-            DeepSeekAccountConfig deepSeekConfig)
-            : base(strategyOptions as IOptions<TradingStrategyBaseOptions>, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
+        public MomentumStrategy(IOptions<MomentumStrategyOptions> strategyOptions, IOptions<TradingBotOptions> botOptions, string symbol,
+            IWalletManager walletManager, ICbFuturesRestClient restClient, DeepSeekAccountConfig deepSeekConfig)
+            : base(strategyOptions, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
-            // Initialize DeepSeek client
-            var account = deepSeekConfig.Accounts.FirstOrDefault(a => a.ApiName == symbol.ToLower());
-            if (account == null)
-                throw new Exception($"DeepSeek account not found for symbol {symbol}");
+            var account = deepSeekConfig.Accounts.FirstOrDefault(a => a.ApiName == symbol.ToLower())
+                ?? throw new Exception($"DeepSeek account not found for symbol {symbol}");
 
-            var clientOptions = new OpenAIClientOptions
-            {
-                // Ustawienie endpointa DeepSeek
-                Endpoint = new Uri("https://api.deepseek.com")
-            };
-            
-            _deepSeekClient = new OpenAIClient(
+            var deepSeekClient = new OpenAIClient(
                 new ApiKeyCredential(account.ApiKey),
-                clientOptions
+                new OpenAIClientOptions { Endpoint = new Uri("https://api.deepseek.com") }
             );
-            
-            // Register available indicators
+
+            _chatClient = deepSeekClient.GetChatClient("deepseek-chat");
+
             _indicatorCalculators = new()
             {
                 ["EMA"] = q => q.GetEma(100).Last(),
@@ -72,20 +59,18 @@ namespace CryptoBlade.Strategies
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
 
-        public override string Name => "Momentum";
-        protected override bool UseMarketOrdersForEntries => true;
 
         private static TimeFrameWindow[] BuildTimeFrameWindows()
         {
-            return new[]
-            {
+            return
+            [
                 new TimeFrameWindow(TimeFrame.OneDay, MaxCandlesPerTimeframe, true),
                 new TimeFrameWindow(TimeFrame.FourHours, MaxCandlesPerTimeframe, true),
                 new TimeFrameWindow(TimeFrame.OneHour, MaxCandlesPerTimeframe, true),
                 new TimeFrameWindow(TimeFrame.FifteenMinutes, MaxCandlesPerTimeframe, false),
                 new TimeFrameWindow(TimeFrame.FiveMinutes, MaxCandlesPerTimeframe, false),
                 new TimeFrameWindow(TimeFrame.OneMinute, MaxCandlesPerTimeframe, false)
-            };
+            ];
         }
 
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
@@ -97,41 +82,24 @@ namespace CryptoBlade.Strategies
                 if (IsInTrade)
                     return NoSignal(indicators, "Already in trade");
 
-                // Initialize conversation on first run
                 if (!_isInitialized)
                 {
                     await InitializeConversationAsync();
                     _isInitialized = true;
                 }
 
-                // Get data from multiple timeframes
                 var quotes = new Dictionary<TimeFrame, IEnumerable<Quote>>();
                 foreach (var timeframe in QuoteQueues.Keys)
                 {
                     quotes[timeframe] = QuoteQueues[timeframe].GetQuotes().TakeLast(MaxCandlesPerTimeframe);
                 }
 
-                // Prepare data for AI
                 var userMessage = BuildUserMessage(quotes);
-
-                // Add user message to history
                 _conversationHistory.Add(new UserChatMessage(userMessage));
-
-                // Trim conversation history
                 TrimConversationHistory();
-
-                // Get AI response
                 var aiResponse = await GetAIResponseAsync(cancel);
-
-                // Add AI response to history
                 _conversationHistory.Add(new AssistantChatMessage(aiResponse));
-
-                // Parse the response
                 var signal = ParseAIResponse(aiResponse, indicators);
-
-                // Update active indicators based on AI request
-                UpdateActiveIndicators(aiResponse);
-
                 return signal;
             }
             catch (Exception ex)
@@ -141,42 +109,52 @@ namespace CryptoBlade.Strategies
             }
         }
 
-        private async Task InitializeConversationAsync()
+        private Task InitializeConversationAsync()
         {
-            var initMessage = new StringBuilder();
-            initMessage.AppendLine("Jesteś ekspertem tradingowym specjalizującym się w kryptowalutach. Twoje zadanie:");
-            initMessage.AppendLine("- Analizuj dane rynkowe w czasie rzeczywistym");
-            initMessage.AppendLine("- Generuj sygnały w formacie JSON");
-            initMessage.AppendLine("- Możesz żądać dodatkowych wskaźników");
-            initMessage.AppendLine();
-            initMessage.AppendLine("Zasady:");
-            initMessage.AppendLine("- Tylko 1 aktywny sygnał (LONG lub SHORT)");
-            initMessage.AppendLine("- Confidence < 70 = brak sygnału");
-            initMessage.AppendLine("- Ryzyko: max 2% kapitału na transakcję");
-            initMessage.AppendLine();
-            initMessage.AppendLine("Dostępne timeframe:");
-            initMessage.AppendLine("- 1D, 4H, 1H, 15M, 5M, 1M");
-            initMessage.AppendLine();
-            initMessage.AppendLine("Dostępne wskaźniki:");
-            foreach (var indicator in _indicatorCalculators.Keys)
-            {
-                initMessage.AppendLine($"- {indicator}");
-            }
-            initMessage.AppendLine();
-            initMessage.AppendLine("Format odpowiedzi:");
-            initMessage.AppendLine("{");
-            initMessage.AppendLine("  \"signal\": \"LONG|SHORT|NONE\",");
-            initMessage.AppendLine("  \"confidence\": 0-100,");
-            initMessage.AppendLine("  \"entry_price\": number,");
-            initMessage.AppendLine("  \"stop_loss\": number,");
-            initMessage.AppendLine("  \"take_profit\": number,");
-            initMessage.AppendLine("  \"quantity\": number,");
-            initMessage.AppendLine("  \"reason\": \"string\",");
-            initMessage.AppendLine("  \"requested_indicators\": [\"indicator1\", \"indicator2\"]");
-            initMessage.AppendLine("}");
+            const string initMessage = """
+                You are AI trading ultimate instace. Rules:
+                - Produce ONLY JSON response in the following format: 
+                {
+                    "signal": "LONG|SHORT|NONE",
+                    "confidence": 0-100,
+                    "entry_price": number,
+                    "stop_loss": number,
+                    "take_profit": number,
+                    "quantity": number,
+                    "reason": "string",
+                    "requested_indicators": ["i1","i2",...],
+                    "requested_candles": ["1D|10","4H|20",...]
+                }
+                - Signal only when confidence >= 70
+                - Risk: max 5% of balance {{balance}} USDT
+                - Choose indicators: {{indicators}}
+                - Available timeframes: 1D,4H,1H,15M,5M,1M
+                - Candles format {timeframe}|{number}
+                """;
 
-            _conversationHistory.Add(new UserChatMessage(initMessage.ToString()));
+            var compressedIndicators = string.Join(",", _indicatorCalculators.Keys
+                .Select(abbr => IndicatorAbbreviations.TryGetValue(abbr, out string? value) ? $"{abbr}({value})" : abbr));
+
+            var finalMessage = initMessage
+                .Replace("{{balance}}", WalletManager.Contract.WalletBalance.ToString())
+                .Replace("{{indicators}}", compressedIndicators);
+
+            _conversationHistory.Add(new SystemChatMessage(finalMessage));
+            return Task.CompletedTask;
         }
+
+        private static readonly Dictionary<string, string> IndicatorAbbreviations = new()
+        {
+            ["EMA"] = "E",
+            ["MACD"] = "M",
+            ["RSI"] = "R",
+            ["ATR"] = "A",
+            ["ADX"] = "D",
+            ["BollingerBands"] = "BB",
+            ["Stochastic"] = "S",
+            ["Ichimoku"] = "I",
+            ["VWAP"] = "V"
+        };
 
         private void TrimConversationHistory()
         {
@@ -195,46 +173,128 @@ namespace CryptoBlade.Strategies
         private string BuildUserMessage(Dictionary<TimeFrame, IEnumerable<Quote>> quotes)
         {
             var request = new StringBuilder();
-            request.AppendLine("### Kontekst");
-            request.AppendLine($"- Symbol: {Symbol}");
-            request.AppendLine($"- Balance: {WalletManager.Contract.WalletBalance:F2} USDT");
-            request.AppendLine($"- Aktualna cena: {Ticker?.LastPrice ?? 0:F2}");
+            request.AppendLine($"SYM:{Symbol} | BAL:{WalletManager.Contract.WalletBalance:F0} | PRC:{Ticker?.LastPrice ?? 0:F2}");
             request.AppendLine();
 
-            request.AppendLine("### Aktywne wskaźniki");
+            request.AppendLine("IND:");
             foreach (var indicator in _activeIndicators)
             {
                 try
                 {
-                    var latestValue = CalculateIndicator(indicator, quotes[TimeFrame.OneHour]);
-                    request.AppendLine($"- {indicator}: {JsonSerializer.Serialize(latestValue)}");
+                    var value = CalculateIndicator(indicator, quotes[TimeFrame.OneHour]);
+                    request.AppendLine($"{GetIndicatorAbbreviation(indicator)}:{FormatIndicatorValue(value)}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    request.AppendLine($"- {indicator}: Error - {ex.Message}");
+                    request.AppendLine($"{GetIndicatorAbbreviation(indicator)}:ERR");
                 }
             }
             request.AppendLine();
 
-            request.AppendLine("### Dane historyczne (ostatnie 5 świec)");
-            foreach (var tf in new[] { TimeFrame.OneDay, TimeFrame.OneHour, TimeFrame.FiveMinutes })
+            request.AppendLine("CANDLES:");
+            var priorityTimeframes = new Dictionary<TimeFrame, int>();
+
+            foreach (var candleRequest in _activeCandles)
             {
-                if (quotes.TryGetValue(tf, out var tfQuotes))
+                try
                 {
-                    request.AppendLine($"#### {tf} Timeframe");
-                    foreach (var quote in tfQuotes.TakeLast(5))
-                    {
-                        request.AppendLine($"- {quote.Date:yyyy-MM-dd HH:mm} O:{quote.Open} H:{quote.High} L:{quote.Low} C:{quote.Close} V:{quote.Volume}");
-                    }
+                    var parts = candleRequest.Split('|');
+                    var timeframe = ParseTimeFrame(parts[0]);
+                    var count = int.Parse(parts[1]);
+
+                    // Walidacja ilości świec
+                    count = Math.Clamp(count, 1, MaxCandlesPerTimeframe);
+                    priorityTimeframes[timeframe] = count;
+                }
+                catch
+                {
+                    // Ignoruj błędne formaty
                 }
             }
 
-            request.AppendLine();
-            request.AppendLine("### Instrukcja");
-            request.AppendLine("Wygeneruj sygnał handlowy w wymaganym formacie JSON. Jeśli potrzebujesz dodatkowych wskaźników, dodaj je do 'requested_indicators'.");
+            // Domyślna konfiguracja jeśli AI nie podało
+            if (priorityTimeframes.Count == 0)
+            {
+                priorityTimeframes = new Dictionary<TimeFrame, int>
+                {
+                    [TimeFrame.OneDay] = 10,
+                    [TimeFrame.OneHour] = 20,
+                    [TimeFrame.FiveMinutes] = 50
+                };
+            }
+
+            // Generowanie danych świecowych
+            foreach (var (timeframe, count) in priorityTimeframes)
+            {
+                if (quotes.TryGetValue(timeframe, out var tfQuotes))
+                {
+                    var candles = tfQuotes.TakeLast(count);
+                    request.Append($"{GetTimeframeAbbreviation(timeframe)}|{count}=");
+
+                    foreach (var quote in candles)
+                    {
+                        // Format: timestamp|O,H,L,C,V
+                        request.Append($"{quote.Date:yyyyMMddHHmm}|");
+                        request.Append($"{quote.Open:F0},");
+                        request.Append($"{quote.High:F0},");
+                        request.Append($"{quote.Low:F0},");
+                        request.Append($"{quote.Close:F0},");
+                        request.Append($"{quote.Volume:F0};");
+                    }
+                    request.AppendLine();
+                }
+            }
+
+            // Instrukcja końcowa
+            request.AppendLine("GENERATE NEXT SIGNAL");
 
             return request.ToString();
         }
+
+        // Metody pomocnicze
+        private static string FormatIndicatorValue(object value)
+        {
+            return value switch
+            {
+                EmaResult ema => ema.Ema?.ToString("F0") ?? "0",
+                MacdResult macd => $"{macd.Macd?.ToString("F1")},{macd.Signal?.ToString("F1")}",
+                RsiResult rsi => rsi.Rsi?.ToString("F0") ?? "0",
+                SmaResult sma => sma.Sma?.ToString("F0") ?? "0",
+                AtrResult atr => atr.Atr?.ToString("F1") ?? "0",
+                AdxResult adx => adx.Adx?.ToString("F0") ?? "0",
+                BollingerBandsResult bb => $"{bb.UpperBand?.ToString("F0")},{bb.LowerBand?.ToString("F0")}",
+                StochResult stoch => $"{stoch.K?.ToString("F0")},{stoch.D?.ToString("F0")}",
+                IchimokuResult ichi => $"{ichi.TenkanSen?.ToString("F0")},{ichi.KijunSen?.ToString("F0")}",
+                VwapResult vwap => vwap.Vwap?.ToString("F0") ?? "0",
+                _ => value.ToString()?[..Math.Min(10, value.ToString()?.Length ?? 0)] ?? "N/A"
+            };
+        }
+
+        private static string GetTimeframeAbbreviation(TimeFrame tf) => tf switch
+        {
+            TimeFrame.OneDay => "1D",
+            TimeFrame.FourHours => "4H",
+            TimeFrame.OneHour => "1H",
+            TimeFrame.FifteenMinutes => "15m",
+            TimeFrame.FiveMinutes => "5m",
+            TimeFrame.OneMinute => "1m",
+            _ => tf.ToString()
+        };
+
+        private static string GetIndicatorAbbreviation(string indicator) => indicator switch
+        {
+            "EMA" => "E",
+            "MACD" => "M",
+            "RSI" => "R",
+            "ATR" => "A",
+            "ADX" => "D",
+            "BollingerBands" => "BB",
+            "Stochastic" => "STO",
+            "Ichimoku" => "ICH",
+            "VWAP" => "VW",
+            "Volume" => "VOL",
+            _ => indicator
+        };
 
         private object CalculateIndicator(string name, IEnumerable<Quote> quotes)
         {
@@ -251,67 +311,37 @@ namespace CryptoBlade.Strategies
             {
                 Temperature = 0.2f,
                 MaxOutputTokenCount = 500,
-                FrequencyPenalty = 0.2f
+                FrequencyPenalty = 0.2f,
+                ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat(),
+                StopSequences = { "\n```", "```json", "}\n" }
             };
 
-            // Konwersja historyi konwersacji na format SDK OpenAI
-            var messages = _conversationHistory
-                .Select(m => m.Role switch
-                {
-                    ChatMessageRole.User => new UserChatMessage(m.Content),
-                    ChatMessageRole.Assistant => new AssistantChatMessage(m.Content),
-                    _ => throw new NotSupportedException($"Role {m.Role} not supported")
-                })
-                .ToList();
-
-            // Wykonanie zapytania do modelu
-            var response = await _deepSeekClient.CompleteChatAsync(
-                messages,
-                "deepseek-chat", // Użyj najnowszego modelu DeepSeek
-                options,
-                cancel);
-
-            var completion = response.Value;
-            
-            // Obsługa różnych scenariuszy zakończenia
-            switch (completion.FinishReason)
-            {
-                case ChatFinishReason.Stop:
-                    return completion.Content[0].Text;
-                
-                case ChatFinishReason.ToolCalls:
-                    // W naszym przypadku nie oczekujemy wywołań funkcji
-                    return "ERROR: Unexpected tool calls";
-                
-                case ChatFinishReason.Length:
-                    return "ERROR: Response too long";
-                
-                case ChatFinishReason.ContentFilter:
-                    return "ERROR: Content filtered";
-                
-                default:
-                    return "ERROR: Unknown finish reason";
-            }
+            var response = await _chatClient.CompleteChatAsync(_conversationHistory, options, cancel);
+            return response.Value.Content[0].Text.Trim();
         }
 
+        private static TimeFrame ParseTimeFrame(string tf) => tf.ToUpper() switch
+        {
+            "1D" => TimeFrame.OneDay,
+            "4H" => TimeFrame.FourHours,
+            "1H" => TimeFrame.OneHour,
+            "15M" => TimeFrame.FifteenMinutes,
+            "5M" => TimeFrame.FiveMinutes,
+            "1M" => TimeFrame.OneMinute,
+            _ => throw new ArgumentException($"Unknown timeframe: {tf}")
+        };
         private SignalEvaluation ParseAIResponse(string response, List<StrategyIndicator> indicators)
         {
             try
             {
-                // Extract the JSON part
-                int jsonStart = response.IndexOf('{');
-                int jsonEnd = response.LastIndexOf('}');
-                if (jsonStart < 0 || jsonEnd < 0)
-                    return NoSignal(indicators, "No JSON found in AI response");
-
-                string jsonResponse = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
-
-                var result = JsonSerializer.Deserialize<AISignalResponse>(jsonResponse);
+                var result = JsonSerializer.Deserialize<AISignalResponse>(response);
                 if (result == null)
                     return NoSignal(indicators, "Failed to parse AI response");
 
                 indicators.Add(new StrategyIndicator("AI-Confidence", $"{result.Confidence}%"));
                 indicators.Add(new StrategyIndicator("AI-Reason", result.Reason));
+                UpdateActiveIndicators(result.RequestedIndicators);
+                _activeCandles = result.RequestedCandles ?? _activeCandles;
 
                 if (result.Confidence < 70)
                     return NoSignal(indicators, $"Low confidence: {result.Confidence}%");
@@ -346,69 +376,55 @@ namespace CryptoBlade.Strategies
             }
         }
 
-        private void UpdateActiveIndicators(string aiResponse)
+        private void UpdateActiveIndicators(List<string>? requestedIndicators)
         {
-            try
+            if (requestedIndicators != null)
             {
-                int jsonStart = aiResponse.IndexOf('{');
-                int jsonEnd = aiResponse.LastIndexOf('}');
-                if (jsonStart < 0 || jsonEnd < 0)
-                    return;
-
-                string jsonResponse = aiResponse.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                var result = JsonSerializer.Deserialize<AISignalResponse>(jsonResponse);
-
-                if (result?.RequestedIndicators != null)
+                foreach (var indicator in requestedIndicators)
                 {
-                    foreach (var indicator in result.RequestedIndicators)
+                    if (_indicatorCalculators.ContainsKey(indicator)
+                        && !_activeIndicators.Contains(indicator))
                     {
-                        if (_indicatorCalculators.ContainsKey(indicator)
-                            && !_activeIndicators.Contains(indicator))
-                        {
-                            _activeIndicators.Add(indicator);
-                        }
+                        _activeIndicators.Add(indicator);
                     }
-
-                    // Limit to 15 indicators to avoid too many
-                    _activeIndicators = _activeIndicators
-                        .Distinct()
-                        .Take(15)
-                        .ToList();
                 }
-            }
-            catch
-            {
-                // Ignore
+                _activeIndicators = [.. _activeIndicators.Distinct()];
             }
         }
 
-        private SignalEvaluation GenerateSignal(
-            bool isLong,
-            decimal entryPrice,
-            decimal stopLoss,
-            decimal takeProfit,
-            decimal quantity,
-            List<StrategyIndicator> indicators)
+        private SignalEvaluation GenerateSignal(bool isLong, decimal entryPrice, decimal stopLoss, decimal takeProfit, decimal quantity, List<StrategyIndicator> indicators)
         {
-            indicators.Add(new StrategyIndicator("Signal", isLong ? "LONG" : "SHORT"));
+            TakeProfitPrice = takeProfit;
+            StopLossPrice = stopLoss;
+            if (isLong)
+            {
+                DynamicQtyLong = quantity;
+                indicators.Add(new StrategyIndicator("Signal", "LONG"));
+            }
+            else
+            {
+                DynamicQtyShort = quantity;
+                indicators.Add(new StrategyIndicator("Signal", "SHORT"));
+            }
+
             return new SignalEvaluation(
                 isLong,
                 !isLong,
                 false,
                 false,
-                indicators.ToArray());
+                [.. indicators]);
         }
 
-        private SignalEvaluation NoSignal(List<StrategyIndicator> indicators, string reason)
+        private static SignalEvaluation NoSignal(List<StrategyIndicator> indicators, string reason)
         {
             indicators.Add(new StrategyIndicator("Reason", reason));
-            return new SignalEvaluation(false, false, false, false, indicators.ToArray());
+            return new SignalEvaluation(false, false, false, false, [.. indicators]);
         }
     }
 
     public class AISignalResponse
     {
-        public string Signal { get; set; } = "NONE"; // LONG, SHORT, NONE
+        public string Signal { get; set; } = "NONE";
         public int Confidence { get; set; }
         public decimal? EntryPrice { get; set; }
         public decimal StopLoss { get; set; }
@@ -416,5 +432,6 @@ namespace CryptoBlade.Strategies
         public decimal Quantity { get; set; }
         public string Reason { get; set; } = string.Empty;
         public List<string>? RequestedIndicators { get; set; }
+        public List<string>? RequestedCandles { get; set; }
     }
 }
