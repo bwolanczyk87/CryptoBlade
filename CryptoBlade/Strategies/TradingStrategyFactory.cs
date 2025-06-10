@@ -4,6 +4,7 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
+using CryptoBlade.Services;
 
 namespace CryptoBlade.Strategies
 {
@@ -12,12 +13,14 @@ namespace CryptoBlade.Strategies
         private readonly IWalletManager m_walletManager;
         private readonly ICbFuturesRestClient m_restClient;
         private readonly IOptions<TradingBotOptions> m_botOptions;
+        private readonly DeepSeekAccountConfig m_deepSeekConfig;
 
-        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions)
+        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions, DeepSeekAccountConfig deepSeekConfig)
         {
             m_walletManager = walletManager;
             m_restClient = restClient;
             m_botOptions = botOptions;
+            m_deepSeekConfig = deepSeekConfig;
         }
 
         public ITradingStrategy CreateStrategy(TradingBotOptions config, string symbol)
@@ -213,7 +216,7 @@ namespace CryptoBlade.Strategies
                 strategyOptions.BreakoutConfirmationCandles = momentum.BreakoutConfirmationCandles;
             });
 
-            return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
+            return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient, m_deepSeekConfig);
         }
 
         private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)

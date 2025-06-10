@@ -53,7 +53,7 @@ namespace CryptoBlade.Optimizer
                 bybitCbFuturesRestClient,
                 m_tradingSymbolsManager);
             WalletManager walletManager = new WalletManager(ApplicationLogging.CreateLogger<WalletManager>(), backTestExchange, backTestExchange);
-            TradingStrategyFactory tradingStrategyFactory = new TradingStrategyFactory(walletManager, backTestExchange, options);
+            TradingStrategyFactory tradingStrategyFactory = new TradingStrategyFactory(walletManager, backTestExchange, options, null);
             OptimizerApplicationHostApplicationLifetime backtestLifeTime = new OptimizerApplicationHostApplicationLifetime(cancel);
             TaskCompletionSource<bool> backtestDone = new TaskCompletionSource<bool>();
             backtestLifeTime.ApplicationStoppedEvent += _ => backtestDone.TrySetResult(true);

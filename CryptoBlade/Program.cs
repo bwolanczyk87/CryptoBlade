@@ -42,11 +42,6 @@ namespace CryptoBlade
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
 
-            // Program.cs
-            builder.Services.Configure<DeepSeekConfig>(builder.Configuration.GetSection("DeepSeek"));
-            builder.Services.AddHttpClient<IDeepSeekClient, DeepSeekClient>();
-            builder.Services.AddSingleton<DeepSeekClient>();
-
             // Wczytaj konfigurację kont
             var configReader = new DeepSeekAccountReader("appsettings.Accounts.json");
             DeepSeekAccountConfig deepSeekConfig = configReader.ReadConfig();
