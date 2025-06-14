@@ -16,7 +16,7 @@ namespace CryptoBlade.Strategies.AI
 
         public ChatAI(DeepSeekAccountConfig config, string symbol, ILogger<ChatAI> logger)
         {
-            var account = config.Accounts.FirstOrDefault(a => a.ApiName == symbol.ToLower())
+            var account = config.Accounts.FirstOrDefault(a => a.ApiName == "btcusdt")
                 ?? throw new Exception($"DeepSeek account not found for symbol {symbol}");
 
             var client = new OpenAIClient(
