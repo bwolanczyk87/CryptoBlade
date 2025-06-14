@@ -2,6 +2,7 @@
 using Accord.Statistics.Filters;
 using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
+using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Optimizer;
 using CryptoBlade.Services;
@@ -37,7 +38,8 @@ namespace CryptoBlade.Strategies
                                 DeepSeekAccountConfig deepSeekConfig)
             : base(strategyOptions, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
-            _chatAI = new ChatAI(deepSeekConfig, symbol);
+            var logger = ApplicationLogging.CreateLogger<ChatAI>();
+            _chatAI = new ChatAI(deepSeekConfig, symbol, logger);
             _indicatorManager = new IndicatorManager();
 
             InitializeIndicators();
@@ -54,8 +56,7 @@ namespace CryptoBlade.Strategies
                 new TimeFrameWindow(TimeFrame.FourHours, MaxCandlesPerTimeframe, true),
                 new TimeFrameWindow(TimeFrame.OneHour, MaxCandlesPerTimeframe, true),
                 new TimeFrameWindow(TimeFrame.FifteenMinutes, MaxCandlesPerTimeframe, false),
-                new TimeFrameWindow(TimeFrame.FiveMinutes, MaxCandlesPerTimeframe, false),
-                new TimeFrameWindow(TimeFrame.OneMinute, MaxCandlesPerTimeframe, false)
+                new TimeFrameWindow(TimeFrame.FiveMinutes, MaxCandlesPerTimeframe, false)
             ];
         }
 
@@ -101,7 +102,10 @@ namespace CryptoBlade.Strategies
 
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
-            var indicators = new List<StrategyIndicator>();
+            var indicators = new List<StrategyIndicator>
+            {
+                new("MainTimeFrameVolume", (decimal)1000)
+            };
 
             try
             {
@@ -121,6 +125,7 @@ namespace CryptoBlade.Strategies
                 }
 
                 var userMessage = BuildUserMessage(quotes);
+
                 var aiResponse = await _chatAI.GetAIResponseAsync(userMessage, cancel);
                 var signal = ParseAIResponse(aiResponse, indicators);
                 return signal;

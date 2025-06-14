@@ -6,7 +6,7 @@ public class MomentumStrategyOptions : TradingStrategyBaseOptions
         public TimeSpan CooldownPeriod { get; set; } = TimeSpan.FromMinutes(1);  // Zmniejszony czas cooldown
         public decimal RiskRewardRatio { get; set; } = 1.5m;
         public decimal MaxSlippagePercent { get; set; } = 0.1m;
-
+        public int MinimumVolume { get; set; } = 1000;
         // Bollinger Bands
         public int BollingerBandsPeriod { get; set; } = 10;  // Krótszy okres dla szybszej reakcji
         public double BollingerBandsStdDev { get; set; } = 1.4;  // Węższe pasma

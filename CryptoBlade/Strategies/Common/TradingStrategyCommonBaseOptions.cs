@@ -29,5 +29,6 @@ namespace CryptoBlade.Strategies.Common
         public decimal? LongTakeProfitFraction { get; set; } = 1m;
 
         public decimal? ShortTakeProfitFraction { get; set; } = 1m;
+        public int ExecutionDelay { get; set; } = 0;
     }
 }

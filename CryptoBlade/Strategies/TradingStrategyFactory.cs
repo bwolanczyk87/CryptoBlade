@@ -219,8 +219,8 @@ namespace CryptoBlade.Strategies
             return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient, m_deepSeekConfig);
         }
 
-        private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
-            where TOptions : TradingStrategyBaseOptions, new()
+            private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
+                where TOptions : TradingStrategyBaseOptions, new()
         {
             bool isBackTest = config.IsBackTest();
             int initialUntradableDays = isBackTest ? config.BackTest.InitialUntradableDays : 0;
