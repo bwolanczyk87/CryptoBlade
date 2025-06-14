@@ -6,6 +6,7 @@ using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
+using ScottPlot.Plottables;
 
 namespace CryptoBlade.Services
 {

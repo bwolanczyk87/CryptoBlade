@@ -1,19 +1,14 @@
-﻿
-using Accord.Statistics.Filters;
-using CryptoBlade.Configuration;
+﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
-using CryptoBlade.Optimizer;
 using CryptoBlade.Services;
 using CryptoBlade.Strategies.AI;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
-using ScottPlot.Plottables;
 using Skender.Stock.Indicators;
 using System.Globalization;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Text.Json;
 
@@ -29,6 +24,9 @@ namespace CryptoBlade.Strategies
         private readonly List<IndicatorAI> _activeIndicators = [];
         private List<CandlesAI> _activeCandles = [];
         private bool _isInitialized = false;
+        private DateTime _lastEvaluationTime = DateTime.MinValue;
+        private readonly object _evaluationLock = new object();
+        private readonly ILogger<MomentumStrategy> _logger;
 
         public MomentumStrategy(IOptions<MomentumStrategyOptions> strategyOptions,
                                 IOptions<TradingBotOptions> botOptions,
@@ -38,14 +36,32 @@ namespace CryptoBlade.Strategies
                                 DeepSeekAccountConfig deepSeekConfig)
             : base(strategyOptions, botOptions, symbol, BuildTimeFrameWindows(), walletManager, restClient)
         {
-            var logger = ApplicationLogging.CreateLogger<ChatAI>();
-            _chatAI = new ChatAI(deepSeekConfig, symbol, logger);
+            _logger = ApplicationLogging.CreateLogger<MomentumStrategy>();
+            _chatAI = new ChatAI(deepSeekConfig, symbol, ApplicationLogging.CreateLogger<ChatAI>());
             _indicatorManager = new IndicatorManager();
 
             InitializeIndicators();
             InitializeCandles();
 
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
+        }
+
+        private void LogEvaluationTime()
+        {
+            lock (_evaluationLock)
+            {
+                var currentTime = DateTime.UtcNow;
+
+                if (_lastEvaluationTime != DateTime.MinValue)
+                {
+                    var timeSinceLast = currentTime - _lastEvaluationTime;
+                    var minutes = timeSinceLast.TotalMinutes;
+                    var seconds = timeSinceLast.Seconds;
+                    _logger.LogInformation($"⏱️ [GREEN]Czas między cyklami: {minutes:0.00} minut ({minutes:0}m {seconds}s)");
+                }
+
+                _lastEvaluationTime = currentTime;
+            }
         }
 
         private static TimeFrameWindow[] BuildTimeFrameWindows()
@@ -102,6 +118,7 @@ namespace CryptoBlade.Strategies
 
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
+            LogEvaluationTime();
             var indicators = new List<StrategyIndicator>
             {
                 new("MainTimeFrameVolume", (decimal)1000)
