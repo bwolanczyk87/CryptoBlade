@@ -2,6 +2,7 @@
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -28,39 +29,37 @@ namespace CryptoBlade.Strategies.AI
             _logger = logger;
         }
 
-        public void InitializeConversation(decimal balance, string indicators, decimal? leverage)
+        public void InitializeConversation(decimal? leverage, decimal balance)
         {
             const string initMessage = """
-                You are AI trading ultimate instance. Goal: 100000 USDT. Rules:
-                - Produce ONLY JSON response in the following format, add closing bracket): 
-                {{
-                    "Signal": "LONG|SHORT|NONE",
-                    "Confidence": 0-100,
-                    "EntryPrice": number,
-                    "StopLoss": number,
-                    "TakeProfit": number,
-                    "Quantity": number,
-                    "Reason": "string",
-                    "DataDelay": number,
-                    "RequestedIndicators": ["i1|TF|p1,p2","i2|TF|p1",...],
-                    "RequestedCandles": ["TF|count",...]
-                }}
-                - Signal only when confidence >= 70
-                - Risk: max 5% of balance {0} USDT, Leverage: {1}
+                You are AI-Crypto-Ultimate-Bot.
+                Primary goal: maximise net profit over time.
+                Reply ONLY with one JSON object:
 
-                - Available timeframes (TF): 1D,4H,1H,15M,5M
-                - Data candle timeframe marker: TF,count (e.g. 1H,12)
-                - Data candle format: yyyyMMddHHmm,open,high,low,close,volume (e.g. 202506111000,21,21.9,19.2, 21, 100)
-                - RequestedCandles format: TF,count (e.g.5M,80)
-                - Data indicatos format:
-                    MACD: Macd,FastEma,SlowEma,Signal
-                    BB: UpperBand,LowerBand
-                    ICH: TenkanSen,KijunSen
-                - RequestedIndicators format: name|TF|params (e.g. E|5M|80, BB|1H|8.3,2) [{2}]
-                - Next Data pagkage after choose by you DataDelay (1-60m)
+                {
+                  "Signal": "LONG | SHORT | NONE", // if Confidence ≤ 70 then Signal=NONE
+                  "Confidence": 0-100,
+                  "EntryPrice": num,
+                  "StopLoss": num,
+                  "TakeProfit": num,
+                  "Quantity": num, // Quantity × EntryPrice × (1/{LEVERAGE}) ≤ 0.05 (0.1 if Confidence ≥ 90) × {BALANCE}
+                  "Reason": string, // ≤ 200 chars, if Signal≠NONE = trade rationale, else = brief note for next cycle
+                  "Candles": ["TF|count", …], // choose ≥ 2 TF, total count ≤ 120
+                  "Indicators": ["Name(params)|TF", …], // choose ≤ 10 indicators from Skender.Stock.Indicators v2.6.1 (GetXxx → Name)
+                  "Pivots": ["TF|EndType?|percent", …]        // ZigZag, e.g. "4H|1.2"  or "1H|H|0.8"
+                }
+
+                • Allowed TF: 1M,5M,15M,1H,4H,1D.
+                • Use dot as decimal separator.
+                • “Name(params)” must match a public Get-method without the “Get” prefix (e.g. "Rsi(14)", "Macd(12,26,9)").
+                • Optional EndType: add '|H|' for HighLow (default C = Close).
+                • percent = positive decimal, dot separator (e.g. 0.8, 1.3).
+                • Request Candles, Indicators and Pivots to increase Confidence and optimize trade.
                 """;
 
-            var message = string.Format(initMessage, balance, leverage.Value, indicators);
+            var message = initMessage
+                .Replace("{LEVERAGE}", leverage?.ToString("F0") ?? "0")
+                .Replace("{BALANCE}", balance.ToString("F2", CultureInfo.InvariantCulture));
             _conversationHistory.Add(new SystemChatMessage(message));
         }
 
@@ -90,12 +89,11 @@ namespace CryptoBlade.Strategies.AI
                 MaxOutputTokenCount = 500,
                 FrequencyPenalty = 0.2f,
                 ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat(),
-                StopSequences = { "\n```", "```json", "}\n" }
+                StopSequences = { "}" }
             };
 
             var response = await _chatClient.CompleteChatAsync(_conversationHistory, options, cancel);
             var aiResponse = response.Value.Content[0].Text.Trim();
-            aiResponse = FixIncompleteJson(aiResponse);
             _logger.LogInformation(aiResponse);
 
             _conversationHistory.Add(new AssistantChatMessage(aiResponse));
@@ -103,57 +101,6 @@ namespace CryptoBlade.Strategies.AI
         }
 
         private int CountChar(string str, char c) => str.Count(ch => ch == c);
-
-        private string FixIncompleteJson(string json)
-        {
-            // Proste przypadki: brakujący zamykający nawias
-            if (!json.Trim().EndsWith("}") && json.Trim().StartsWith("{"))
-            {
-                json = json.Trim() + "}";
-            }
-
-            try
-            {
-                // Walidacja struktury przy użyciu System.Text.Json
-                using var doc = JsonDocument.Parse(json);
-                return json;
-            }
-            catch (JsonException)
-            {
-                // Zaawansowana naprawa przy użyciu regex
-                var fixedJson = Regex.Replace(json, @"(""[^""]+""\s*:\s*)([^,{}\n]+)(?=[^\}]*$)", "$1\"$2\"");
-
-                // Dodaj brakujące zamknięcia
-                if (!fixedJson.Trim().EndsWith("}")) fixedJson += "}";
-                if (CountChar(fixedJson, '{') > CountChar(fixedJson, '}'))
-                {
-                    fixedJson += new string('}', CountChar(fixedJson, '{') - CountChar(fixedJson, '}'));
-                }
-
-                // Walidacja po naprawie
-                try
-                {
-                    using var doc = JsonDocument.Parse(fixedJson);
-                    return fixedJson;
-                }
-                catch
-                {
-                    // Awaryjny JSON gdy naprawa niemożliwa
-                    return @"{
-                        ""Signal"": ""NONE"",
-                        ""Confidence"": 0,
-                        ""EntryPrice"": 0,
-                        ""StopLoss"": 0,
-                        ""TakeProfit"": 0,
-                        ""Quantity"": 0,
-                        ""Reason"": ""Invalid JSON format"",
-                        ""DataDelay"": 5,
-                        ""RequestedIndicators"": [],
-                        ""RequestedCandles"": []
-                    }";
-                }
-            }
-        }
 
         private void TrimConversationHistory()
         {

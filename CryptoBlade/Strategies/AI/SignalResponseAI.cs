@@ -12,5 +12,6 @@
         public int DataDelay { get; set; }
         public List<string>? RequestedIndicators { get; set; }
         public List<string>? RequestedCandles { get; set; }
+        public List<string>? RequestedPivots { get; set; }
     }
 }

@@ -5,31 +5,27 @@ using System.Text;
 
 namespace CryptoBlade.Strategies.AI
 {
-    public class CandlesAI
+    public class CandleRequest
     {
-        public TimeFrame TimeFrame { get; }
+        public TimeFrame Tf { get; }
         public int Count { get; }
 
-        public CandlesAI(TimeFrame timeframe, int count)
+        public CandleRequest(TimeFrame tf, int count) => (Tf, Count) = (tf, count);
+
+        public static CandleRequest Parse(string s)
         {
-            TimeFrame = timeframe;
-            Count = count;
+            var p = s.Split('|');
+            return new CandleRequest(
+                TimeFrameHelper.Parse(p[0]),
+                int.Parse(p[1]));
         }
 
-        public static CandlesAI Parse(string input)
-        {
-            var parts = input.Split('|');
-            var timeframe = TimeFrameHelper.Parse(parts[0]);
-            var count = int.Parse(parts[1]);
-            return new CandlesAI(timeframe, count);
-        }
-
-        public string FormatForBot(Dictionary<TimeFrame, QuoteQueue> quotes, int priceScale)
+        public string ToBotPayload(Dictionary<TimeFrame, QuoteQueue> quotes, int priceScale)
         {
             var sb = new StringBuilder();
-            sb.Append($"{TimeFrameHelper.GetAbbreviation(TimeFrame)}|{Count}=");
+            sb.Append($"{TimeFrameHelper.GetAbbreviation(Tf)}|{Count}=");
 
-            if (quotes.TryGetValue(TimeFrame, out var tfQuotes))
+            if (quotes.TryGetValue(Tf, out var tfQuotes))
             {
                 var quoteList = tfQuotes.GetQuotes().TakeLast(Count).ToList();
                 for (int i = 0; i < quoteList.Count; i++)
