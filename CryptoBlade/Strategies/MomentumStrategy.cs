@@ -61,7 +61,8 @@ namespace CryptoBlade.Strategies
             new(TimeFrame.FourHours,       MaxCandlesPerTimeframe, true),
             new(TimeFrame.OneHour,         MaxCandlesPerTimeframe, true),
             new(TimeFrame.FifteenMinutes,  MaxCandlesPerTimeframe, false),
-            new(TimeFrame.FiveMinutes,     MaxCandlesPerTimeframe, false)
+            new(TimeFrame.FiveMinutes,     MaxCandlesPerTimeframe, false),
+            new(TimeFrame.OneMinute,       MaxCandlesPerTimeframe, false)
         ];
 
         private void InitIndicators()
@@ -125,8 +126,7 @@ namespace CryptoBlade.Strategies
             }
             catch (Exception ex)
             {
-                indics.Add(new("Error", ex.Message));
-                return NoSignal(indics, "AI error");
+                throw;
             }
         }
 
@@ -134,8 +134,6 @@ namespace CryptoBlade.Strategies
         private string BuildUserMessage(Dictionary<TimeFrame, IEnumerable<Quote>> quotes)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"SYM:{Symbol} | BAL:{WalletManager.Contract.WalletBalance.Value:F2} | PRC:{Ticker?.LastPrice.ToString("F2", CultureInfo.InvariantCulture) ?? "0"}");
-            sb.AppendLine();
 
             // indicators
             foreach (var req in _activeIndicators)
@@ -145,14 +143,14 @@ namespace CryptoBlade.Strategies
                 {
                     var val = IndicatorEngine.Compute(req, tfQuotes);
                     string fv = IndicatorEngine.Format(val);
-                    sb.AppendLine($"{tag}:{fv}");
+                    sb.AppendLine($"{tag}={fv}");
                 }
-                else sb.AppendLine($"{tag}:N/A");
+                else sb.AppendLine($"{tag}=N/A");
             }
             sb.AppendLine();
 
             // candles
-            sb.AppendLine("CANDLES:");
+            sb.AppendLine("YEAR:2025, CANDLES :");
             foreach (var cr in _activeCandles)
                 sb.AppendLine(cr.ToBotPayload(QuoteQueues, (int)SymbolInfo.PriceScale));
 

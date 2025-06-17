@@ -31,7 +31,7 @@ namespace CryptoBlade.Strategies.AI
                 for (int i = 0; i < quoteList.Count; i++)
                 {
                     var quote = quoteList[i];
-                    sb.Append($"{quote.Date:yyyyMMddHHmm}|");
+                    sb.Append($"{quote.Date:MMddHHmm}|");
                     sb.Append($"{quote.Open.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
                     sb.Append($"{quote.High.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
                     sb.Append($"{quote.Low.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
