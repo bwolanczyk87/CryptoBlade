@@ -8,7 +8,6 @@ using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -21,7 +20,7 @@ namespace CryptoBlade.Strategies
     {
         public override string Name => "Momentum";
         protected override bool UseMarketOrdersForEntries => true;
-        private const int MaxCandlesPerTimeframe = 100;
+        private const int MaxCandlesPerTimeframe = 50;
 
         /* === AI runtime === */
         private readonly ChatAI _chatAI;
@@ -32,6 +31,7 @@ namespace CryptoBlade.Strategies
         /* === misc === */
         private bool _isInitialized;
         private DateTime _lastEvalUtc = DateTime.MinValue;
+        private int _dataDelay = 0;
         private readonly object _evalLock = new();
         private readonly ILogger<MomentumStrategy> _log;
 
@@ -47,9 +47,11 @@ namespace CryptoBlade.Strategies
             _log = ApplicationLogging.CreateLogger<MomentumStrategy>();
             _chatAI = new ChatAI(deepSeekCfg, symbol, ApplicationLogging.CreateLogger<ChatAI>());
 
-            InitIndicators();
-            InitCandles();
-            InitPivots();
+            var profile = StyleProfileFactory.Create(TradingStyle.Scalping);
+
+            _activeIndicators = [.. profile.DefaultIndicators.Select(IndicatorRequest.Parse)];
+            _activeCandles = [.. profile.DefaultCandles.Select(CandleRequest.Parse)];
+            _activePivots = [.. profile.DefaultPivots.Select(PivotRequest.Parse)];
 
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
@@ -57,7 +59,6 @@ namespace CryptoBlade.Strategies
         /* === helpers === */
         private static TimeFrameWindow[] BuildTfWindows() =>
         [
-            new(TimeFrame.OneDay,          MaxCandlesPerTimeframe, true),
             new(TimeFrame.FourHours,       MaxCandlesPerTimeframe, true),
             new(TimeFrame.OneHour,         MaxCandlesPerTimeframe, true),
             new(TimeFrame.FifteenMinutes,  MaxCandlesPerTimeframe, false),
@@ -65,34 +66,16 @@ namespace CryptoBlade.Strategies
             new(TimeFrame.OneMinute,       MaxCandlesPerTimeframe, false)
         ];
 
-        private void InitIndicators()
-        {
-            foreach (var name in new[] { "Ema(100)|1H", "Macd(8,21,5)|1H", "Rsi(14)|1H", "Atr(14)|1H" })
-                _activeIndicators.Add(IndicatorRequest.Parse(name));
-        }
-
-        private void InitCandles() => _activeCandles =
-        [
-            CandleRequest.Parse("1H|12"),
-            CandleRequest.Parse("15M|16"),
-            CandleRequest.Parse("5M|60")
-        ];
-
-        private void InitPivots() => _activePivots =
-        [
-            PivotRequest.Parse("4H|1.2"),
-            PivotRequest.Parse("1H|H|0.8")
-        ];
-
         private void LogCycleDuration()
         {
             lock (_evalLock)
             {
                 var now = DateTime.UtcNow;
+
                 if (_lastEvalUtc != DateTime.MinValue)
                 {
                     var span = now - _lastEvalUtc;
-                    _log.LogInformation($"⏱️ Cycle gap: {span.TotalMinutes:0.00} min ({span.Minutes}m {span.Seconds}s)");
+                    _log.LogInformation($"Cycle gap: {span.TotalMinutes:0.00} min ({span.Minutes}m {span.Seconds}s)");
                 }
                 _lastEvalUtc = now;
             }
@@ -102,16 +85,26 @@ namespace CryptoBlade.Strategies
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken ct)
         {
             LogCycleDuration();
-            var indics = new List<StrategyIndicator>();
+            var indics = new List<StrategyIndicator>
+            {
+                new(nameof(IndicatorType.MainTimeFrameVolume), 10m)
+            };
 
             try
             {
                 if (IsInTrade)
                     return NoSignal(indics, "Already in trade");
 
+                if (_dataDelay - 1 > 0) 
+                { 
+                    _dataDelay--;
+                    indics.Add(new("AI-DataDelay", _dataDelay));
+                    return NoSignal(indics, "Waiting for data delay");
+                }
+
                 if (!_isInitialized)
                 {
-                    _chatAI.InitializeConversation(SymbolInfo.MaxLeverage, WalletManager.Contract.WalletBalance.Value);
+                    _chatAI.InitializeConversation(SymbolInfo.MaxLeverage, WalletManager.Contract.WalletBalance.Value, SymbolInfo.PriceScale);
                     _isInitialized = true;
                 }
 
@@ -120,6 +113,8 @@ namespace CryptoBlade.Strategies
 
                 /* build user payload */
                 string userMsg = BuildUserMessage(quotesDict);
+                _chatAI.TrimConversationHistory();
+
                 string aiJson = await _chatAI.GetAIResponseAsync(userMsg, ct);
 
                 return ParseAiJson(aiJson, quotesDict, indics);
@@ -150,11 +145,11 @@ namespace CryptoBlade.Strategies
             sb.AppendLine();
 
             // candles
-            sb.AppendLine("YEAR:2025, CANDLES :");
+            sb.AppendLine("CANDLES (HHmm,dO,dH,dL,dC,V)");
             foreach (var cr in _activeCandles)
                 sb.AppendLine(cr.ToBotPayload(QuoteQueues, (int)SymbolInfo.PriceScale));
 
-            sb.AppendLine("PIVOTS:");
+            sb.AppendLine("PIVOTS(MMddHHmm,zigzag,pointType)");
             foreach (var pr in _activePivots)
             {
                 if (!quotes.TryGetValue(pr.Tf, out var tfQ)) continue;
@@ -162,13 +157,12 @@ namespace CryptoBlade.Strategies
                 var pivots = PivotEngine.Compute(pr, tfQ)
                     .Where(z => !string.IsNullOrWhiteSpace(z.PointType))
                     .TakeLast(10)
-                    .Select(z => $"{z.Date:yyyyMMddHHmm}|{z.ZigZag:F0}|{z.PointType}");
+                    .Select(z => $"{z.Date:MMddHHmm},{z.ZigZag:F0},{z.PointType}");
 
                 sb.AppendLine($"{pr}={string.Join(';', pivots)}");
             }
 
             sb.AppendLine();
-            sb.AppendLine("Analyze indicators, candles and pivots. Request only data that will materially increase Confidence.");
             return sb.ToString();
         }
 
@@ -179,13 +173,15 @@ namespace CryptoBlade.Strategies
             try { ai = JsonSerializer.Deserialize<SignalResponseAI>(json); }
             catch (Exception ex) { return NoSignal(indics, $"JSON parse error: {ex.Message}"); }
             if (ai == null) return NoSignal(indics, "Null AI");
+            _dataDelay = ai.Delay;
 
+            indics.Add(new("AI-DataDelay", ai.Delay));
             indics.Add(new("AI-Conf", $"{ai.Confidence}%"));
             indics.Add(new("AI-Note", ai.Reason));
 
-            UpdateActiveIndicators(ai.RequestedIndicators);
-            UpdateActiveCandles(ai.RequestedCandles);
-            UpdateActivePivots(ai.RequestedPivots);
+            UpdateActiveIndicators(ai.Indicators);
+            UpdateActiveCandles(ai.Candles);
+            UpdateActivePivots(ai.Pivots);
 
             if (ai.Confidence < 70 || ai.Signal == "NONE")
                 return NoSignal(indics, "Low confidence or NONE");
@@ -226,13 +222,27 @@ namespace CryptoBlade.Strategies
         private void UpdateActivePivots(List<string>? list)
         {
             if (list == null) return;
-            var tmp = new List<PivotRequest>();
+
             foreach (var s in list)
             {
-                try { tmp.Add(PivotRequest.Parse(s)); }
-                catch { }
+                try
+                {
+                    var pr = PivotRequest.Parse(s);
+
+                    // odfiltruj błędne lub skrajne wartości
+                    if (pr.PercentChange <= 0 || pr.PercentChange > 20) // 20 % to zdrowy sufit
+                    {
+                        _log.LogWarning($"Ignoring pivot request \"{s}\" (percent = {pr.PercentChange})");
+                        continue;
+                    }
+
+                    _activePivots.Add(pr);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, $"Failed to parse pivot request \"{s}\"");
+                }
             }
-            if (tmp.Any()) _activePivots = tmp;
         }
 
         /* === helpers === */

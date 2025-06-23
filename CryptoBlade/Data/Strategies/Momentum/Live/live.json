@@ -62,7 +62,17 @@
     "DOGEUSDT",
     "ADAUSDT",
     "SOLUSDT",
-    "TRXUSDT"
+    "TRXUSDT",
+    "HYPEUSDT",
+    "WIFUSDT",
+    "MOVEUSDT",
+    "VIRTUALUSDT",
+    "AVAXUSDT",
+    "SPXUSDT",
+    "POPCATUSDT",
+    "NEARUSDT",
+    "TRUMPUSDT",
+    "AI16ZUSDT"
   ],
   "Blacklist": [
     "EOSUSDT"

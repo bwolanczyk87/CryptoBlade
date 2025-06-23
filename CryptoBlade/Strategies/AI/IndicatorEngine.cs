@@ -14,28 +14,56 @@ namespace CryptoBlade.Strategies.AI
         /*  COMPUTE                                                           */
         /* ------------------------------------------------------------------ */
 
+        private static object? GetDefault(Type t) => t.IsValueType ? Activator.CreateInstance(t) : null;
+
         public static object Compute(IndicatorRequest req, IEnumerable<Quote> quotes)
         {
-            // locate matching GetXxx method (generic → close over <Quote>)
-            MethodInfo? m = typeof(Indicator).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(mi => mi.Name == "Get" + req.Name && FirstArgIsQuoteEnumerable(mi));
-
-            if (m is null)
-                throw new InvalidOperationException($"Indicator {req.Name} not found in Skender.Stock.Indicators");
-
-            if (m.IsGenericMethodDefinition)
-                m = m.MakeGenericMethod(typeof(Quote));
-
-            var raw = m.Invoke(null, new object[] { quotes }.Concat(req.Params.Cast<object>()).ToArray());
-
-            // if the method returns IEnumerable ― grab last element (current bar)
-            if (raw is IEnumerable seq && raw is not string)
+            try
             {
-                object? last = null;
-                foreach (var x in seq) last = x;
-                return last ?? raw;
+                // 1) znajdź metodę
+                var mi = typeof(Indicator).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .FirstOrDefault(m => m.Name == "Get" + req.Name && FirstArgIsQuoteEnumerable(m))
+                    ?? throw new InvalidOperationException($"Indicator '{req.Name}' not found");
+
+                if (mi.IsGenericMethodDefinition)
+                    mi = mi.MakeGenericMethod(typeof(Quote));
+
+                // 2) buduj listę argumentów
+                var paramInfos = mi.GetParameters();           // pierwszy = quotes
+                var args = new List<object?> { quotes };
+
+                int supplied = 0;
+                for (int i = 1; i < paramInfos.Length; i++)
+                {
+                    if (supplied < req.Params.Length)
+                    {
+                        args.Add(req.Params[supplied++]);
+                    }
+                    else
+                    {
+                        args.Add(paramInfos[i].HasDefaultValue
+                                 ? paramInfos[i].DefaultValue
+                                 : GetDefault(paramInfos[i].ParameterType));
+                    }
+                }
+
+                // 3) Invoke
+                var raw = mi.Invoke(null, args.ToArray());
+
+                // 4) Jeśli IEnumerable → zwróć ostatni element
+                if (raw is IEnumerable seq && raw is not string)
+                {
+                    object? last = null;
+                    foreach (var x in seq) last = x;
+                    return last ?? raw;
+                }
+                return raw;
             }
-            return raw;          // single value
+            catch (TargetInvocationException ex) when (ex.InnerException != null)
+            {
+                throw new InvalidOperationException(
+                    $"Runtime error while computing '{req.Name}': {ex.InnerException!.Message}", ex.InnerException);
+            }
         }
 
         private static bool FirstArgIsQuoteEnumerable(MethodInfo mi)

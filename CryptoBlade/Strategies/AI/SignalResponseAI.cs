@@ -9,9 +9,9 @@
         public decimal TakeProfit { get; set; }
         public decimal Quantity { get; set; }
         public string Reason { get; set; } = string.Empty;
-        public int DataDelay { get; set; }
-        public List<string>? RequestedIndicators { get; set; }
-        public List<string>? RequestedCandles { get; set; }
-        public List<string>? RequestedPivots { get; set; }
+        public int Delay { get; set; }
+        public List<string>? Indicators { get; set; }
+        public List<string>? Candles { get; set; }
+        public List<string>? Pivots { get; set; }
     }
 }

@@ -20,32 +20,63 @@ namespace CryptoBlade.Strategies.AI
                 int.Parse(p[1]));
         }
 
-        public string ToBotPayload(Dictionary<TimeFrame, QuoteQueue> quotes, int priceScale)
+        public string ToBotPayload(Dictionary<TimeFrame, QuoteQueue> quotes,int priceScale)
         {
+            if (!quotes.TryGetValue(Tf, out var tfQuotes))
+                return string.Empty;
+
+            var list = tfQuotes.GetQuotes().TakeLast(Count).ToList();
+            if (list.Count == 0) return string.Empty;
+
+            // 10^priceScale  → konwersja float → tick-int
+            int pow = (int)Math.Pow(10, priceScale);
+
             var sb = new StringBuilder();
-            sb.Append($"{TimeFrameHelper.GetAbbreviation(Tf)}|{Count}=");
 
-            if (quotes.TryGetValue(Tf, out var tfQuotes))
+            string tfAbbr = TimeFrameHelper.GetAbbreviation(Tf);
+            string curDay = null!;
+            int prevCloseTicks = 0;   // zainicjujemy przy 1-szej świecy
+
+            for (int i = 0; i < list.Count; i++)
             {
-                var quoteList = tfQuotes.GetQuotes().TakeLast(Count).ToList();
-                for (int i = 0; i < quoteList.Count; i++)
-                {
-                    var quote = quoteList[i];
-                    sb.Append($"{quote.Date:MMddHHmm}|");
-                    sb.Append($"{quote.Open.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
-                    sb.Append($"{quote.High.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
-                    sb.Append($"{quote.Low.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
-                    sb.Append($"{quote.Close.ToString($"F{priceScale}", CultureInfo.InvariantCulture)},");
-                    sb.Append($"{quote.Volume.ToString($"F{priceScale}", CultureInfo.InvariantCulture)}");
+                var q = list[i];
+                var day = q.Date.ToString("MMdd");
 
-                    if (i < quoteList.Count - 1)
-                    {
-                        sb.Append(';');
-                    }
+                // --- nowy nagłówek gdy zmiana dnia -----------------------
+                if (day != curDay)
+                {
+                    // absolutny pierwszy close danego dnia
+                    prevCloseTicks = (int)Math.Round(q.Close * pow);
+                    if (sb.Length > 0) sb.Append(';');      // odetnij poprzedni blok
+
+                    sb.Append($"{tfAbbr}|{Count}|{day}|{prevCloseTicks}=");
+                    curDay = day;
+                    // aktualna świeca będzie zakodowana niżej (delta = 0,0,0,0)
                 }
+                else
+                {
+                    sb.Append(';');   // separator kolejnej świecy tego samego dnia
+                }
+
+                // --- tick-int wartości -----------------------------------
+                int o = (int)Math.Round(q.Open * pow);
+                int h = (int)Math.Round(q.High * pow);
+                int l = (int)Math.Round(q.Low * pow);
+                int c = (int)Math.Round(q.Close * pow);
+
+                // różnice względem poprzedniego CLOSE
+                sb.Append($"{q.Date:HHmm},");
+                sb.Append($"{o - prevCloseTicks},");
+                sb.Append($"{h - prevCloseTicks},");
+                sb.Append($"{l - prevCloseTicks},");
+                sb.Append($"{c - prevCloseTicks},");
+                sb.Append($"{q.Volume.ToString("F0", CultureInfo.InvariantCulture)}");
+
+                prevCloseTicks = c; // update na następną świecę
             }
 
             return sb.ToString();
         }
+
     }
 }
