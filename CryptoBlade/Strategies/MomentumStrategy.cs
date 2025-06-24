@@ -89,7 +89,7 @@ namespace CryptoBlade.Strategies
                 if (IsInTrade)
                     return NoSignal(indics);
 
-                if (_dataDelay - 1 > 0) 
+                if (_dataDelay > 0) 
                 { 
                     _dataDelay--;
                     indics.Add(new("AI-DataDelay", _dataDelay));

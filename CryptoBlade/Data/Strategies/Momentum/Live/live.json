@@ -6,7 +6,7 @@
   "MaxRunningStrategies": 200,
   "DcaOrdersCount": 100,
   "DynamicBotCount": {
-    "TargetLongExposure": 500,
+    "TargetLongExposure": 500.0,
     "TargetShortExposure": 500.0,
     "MaxLongStrategies": 200,
     "MaxShortStrategies": 200,
@@ -15,11 +15,11 @@
   },
   "WalletExposureLong": 600.0,
   "WalletExposureShort": 600.0,
-  "MinimumVolume": 10000.0,
-  "MinimumPriceDistance": 0.015,
+  "MinimumVolume": 1.0,
+  "MinimumPriceDistance": 0.01,
   "ForceMinQty": true,
-  "QtyFactorLong": 300,
-  "QtyFactorShort": 300,
+  "QtyFactorLong": 250.0,
+  "QtyFactorShort": 250.0,
   "EnableRecursiveQtyFactorLong": true,
   "EnableRecursiveQtyFactorShort": true,
   "PlaceOrderAttempts": 5,
@@ -29,12 +29,32 @@
   "MinProfitRate": 0.0006,
   "SpotRebalancingRatio": 0.0,
   "StrategySelectPreference": 0,
-  "NormalizedAverageTrueRangePeriod": 14,
-  "MinNormalizedAverageTrueRangePeriod": 1.0,
+  "NormalizedAverageTrueRangePeriod": 26,
+  "MinNormalizedAverageTrueRangePeriod": 0.01,
+  "BackTest": {
+    "Start": "2025-03-01T00:00:00",
+    "End": "2025-03-05T00:00:00",
+    "InitialBalance": 100,
+    "StartupCandleData": "1.00:00:00",
+    "ResultFileName": "result.json",
+    "ResultDetailedFileName": "result_detailed.json",
+    "InitialUntradableDays": 0,
+    "DataSource": 1
+  },
+  "Unstucking": {
+    "Enabled": false,
+    "SlowUnstuckThresholdPercent": -0.1,
+    "SlowUnstuckPositionThresholdPercent": -0.05,
+    "ForceUnstuckThresholdPercent": -0.3,
+    "ForceUnstuckPositionThresholdPercent": -0.002,
+    "SlowUnstuckPercentStep": 0.1,
+    "ForceUnstuckPercentStep": 0.1,
+    "ForceKillTheWorst": true
+  },
   "Strategies": {
     "Momentum": {
       "CooldownPeriod": "00:01:00",
-      "RiskRewardRatio": 1,
+      "RiskRewardRatio": 1.5,
       "MaxSlippagePercent": 0.1,
       "BollingerBandsPeriod": 10,
       "BollingerBandsStdDev": 1.4,
@@ -52,11 +72,29 @@
       "RsiContextShortThresholdBase": 45,
       "RsiVolatilityFactor": 0.3,
       "VolatilityPeriod": 8,
-      "AtrMultiplierSl": 2,
-      "AtrMultiplierTp": 2,
+      "AtrMultiplierSl": 1.0,
+      "AtrMultiplierTp": 1.5,
       "BreakoutConfirmationCandles": 1
     }
   },
+  "CriticalMode": {
+    "EnableCriticalModeLong": false,
+    "EnableCriticalModeShort": false,
+    "WalletExposureThresholdLong": 0.3,
+    "WalletExposureThresholdShort": 0.3
+  },
+  "SymbolVolumePreference": [
+    "LARGE",
+    "MEDIUM"
+  ],
+  "SymbolVolatilityPreference": [
+    "MEDIUM",
+    "HIGH"
+  ],
+  "SymbolMaturityPreference": [
+    "LARGE",
+    "HIGH"
+  ],
   "Whitelist": [
     "XRPUSDT",
     "DOGEUSDT",
@@ -75,6 +113,9 @@
     "AI16ZUSDT"
   ],
   "Blacklist": [
-    "EOSUSDT"
-  ]
+    "EOSUSDT",
+    "MATICUSDT",
+    "OMGUSDT"
+  ],
+  "SymbolTradingModes": []
 }
