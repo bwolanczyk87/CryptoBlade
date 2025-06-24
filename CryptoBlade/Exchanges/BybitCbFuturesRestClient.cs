@@ -5,12 +5,14 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
+using CryptoExchange.Net.CommonObjects;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
 using OrderStatus = Bybit.Net.Enums.OrderStatus;
 using Position = CryptoBlade.Models.Position;
 using PositionMode = CryptoBlade.Models.PositionMode;
+using Ticker = CryptoBlade.Models.Ticker;
 
 namespace CryptoBlade.Exchanges
 {
@@ -148,15 +150,15 @@ namespace CryptoBlade.Exchanges
                         continue;
                     }
 
-                    m_logger.LogDebug($"{symbol} Buy order placed for '{quantity}' @ '{price}'");
+                    m_logger.LogInformation($"{symbol} Buy order placed for '{quantity}' @ '{price}'");
                     return true;
                 }
 
-                m_logger.LogWarning($"{symbol} Error getting order status: {orderStatusRes.Error}");
+                m_logger.LogInformation($"{symbol} Error getting order status: {orderStatusRes.Error}");
                 return false;
             }
 
-            m_logger.LogDebug($"{symbol} could not place buy order.");
+            m_logger.LogInformation($"{symbol} could not place buy order.");
 
             return false;
         }
@@ -166,7 +168,7 @@ namespace CryptoBlade.Exchanges
         {
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
-                m_logger.LogDebug(
+                m_logger.LogInformation(
                     $"{symbol} Placing limit sell order for '{quantity}' @ '{price}' attempt: {attempt}");
                 var sellOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
@@ -214,15 +216,15 @@ namespace CryptoBlade.Exchanges
                         continue;
                     }
 
-                    m_logger.LogDebug($"{symbol} Sell order placed for '{quantity}' @ '{price}'");
+                    m_logger.LogInformation($"{symbol} Sell order placed for '{quantity}' @ '{price}'");
                     return true;
                 }
 
-                m_logger.LogWarning($"{symbol} Error getting order status: {orderStatusRes.Error}");
+                m_logger.LogInformation($"{symbol} Error getting order status: {orderStatusRes.Error}");
                 return false;
             }
 
-            m_logger.LogDebug($"{symbol} could not place sell order.");
+            m_logger.LogInformation($"{symbol} could not place sell order.");
             return false;
         }
 
@@ -236,12 +238,18 @@ namespace CryptoBlade.Exchanges
                     side: OrderSide.Buy,
                     type: NewOrderType.Market,
                     quantity: quantity,
-                    price: price,
                     positionIdx: PositionIdx.BuyHedgeMode,
                     reduceOnly: false,
                     ct: cancel));
-            if (!buyOrderRes.GetResultOrError(out _, out _))
+            if (!buyOrderRes.GetResultOrError(out _, out var error))
+            {
+                m_logger.LogInformation(
+                    "Cannot place MARKET BUY for {Symbol}. {Error}",
+                    symbol,
+                    error?.Message ?? "No error details");
+
                 return false;
+            }
 
             return true;
         }
@@ -262,8 +270,15 @@ namespace CryptoBlade.Exchanges
                     timeInForce: TimeInForce.PostOnly,
                     ct: cancel));
 
-            if (!sellOrderRes.GetResultOrError(out _, out _))
+            if (!sellOrderRes.GetResultOrError(out _, out var error))
+            {
+                m_logger.LogInformation(
+                    "Cannot place MARKET SELL for {Symbol}. {Error}",
+                    symbol,
+                    error?.Message ?? "No error details");
+
                 return false;
+            }
 
             return true;
         }
@@ -287,7 +302,7 @@ namespace CryptoBlade.Exchanges
                             ct: cancel));
             if (!sellOrderRes.GetResultOrError(out var sellOrder, out var error))
             {
-                m_logger.LogWarning($"{symbol} Failed to place long take profit order: {error}");
+                m_logger.LogInformation($"{symbol} Failed to place long take profit order: {error}");
                 return false;
             }
 
@@ -331,7 +346,7 @@ namespace CryptoBlade.Exchanges
                             ct: cancel));
             if (!buyOrderRes.GetResultOrError(out var buyOrder, out var error))
             {
-                m_logger.LogWarning($"{symbol} Failed to place short take profit order: {error}");
+                m_logger.LogInformation($"{symbol} Failed to place short take profit order: {error}");
                 return false;
             }
 
@@ -348,7 +363,7 @@ namespace CryptoBlade.Exchanges
                     .FirstOrDefault(x => string.Equals(x.OrderId, buyOrder.OrderId, StringComparison.Ordinal));
                 if (order != null && order.Status == OrderStatus.Cancelled)
                 {
-                    m_logger.LogDebug($"{symbol} short take profit order was cancelled.");
+                    m_logger.LogError($"{symbol} short take profit order was cancelled.");
                     return false;
                 }
             }
@@ -356,7 +371,7 @@ namespace CryptoBlade.Exchanges
             return true;
         }
 
-        public async Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop,
+        public async Task<bool> SetTradingStopAsync(string symbol, decimal priceScale, decimal stopLoss, decimal? takeProfit, decimal? trailingStop,
             PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null,
             StopLossTakeProfitMode? stopLossTakeProfitMode = StopLossTakeProfitMode.Full, CancellationToken cancel = default)
         {
@@ -383,8 +398,26 @@ namespace CryptoBlade.Exchanges
 
             if (!stopRes.Success)
             {
-                m_logger.LogError($"{symbol}: Bybit SetTradingStop responded with success=false. Error: {stopRes.Error?.Message}");
-                return false;
+                m_logger.LogInformation($"{symbol}: Bybit SetTradingStop responded with success=false. Error: {stopRes.Error?.Message}");
+
+                var ticker = await GetTickerAsync(symbol, cancel);
+                if (ticker == null) return false;
+
+                const decimal pct = 0.003m;                    // 0.3 %
+                decimal dist = Math.Round(ticker.LastPrice * pct, (int)priceScale); // pomocnicze rozszerzenie Scale()
+
+                m_logger.LogWarning(
+                    "{Symbol}: SL/TP odrzucone, ustawiam trailing stop {Dist} ({Pct:P})",
+                    symbol, dist, pct);
+
+                return await SetTradingStopAsync(
+                    symbol,
+                    priceScale,
+                    stopLoss: 0,               // 0 ⇒ brak klasycznego SL
+                    takeProfit: 0,             // 0 ⇒ brak TP
+                    trailingStop: dist,        // tylko TS
+                    positionIdx: positionIdx,
+                    cancel: cancel);
             }
 
             return true;

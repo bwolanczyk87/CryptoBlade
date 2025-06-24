@@ -852,6 +852,7 @@ namespace CryptoBlade.BackTesting
 
         public async Task<bool> SetTradingStopAsync(
             string symbol,
+            decimal priceScale,
             decimal stopLoss,
             decimal? takeProfit,
             decimal? trailingStop,

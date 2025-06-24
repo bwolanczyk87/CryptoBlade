@@ -60,6 +60,7 @@ namespace CryptoBlade.Exchanges
 
         Task<bool> SetTradingStopAsync(
             string symbol, 
+            decimal priceScale,
             decimal stopLoss, 
             decimal? takeProfit, 
             decimal? trailingStop,

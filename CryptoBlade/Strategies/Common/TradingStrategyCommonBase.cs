@@ -315,7 +315,7 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenLongPosition
                     && LongFundingWithinLimit(ticker))
                 {
-                    m_logger.LogDebug($"{Name}: {Symbol} trying to open long position");
+                    m_logger.LogInformation($"{Name}: {Symbol} trying to open long position");
                     if (UseMarketOrdersForEntries) {
                         bool placed = await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                         if (placed && stopLossPrice.HasValue)
@@ -347,7 +347,7 @@ namespace CryptoBlade.Strategies.Common
                     && canOpenShortPosition
                     && ShortFundingWithinLimit(ticker))
                 {
-                    m_logger.LogDebug($"{Name}: {Symbol} trying to open short position");
+                    m_logger.LogInformation($"{Name}: {Symbol} trying to open short position");
 
                     if (UseMarketOrdersForEntries) {
                         bool placed = await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
@@ -383,7 +383,7 @@ namespace CryptoBlade.Strategies.Common
                     && !executeParams.LongUnstucking
                     && executeParams.AllowExtraLong)
                 {
-                    m_logger.LogDebug($"{Name}: {Symbol} trying to add to open long position");
+                    m_logger.LogInformation($"{Name}: {Symbol} trying to add to open long position");
                     if (UseMarketOrdersForEntries)
                         await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                     else
@@ -403,7 +403,7 @@ namespace CryptoBlade.Strategies.Common
                     && !executeParams.ShortUnstucking
                     && executeParams.AllowExtraShort)
                 {
-                    m_logger.LogDebug($"{Name}: {Symbol} trying to add to open short position");
+                    m_logger.LogInformation($"{Name}: {Symbol} trying to add to open short position");
                     if (UseMarketOrdersForEntries)
                         await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                     else
@@ -716,7 +716,7 @@ namespace CryptoBlade.Strategies.Common
             BybitEnums.StopLossTakeProfitMode? stopLossTakeProfitMode = BybitEnums.StopLossTakeProfitMode.Full, CancellationToken cancel = default)
         {
             var placed = await m_cbFuturesRestClient.SetTradingStopAsync(
-                Symbol, stopLossPrice, takeProfitPrice, trailingStopPriceDistance, positionIdx,
+                Symbol, SymbolInfo.PriceScale, stopLossPrice, takeProfitPrice, trailingStopPriceDistance, positionIdx,
                 trailingStopActivePrice, takeProfitQuantity, stopLossQuantity,
                 stopLossTakeProfitMode, cancel);
             return placed;

@@ -117,7 +117,8 @@ namespace CryptoBlade.Mapping
                 BestBidPrice = ticker.BestBidPrice ?? 0,
                 FundingRate = ticker.FundingRate,
                 Timestamp = DateTime.UtcNow,
-                Volume24H = ticker.Volume24h
+                Volume24H = ticker.Volume24h,
+                MarkPrice = ticker.MarkPrice
             };
         }
 

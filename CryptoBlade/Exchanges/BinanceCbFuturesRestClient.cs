@@ -133,7 +133,7 @@ namespace CryptoBlade.Exchanges
             return fundingRates;
         }
 
-        public Task<bool> SetTradingStopAsync(string symbol, decimal stopLoss, decimal? takeProfit, decimal? trailingStop, Bybit.Net.Enums.PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, Bybit.Net.Enums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
+        public Task<bool> SetTradingStopAsync(string symbol, decimal priceScale, decimal stopLoss, decimal? takeProfit, decimal? trailingStop, Bybit.Net.Enums.PositionIdx positionIdx, decimal? activePrice = null, decimal? takeProfitQuantity = null, decimal? stopLossQuantity = null, Bybit.Net.Enums.StopLossTakeProfitMode? stopLossTakeProfitMode = null, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

@@ -5,22 +5,14 @@ using System.Collections;
 
 namespace CryptoBlade.Strategies.AI
 {
-    /// <summary>
-    /// Reflection‑based bridge between AI requests and Skender.Stock.Indicators 2.6.1.
-    /// </summary>
     public static class IndicatorEngine
     {
-        /* ------------------------------------------------------------------ */
-        /*  COMPUTE                                                           */
-        /* ------------------------------------------------------------------ */
-
         private static object? GetDefault(Type t) => t.IsValueType ? Activator.CreateInstance(t) : null;
 
         public static object Compute(IndicatorRequest req, IEnumerable<Quote> quotes)
         {
             try
             {
-                // 1) znajdź metodę
                 var mi = typeof(Indicator).GetMethods(BindingFlags.Public | BindingFlags.Static)
                     .FirstOrDefault(m => m.Name == "Get" + req.Name && FirstArgIsQuoteEnumerable(m))
                     ?? throw new InvalidOperationException($"Indicator '{req.Name}' not found");
@@ -28,8 +20,7 @@ namespace CryptoBlade.Strategies.AI
                 if (mi.IsGenericMethodDefinition)
                     mi = mi.MakeGenericMethod(typeof(Quote));
 
-                // 2) buduj listę argumentów
-                var paramInfos = mi.GetParameters();           // pierwszy = quotes
+                var paramInfos = mi.GetParameters();
                 var args = new List<object?> { quotes };
 
                 int supplied = 0;
@@ -46,11 +37,8 @@ namespace CryptoBlade.Strategies.AI
                                  : GetDefault(paramInfos[i].ParameterType));
                     }
                 }
+                var raw = mi.Invoke(null, [.. args]);
 
-                // 3) Invoke
-                var raw = mi.Invoke(null, args.ToArray());
-
-                // 4) Jeśli IEnumerable → zwróć ostatni element
                 if (raw is IEnumerable seq && raw is not string)
                 {
                     object? last = null;
@@ -86,10 +74,11 @@ namespace CryptoBlade.Strategies.AI
         /// </summary>
         public static string Format(object result, int scale = 2)
         {
-            if (result is null) return "null";
+            if (result == null) return "N/A";
 
-            string ToStr(object v) => Convert.ToDecimal(v)
-                .ToString($"F{scale}", CultureInfo.InvariantCulture);
+            string ToStr(object v)
+                => Convert.ToDecimal(v, CultureInfo.InvariantCulture)
+                          .ToString($"F{scale}", CultureInfo.InvariantCulture);
 
             // simple numeric value
             if (result is IConvertible && result is not string)
