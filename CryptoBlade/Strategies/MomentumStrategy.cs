@@ -26,6 +26,7 @@ namespace CryptoBlade.Strategies
         private readonly List<IndicatorRequest> _activeIndicators = [];
         private List<CandleRequest> _activeCandles = [];
         private List<PivotRequest> _activePivots = [];
+        private int _confidence = 0;
 
         private bool _isInitialized;
         private DateTime _lastEvalUtc = DateTime.MinValue;
@@ -180,7 +181,7 @@ namespace CryptoBlade.Strategies
             indics.Add(new("AI-Conf", $"{ai.Confidence}%"));
             indics.Add(new("AI-Note", ai.Reason));
 
-
+            _confidence = ai.Confidence;
             if (ai.Confidence < 70 || ai.Signal == "NONE")
                 return NoSignal(indics, $"Low confidence {ai.Confidence}");
 
@@ -203,8 +204,8 @@ namespace CryptoBlade.Strategies
             if (risk <= 0)                // SL na złej stronie?
                 return NoSignal(indics, "SL invalid vs entry");
 
-            decimal tp = isLong ? entry + risk             // LONG: TP powyżej
-                                : entry - risk;            // SHORT: TP poniżej
+            decimal tp = isLong ? entry + risk/2             // LONG: TP powyżej
+                                : entry - risk/2;            // SHORT: TP poniżej
 
             // zapisz do pól bazowej klasy
             StopLossPrice = stop;
@@ -229,9 +230,69 @@ namespace CryptoBlade.Strategies
             return new SignalEvaluation(false, false, false, false, [.. indics]);
         }
 
+        //protected override async Task CalculateDynamicQtyAsync()
+        //{
+        //    var ticker = await m_cbFuturesRestClient.GetTickerAsync(Symbol, CancellationToken.None);
+        //    if(StopLossPrice == null || ticker == null)
+        //    {
+        //        return;
+        //    }
+
+        //    var quantity = CalculateQtyRiskBased(SymbolInfo, WalletManager, ticker.LastPrice, StopLossPrice.Value, _confidence, 0.01m, 0.05m);
+        //    DynamicQtyLong = quantity;
+        //    DynamicQtyShort = quantity;
+        //}
+
         protected override Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
             return Task.CompletedTask;
+        }
+
+        public decimal? CalculateQtyRiskBased(
+            SymbolInfo symbol,
+            IWalletManager walletMgr,
+            decimal entryPrice,
+            decimal stopLoss,
+            int confidence,                // 0-100
+            decimal minRiskPct = 0.004m,   // 0.4 %
+            decimal maxRiskPct = 0.01m)    // 1 %
+        {
+            // 1) walidacja
+            if (entryPrice <= 0 || stopLoss <= 0 || entryPrice == stopLoss)
+                return null;
+            if (!walletMgr.Contract.WalletBalance.HasValue ||
+                !symbol.MaxLeverage.HasValue ||
+                !symbol.QtyStep.HasValue)
+                return null;
+
+            /* ------------------------------------------------------------
+             * 2)   WYBÓR RYZYKA  – liniowo od Confidence
+             *      80  → minRiskPct,   100 → maxRiskPct
+             * ------------------------------------------------------------ */
+            decimal confNorm = Math.Clamp(confidence - 80, 0, 20) / 20m; // 0-1
+            decimal riskPct = minRiskPct + confNorm * (maxRiskPct - minRiskPct);
+
+            /* ------------------------------------------------------------
+             * 3)   OBLICZENIE  QTY
+             * ------------------------------------------------------------ */
+            decimal walletUSDT = walletMgr.Contract.WalletBalance.Value;
+            decimal leverage = symbol.MaxLeverage.Value;
+            decimal riskDollar = walletUSDT * riskPct;
+            decimal slDistance = Math.Abs(entryPrice - stopLoss);
+
+            decimal rawQty = (riskDollar * leverage) / slDistance;
+
+            /* ------------------------------------------------------------
+             * 4)   Zaokrąglenie do kroku ilości
+             * ------------------------------------------------------------ */
+            decimal step = symbol.QtyStep.Value;
+            decimal qty = Math.Floor(rawQty / step) * step;
+
+            // opcjonalny limit min/max
+            if (qty < symbol.MinOrderQty) qty = symbol.MinOrderQty.Value;
+            // if (qty > symbol.MaxOrderQty) qty = symbol.MaxOrderQty;
+
+            return qty > 0 ? qty : null;
         }
     }
 }

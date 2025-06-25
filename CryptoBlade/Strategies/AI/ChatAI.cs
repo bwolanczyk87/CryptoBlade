@@ -49,8 +49,9 @@ namespace CryptoBlade.Strategies.AI
                 "Delay":minutes,
                 }
                 Rules:
-                -Signal: LONG/SHORT if Confidence>84
+                -Signal: LONG/SHORT if Confidence>84, dont rush, reduce risk
                 -Reason: <300 chars
+                -Place StopLoss at the nearest significant local support (for LONG) or resistance (for SHORT) level.
                 -Candles header: TF|MMdd=  (e.g. 1M|0624=)
                 -Candles body: HHmm,O,H,L,C,V; (e.g. 5M|0624|37280=6,7.2,5.8,6.1,800;)
                 -Indicators: TF|ind(params)=  (e.g. 5M|Rsi(7)=) 
