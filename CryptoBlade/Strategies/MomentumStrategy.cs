@@ -22,6 +22,7 @@ namespace CryptoBlade.Strategies
         protected override bool UseMarketOrdersForEntries => true;
         private const int MaxCandlesPerTimeframe = 100;
 
+        private readonly StyleProfile _profile;
         private readonly ChatAI _chatAI;
         private readonly List<IndicatorRequest> _activeIndicators = [];
         private List<CandleRequest> _activeCandles = [];
@@ -40,27 +41,29 @@ namespace CryptoBlade.Strategies
                                 IWalletManager walletMgr,
                                 ICbFuturesRestClient restClient,
                                 DeepSeekAccountConfig deepSeekCfg)
-            : base(strategyOpt, botOpt, symbol, BuildTfWindows(), walletMgr, restClient)
+            : base(strategyOpt, botOpt, symbol, [], walletMgr, restClient)
         {
             _log = ApplicationLogging.CreateLogger<MomentumStrategy>();
             _chatAI = new ChatAI(deepSeekCfg, symbol, ApplicationLogging.CreateLogger<ChatAI>());
 
-            var profile = StyleProfileFactory.Create(TradingStyle.Scalping);
+            _profile = StyleProfileFactory.Create(TradingStyle.Scalping);
+            var requiredTimeFrames = _profile.DefaultTimeFrameWindows.ToArray();
 
-            _activeIndicators = [.. profile.DefaultIndicators.Select(IndicatorRequest.Parse)];
-            _activeCandles = [.. profile.DefaultCandles.Select(CandleRequest.Parse)];
-            _activePivots = [.. profile.DefaultPivots.Select(PivotRequest.Parse)];
+            RequiredTimeFrameWindows = requiredTimeFrames;
+            foreach (TimeFrameWindow requiredTimeFrame in requiredTimeFrames)
+                QuoteQueues[requiredTimeFrame.TimeFrame] = new(requiredTimeFrame.WindowSize, requiredTimeFrame.TimeFrame);
+            foreach (TimeFrame timeFrame in Enum.GetValues<TimeFrame>())
+            {
+                if (!QuoteQueues.ContainsKey(timeFrame))
+                    QuoteQueues[timeFrame] = new(c_defaultCandleBufferSize, timeFrame);
+            }
+
+            _activeIndicators = [.. _profile.DefaultIndicators.Select(IndicatorRequest.Parse)];
+            _activeCandles = [.. _profile.DefaultCandles.Select(CandleRequest.Parse)];
+            _activePivots = [.. _profile.DefaultPivots.Select(PivotRequest.Parse)];
 
             StopLossTakeProfitMode = Bybit.Net.Enums.StopLossTakeProfitMode.Full;
         }
-
-        private static TimeFrameWindow[] BuildTfWindows() =>
-        [
-            new(TimeFrame.OneHour,        100, false), // 100×1H = 4+ days
-            new(TimeFrame.FifteenMinutes, 128, false), // 32 h
-            new(TimeFrame.FiveMinutes,     96, true ), // 8 h  ← primary
-            new(TimeFrame.OneMinute,      120, false)  // 2 h
-        ];
 
         private void LogCycleDuration()
         {
@@ -99,7 +102,7 @@ namespace CryptoBlade.Strategies
 
                 if (!_isInitialized)
                 {
-                    _chatAI.InitializeConversation(SymbolInfo, WalletManager.Contract.WalletBalance.Value);
+                    _chatAI.InitializeConversation(_profile.StyleName, SymbolInfo, WalletManager.Contract.WalletBalance.Value);
                     _isInitialized = true;
                 }
 
@@ -107,6 +110,7 @@ namespace CryptoBlade.Strategies
                 string userMsg = BuildUserMessage(quotesDict);
                 _chatAI.TrimConversationHistory();
 
+                _log.LogInformation($"[{Symbol}]Wait for AI respose...");
                 string aiJson = await _chatAI.GetAIResponseAsync(userMsg, ct);
 
                 return await ParseAiJson(aiJson, quotesDict, indics);
@@ -246,53 +250,6 @@ namespace CryptoBlade.Strategies
         protected override Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
             return Task.CompletedTask;
-        }
-
-        public decimal? CalculateQtyRiskBased(
-            SymbolInfo symbol,
-            IWalletManager walletMgr,
-            decimal entryPrice,
-            decimal stopLoss,
-            int confidence,                // 0-100
-            decimal minRiskPct = 0.004m,   // 0.4 %
-            decimal maxRiskPct = 0.01m)    // 1 %
-        {
-            // 1) walidacja
-            if (entryPrice <= 0 || stopLoss <= 0 || entryPrice == stopLoss)
-                return null;
-            if (!walletMgr.Contract.WalletBalance.HasValue ||
-                !symbol.MaxLeverage.HasValue ||
-                !symbol.QtyStep.HasValue)
-                return null;
-
-            /* ------------------------------------------------------------
-             * 2)   WYBÓR RYZYKA  – liniowo od Confidence
-             *      80  → minRiskPct,   100 → maxRiskPct
-             * ------------------------------------------------------------ */
-            decimal confNorm = Math.Clamp(confidence - 80, 0, 20) / 20m; // 0-1
-            decimal riskPct = minRiskPct + confNorm * (maxRiskPct - minRiskPct);
-
-            /* ------------------------------------------------------------
-             * 3)   OBLICZENIE  QTY
-             * ------------------------------------------------------------ */
-            decimal walletUSDT = walletMgr.Contract.WalletBalance.Value;
-            decimal leverage = symbol.MaxLeverage.Value;
-            decimal riskDollar = walletUSDT * riskPct;
-            decimal slDistance = Math.Abs(entryPrice - stopLoss);
-
-            decimal rawQty = (riskDollar * leverage) / slDistance;
-
-            /* ------------------------------------------------------------
-             * 4)   Zaokrąglenie do kroku ilości
-             * ------------------------------------------------------------ */
-            decimal step = symbol.QtyStep.Value;
-            decimal qty = Math.Floor(rawQty / step) * step;
-
-            // opcjonalny limit min/max
-            if (qty < symbol.MinOrderQty) qty = symbol.MinOrderQty.Value;
-            // if (qty > symbol.MaxOrderQty) qty = symbol.MaxOrderQty;
-
-            return qty > 0 ? qty : null;
         }
     }
 }

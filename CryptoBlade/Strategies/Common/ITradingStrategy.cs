@@ -45,7 +45,7 @@ namespace CryptoBlade.Strategies.Common
 
         StrategyIndicator[] Indicators { get; }
 
-        TimeFrameWindow[] RequiredTimeFrameWindows { get; }
+        public TimeFrameWindow[] RequiredTimeFrameWindows { get; }
 
         decimal? CurrentExposureLong { get;  }
         

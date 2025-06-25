@@ -17,7 +17,7 @@ namespace CryptoBlade.Strategies.Common
         private readonly IOptions<TradingStrategyCommonBaseOptions> m_options;
         private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly Channel<Candle> m_candleBuffer;
-        private const int c_defaultCandleBufferSize = 1000;
+        public const int c_defaultCandleBufferSize = 1000;
         protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
         private readonly ILogger m_logger;
         private readonly Random m_random = new Random();
@@ -92,7 +92,7 @@ namespace CryptoBlade.Strategies.Common
         public DateTime LastTickerUpdate { get; protected set; }
         public DateTime LastCandleUpdate { get; protected set; }
         public StrategyIndicator[] Indicators { get; protected set; }
-        public TimeFrameWindow[] RequiredTimeFrameWindows { get; }
+        public TimeFrameWindow[] RequiredTimeFrameWindows { get; set; }
         protected Position? LongPosition { get; set; }
         protected Position? ShortPosition { get; set; }
         protected Order[] BuyOrders { get; set; }

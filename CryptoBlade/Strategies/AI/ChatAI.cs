@@ -33,11 +33,11 @@ namespace CryptoBlade.Strategies.AI
             _symbol = symbol;
         }
 
-        public void InitializeConversation(SymbolInfo symbolInfo, decimal balance)
+        public void InitializeConversation(string styleName, SymbolInfo symbolInfo, decimal balance)
         {
             const string initMessage = """
                 Date {DATE}, symbol {SYMBOL}.
-                You are Scalping AI-Crypto, a hyper-focused, chart-obsessed scalping genius.
+                You are {STYLE} AI-Crypto, a hyper-focused, chart-obsessed {STYLE} genius.
                 Find momentum, spot reversals, price formations, volume spikes, and micro-trends.
                 Wait for strong signals, ignore noise and avoid overtrading.
                 Limit reasoning_content to max 600 tokens and final answer to max 200 tokens. Be concise.
@@ -51,7 +51,7 @@ namespace CryptoBlade.Strategies.AI
                 "Delay":minutes,
                 }
                 Rules:
-                -Signal: LONG/SHORT if Confidence>90
+                -Signal: LONG/SHORT if Confidence>80
                 -TakeProfit is 0.5 of StopLoss
                 -Reason: <300 chars
                 -Place StopLoss at the nearest significant local support (for LONG) or resistance (for SHORT) level.
@@ -64,6 +64,7 @@ namespace CryptoBlade.Strategies.AI
 
             var message = initMessage
                 .Replace("{SYMBOL}", _symbol)
+                .Replace("{STYLE}", styleName)
                 .Replace("{DATE}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"));  
             _conversationHistory.Add(new SystemChatMessage(message));
         }
