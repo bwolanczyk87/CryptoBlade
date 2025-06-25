@@ -26,7 +26,7 @@ namespace CryptoBlade.Strategies.AI
                 new OpenAIClientOptions { Endpoint = new Uri("https://api.deepseek.com") }
             );
 
-            _chatClient = client.GetChatClient("deepseek-reasoner");
+            _chatClient = client.GetChatClient("deepseek-chat");
             _logger = logger;
             _symbol = symbol;
         }
