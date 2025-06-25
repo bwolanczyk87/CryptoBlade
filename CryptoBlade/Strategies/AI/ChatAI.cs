@@ -26,7 +26,7 @@ namespace CryptoBlade.Strategies.AI
                 new OpenAIClientOptions { Endpoint = new Uri("https://api.deepseek.com") }
             );
 
-            _chatClient = client.GetChatClient("deepseek-chat");
+            _chatClient = client.GetChatClient("deepseek-reasoner");
             _logger = logger;
             _symbol = symbol;
         }
@@ -34,11 +34,10 @@ namespace CryptoBlade.Strategies.AI
         public void InitializeConversation(SymbolInfo symbolInfo, decimal balance)
         {
             const string initMessage = """
-                Date {DATE}.
-                You are Scalping AI-Crypto, a hyper-focused, chart-obsessed scalping genius. 
-                You hunt volatility, detect micro-signals, and act with surgical precision. 
-                Find momentum, spot reversals, and seize every opportunity for symbol {SYMBOL}.
-                Identify price formations, volume spikes, and micro-trends.
+                Date {DATE}, symbol {SYMBOL}.
+                You are Scalping AI-Crypto, a hyper-focused, chart-obsessed scalping genius.
+                Find momentum, spot reversals, price formations, volume spikes, and micro-trends.
+                Wait for strong signals, ignore noise and avoid overtrading.
 
                 Return exactly one JSON:
                 {
@@ -49,7 +48,8 @@ namespace CryptoBlade.Strategies.AI
                 "Delay":minutes,
                 }
                 Rules:
-                -Signal: LONG/SHORT if Confidence>84, dont rush, reduce risk
+                -Signal: LONG/SHORT if Confidence>90
+                -TakeProfit is 0.5 of StopLoss
                 -Reason: <300 chars
                 -Place StopLoss at the nearest significant local support (for LONG) or resistance (for SHORT) level.
                 -Candles header: TF|MMdd=  (e.g. 1M|0624=)
