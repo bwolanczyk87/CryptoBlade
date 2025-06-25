@@ -3,8 +3,10 @@ using CryptoBlade.Services;
 using OpenAI;
 using OpenAI.Chat;
 using SharpToken;
+using System;
 using System.ClientModel;
 using System.Globalization;
+using System.Text;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace CryptoBlade.Strategies.AI
@@ -26,7 +28,7 @@ namespace CryptoBlade.Strategies.AI
                 new OpenAIClientOptions { Endpoint = new Uri("https://api.deepseek.com") }
             );
 
-            _chatClient = client.GetChatClient("deepseek-chat");
+            _chatClient = client.GetChatClient("deepseek-reasoner");
             _logger = logger;
             _symbol = symbol;
         }
@@ -38,6 +40,7 @@ namespace CryptoBlade.Strategies.AI
                 You are Scalping AI-Crypto, a hyper-focused, chart-obsessed scalping genius.
                 Find momentum, spot reversals, price formations, volume spikes, and micro-trends.
                 Wait for strong signals, ignore noise and avoid overtrading.
+                Limit reasoning_content to max 600 tokens and final answer to max 200 tokens. Be concise.
 
                 Return exactly one JSON:
                 {
@@ -93,21 +96,27 @@ namespace CryptoBlade.Strategies.AI
             var options = new ChatCompletionOptions
             {
                 Temperature = 0.2f,
-                MaxOutputTokenCount = 500,
+                MaxOutputTokenCount = 1000,
                 FrequencyPenalty = 0.2f,
                 ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
             };
-            
-            var response = await _chatClient.CompleteChatAsync(_conversationHistory, options, cancel);
-            var aiResponse = response.Value.Content[0].Text.Trim();
 
-            var aiResponseWithDate =$"SYMBOL: {_symbol} | Date: {DateTime.UtcNow:yyyy-MM-dd HH:mm}\n{aiResponse}";
+            var aiResponse = new StringBuilder();
+            await foreach (StreamingChatCompletionUpdate update
+               in _chatClient.CompleteChatStreamingAsync(_conversationHistory, options, cancel))
+            {
+                if (update.ContentUpdate.Count > 0)
+                    aiResponse.Append(update.ContentUpdate[0].Text);
+            }
+            var response = aiResponse.ToString().Trim();
+
+            var aiResponseWithDate =$"SYMBOL: {_symbol} | Date: {DateTime.UtcNow:yyyy-MM-dd HH:mm}\n{response}";
             _conversationHistory.Add(new AssistantChatMessage(aiResponseWithDate));
 
             var finalLog = prompt + aiResponseWithDate;
             finalLog += "\n\n**********************************************************************";
             _logger.LogInformation(finalLog);
-            return aiResponse;
+            return response;
         }
 
         private static int CountTokens(string prompt)
