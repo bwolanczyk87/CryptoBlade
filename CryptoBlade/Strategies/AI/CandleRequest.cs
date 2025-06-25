@@ -5,6 +5,16 @@ using System.Text;
 
 namespace CryptoBlade.Strategies.AI
 {
+    /// <summary>
+    /// Builds a payload in *plain OHLCV* format (absolute prices) so the AI no longer has to
+    /// perform tick‑delta reconstruction. The previous delta logic has been removed.
+    ///
+    /// Header pattern:  {TFAbbr}|{Count}|{MMDD}=  
+    /// Rows:            HHmm,Open,High,Low,Close,Volume  (semicolon‑separated)
+    /// Prices are rounded to <paramref name="priceScale"/> decimal places using the invariant culture.
+    /// Example:
+    ///     1m|30|0624=1305,0.60450,0.60460,0.60440,0.60450,501;1306,0.60450,0.60460,0.60440,0.60450,13 667;...
+    /// </summary>
     public class CandleRequest
     {
         public TimeFrame Tf { get; }
@@ -20,7 +30,17 @@ namespace CryptoBlade.Strategies.AI
                 int.Parse(p[1]));
         }
 
-        public string ToBotPayload(Dictionary<TimeFrame, QuoteQueue> quotes,int priceScale)
+        /// <summary>
+        /// Converts the queued <see cref="Quote"/> objects for the requested timeframe to the
+        /// simplified OHLCV string expected by the bot.
+        /// </summary>
+        /// <remarks>
+        /// ‑ If <paramref name="quotes"/> has no data for the timeframe an empty string is returned.
+        /// ‑ Only the <paramref name="Count"/> most‑recent candles are included.
+        /// ‑ A new header block is started whenever the calendar day changes so the consumer can
+        ///   reset its state naturally.
+        /// </remarks>
+        public string ToBotPayload(Dictionary<TimeFrame, QuoteQueue> quotes, int priceScale)
         {
             if (!quotes.TryGetValue(Tf, out var tfQuotes))
                 return string.Empty;
@@ -28,55 +48,40 @@ namespace CryptoBlade.Strategies.AI
             var list = tfQuotes.GetQuotes().TakeLast(Count).ToList();
             if (list.Count == 0) return string.Empty;
 
-            // 10^priceScale  → konwersja float → tick-int
-            int pow = (int)Math.Pow(10, priceScale);
-
             var sb = new StringBuilder();
-
             string tfAbbr = TimeFrameHelper.GetAbbreviation(Tf);
             string curDay = null!;
-            int prevCloseTicks = 0;   // zainicjujemy przy 1-szej świecy
+            string priceFmt = $"F{priceScale}";
+            var inv = CultureInfo.InvariantCulture;
 
-            for (int i = 0; i < list.Count; i++)
+            foreach (var q in list)
             {
-                var q = list[i];
-                var day = q.Date.ToString("MMdd");
+                string day = q.Date.ToString("MMdd");
 
-                // --- nowy nagłówek gdy zmiana dnia -----------------------
+                // ――― start a new block when the calendar day changes ―――
                 if (day != curDay)
                 {
-                    // absolutny pierwszy close danego dnia
-                    prevCloseTicks = (int)Math.Round(q.Close * pow);
-                    if (sb.Length > 0) sb.Append(';');      // odetnij poprzedni blok
+                    if (sb.Length > 0)
+                        sb.Append(';');
 
-                    sb.Append($"{tfAbbr}|{Count}|{day}|{prevCloseTicks}=");
+                    sb.Append($"{tfAbbr}|{Count}|{day}=");
                     curDay = day;
-                    // aktualna świeca będzie zakodowana niżej (delta = 0,0,0,0)
                 }
                 else
                 {
-                    sb.Append(';');   // separator kolejnej świecy tego samego dnia
+                    sb.Append(';');
                 }
 
-                // --- tick-int wartości -----------------------------------
-                int o = (int)Math.Round(q.Open * pow);
-                int h = (int)Math.Round(q.High * pow);
-                int l = (int)Math.Round(q.Low * pow);
-                int c = (int)Math.Round(q.Close * pow);
-
-                // różnice względem poprzedniego CLOSE
+                // ――― write the OHLCV row (absolute prices) ―――
                 sb.Append($"{q.Date:HHmm},");
-                sb.Append($"{o - prevCloseTicks},");
-                sb.Append($"{h - prevCloseTicks},");
-                sb.Append($"{l - prevCloseTicks},");
-                sb.Append($"{c - prevCloseTicks},");
-                sb.Append($"{q.Volume.ToString("F0", CultureInfo.InvariantCulture)}");
-
-                prevCloseTicks = c; // update na następną świecę
+                sb.Append($"{Math.Round(q.Open, priceScale).ToString(priceFmt, inv)},");
+                sb.Append($"{Math.Round(q.High, priceScale).ToString(priceFmt, inv)},");
+                sb.Append($"{Math.Round(q.Low, priceScale).ToString(priceFmt, inv)},");
+                sb.Append($"{Math.Round(q.Close, priceScale).ToString(priceFmt, inv)},");
+                sb.Append($"{q.Volume.ToString("F0", inv)}");
             }
 
             return sb.ToString();
         }
-
     }
 }

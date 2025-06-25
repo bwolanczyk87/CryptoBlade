@@ -38,33 +38,28 @@ namespace CryptoBlade.Strategies.AI
                 You are Scalping AI-Crypto, a hyper-focused, chart-obsessed scalping genius. 
                 You hunt volatility, detect micro-signals, and act with surgical precision. 
                 Find momentum, spot reversals, and seize every opportunity for symbol {SYMBOL}.
+                Identify price formations, volume spikes, and micro-trends.
 
                 Return exactly one JSON:
                 {
                 "Signal":"LONG|SHORT|NONE",
                 "Confidence":0-100,
                 "StopLoss": decimal,
-                "TakeProfit":decimal,
                 "Reason":str,
                 "Delay":minutes,
                 }
                 Rules:
-                -Signal LONG/SHORT if Confidence>75
-                -Max Leverage is set
-                -SL and TP tight, dot separator, {PRICE_SCALE}dp, 0 if NONE signal
-                -Reason <300 chars
-                -Delay 1-15min, next best opportunity to open MarketOrder comming after Delay minutes (according to your prediction)
-                -Indicators use full price format
-                -Candles use tick-delta format header+candle: TF|n|MMdd|Close0=HHmm,dO,dH,dL,dC,V; (e.g. 1M|15|0624|37280=1240,5,25,-15,10,800;)
-                -Rebuild O/H/L/C by adding deltas to previous close (tick size = 10^-{PRICE_SCALE})
-                -Pivots format MMddHHmm,zigzag,pointType; (e.g. 06241200,1,5;)
+                -Signal: LONG/SHORT if Confidence>84
+                -Reason: <300 chars
+                -Candles header: TF|MMdd=  (e.g. 1M|0624=)
+                -Candles body: HHmm,O,H,L,C,V; (e.g. 5M|0624|37280=6,7.2,5.8,6.1,800;)
+                -Indicators: TF|ind(params)=  (e.g. 5M|Rsi(7)=) 
+                -Pivots: HHmm,zigzag,pointType; (e.g. 1200,6.1,H;1210,6,L)
+                -Delay: 1-15min, learn on previous signals and predict next best evaluation point
                 """;
 
             var message = initMessage
                 .Replace("{SYMBOL}", _symbol)
-                .Replace("{LEVERAGE}", symbolInfo.MaxLeverage?.ToString("F0") ?? "0")
-                .Replace("{BALANCE}", balance.ToString("F2", CultureInfo.InvariantCulture))
-                .Replace("{PRICE_SCALE}", symbolInfo.PriceScale.ToString("F0", CultureInfo.InvariantCulture))
                 .Replace("{DATE}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"));  
             _conversationHistory.Add(new SystemChatMessage(message));
         }

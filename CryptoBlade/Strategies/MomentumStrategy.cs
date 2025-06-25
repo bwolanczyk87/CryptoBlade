@@ -185,14 +185,38 @@ namespace CryptoBlade.Strategies
                 return NoSignal(indics, $"Low confidence {ai.Confidence}");
 
             bool isLong = ai.Signal == "LONG";
-            return await GenerateSignal(isLong, ai.StopLoss, ai.TakeProfit, indics);
+            return await GenerateSignal(isLong, ai.StopLoss, indics);
         }
 
-        private async Task<SignalEvaluation> GenerateSignal(bool isLong, decimal stop, decimal tp, List<StrategyIndicator> indics)
+        private async Task<SignalEvaluation> GenerateSignal(bool isLong, decimal stop, List<StrategyIndicator> indics)
         {
-            TakeProfitPrice = tp;
+            var ticker = await m_cbFuturesRestClient.GetTickerAsync(Symbol, CancellationToken.None);
+            if (ticker == null)
+                return NoSignal(indics, "Ticker not found");
+
+            decimal entry = ticker.LastPrice;
+
+            // odległość ryzyka w punktach
+            decimal risk = isLong ? entry - stop           // LONG: SL poniżej
+                                  : stop - entry;         // SHORT: SL powyżej
+
+            if (risk <= 0)                // SL na złej stronie?
+                return NoSignal(indics, "SL invalid vs entry");
+
+            decimal tp = isLong ? entry + risk             // LONG: TP powyżej
+                                : entry - risk;            // SHORT: TP poniżej
+
+            // zapisz do pól bazowej klasy
             StopLossPrice = stop;
+            TakeProfitPrice = tp;
+
+            // (obliczenie wielkości pozycji patrzy już na StopLossPrice)
             await CalculateDynamicQtyAsync();
+
+            string priceFmt = $"F{SymbolInfo.PriceScale}";
+
+            indics.Add(new("Entry", entry.ToString(priceFmt, CultureInfo.InvariantCulture)));
+            indics.Add(new("TP", tp.ToString(priceFmt, CultureInfo.InvariantCulture)));
 
             return new SignalEvaluation(isLong, !isLong, false, false, [.. indics]);
         }
