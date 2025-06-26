@@ -36,7 +36,7 @@ namespace CryptoBlade.Strategies.AI
         /// <exception cref="ArgumentException">Gdy nieznany modelId.</exception>
         public ChatAI(DeepSeekAccountConfig config, string modelId, string symbol, ILogger<ChatAI> logger)
         {
-            var account = config.Accounts.FirstOrDefault(a => a.ApiName == modelId)
+            var account = config.Accounts.FirstOrDefault(a => a.ApiName == "btcusdt")
                 ?? throw new Exception($"DeepSeek account not found for symbol {symbol}");
 
             var client = new OpenAIClient(
