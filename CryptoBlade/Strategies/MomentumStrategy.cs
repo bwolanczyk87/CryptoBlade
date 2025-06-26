@@ -212,8 +212,8 @@ namespace CryptoBlade.Strategies
                                 : entry - risk/2;            // SHORT: TP poniżej
 
             // zapisz do pól bazowej klasy
-            StopLossPrice = stop;
-            TakeProfitPrice = tp;
+            StopLossPrice = tp;
+            TakeProfitPrice = stop;
 
             // (obliczenie wielkości pozycji patrzy już na StopLossPrice)
             await CalculateDynamicQtyAsync();
@@ -223,7 +223,7 @@ namespace CryptoBlade.Strategies
             indics.Add(new("Entry", entry.ToString(priceFmt, CultureInfo.InvariantCulture)));
             indics.Add(new("TP", tp.ToString(priceFmt, CultureInfo.InvariantCulture)));
 
-            return new SignalEvaluation(isLong, !isLong, false, false, [.. indics]);
+            return new SignalEvaluation(!isLong, isLong, false, false, [.. indics]);
         }
 
         private static SignalEvaluation NoSignal(List<StrategyIndicator> indics, string? reason = null)
