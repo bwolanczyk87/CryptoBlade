@@ -44,7 +44,7 @@ namespace CryptoBlade.Strategies
             : base(strategyOpt, botOpt, symbol, [], walletMgr, restClient)
         {
             _log = ApplicationLogging.CreateLogger<MomentumStrategy>();
-            _chatAI = new ChatAI(deepSeekCfg, symbol, ApplicationLogging.CreateLogger<ChatAI>());
+            _chatAI = new ChatAI(deepSeekCfg, "deepseek-chat", symbol, ApplicationLogging.CreateLogger<ChatAI>());
 
             _profile = StyleProfileFactory.Create(TradingStyle.Scalping);
             var requiredTimeFrames = _profile.DefaultTimeFrameWindows.ToArray();
