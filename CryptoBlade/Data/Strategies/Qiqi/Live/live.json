@@ -1,20 +1,20 @@
 {
-  "AccountName": "Demo",
+  "AccountName": "Qiqi",
   "BotMode": "Live",
   "StrategyName": "Qiqi",
   "TradingMode": "Dynamic",
-  "MaxRunningStrategies": 200,
+  "MaxRunningStrategies": 30,
   "DcaOrdersCount": 1000,
   "DynamicBotCount": {
-    "TargetLongExposure": 1000.0,
-    "TargetShortExposure": 1000.0,
+    "TargetLongExposure": 200.0,
+    "TargetShortExposure": 200.0,
     "MaxLongStrategies": 100,
     "MaxShortStrategies": 100,
     "MaxDynamicStrategyOpenPerStep": 10,
     "Step": "00:01:00"
   },
-  "WalletExposureLong": 15.0,
-  "WalletExposureShort": 15.0,
+  "WalletExposureLong": 50.0,
+  "WalletExposureShort": 0.0,
   "MinimumVolume": 15000.0,
   "MinimumPriceDistance": 0.015,
   "ForceMinQty": false,
@@ -39,13 +39,13 @@
     "InitialUntradableDays": 0
   },
   "Unstucking": {
-    "Enabled": false,
-    "SlowUnstuckThresholdPercent": -0.0006,
-    "SlowUnstuckPositionThresholdPercent": -0.0006,
-    "ForceUnstuckThresholdPercent": -0.0006,
-    "ForceUnstuckPositionThresholdPercent": -0.0006,
-    "SlowUnstuckPercentStep": 1,
-    "ForceUnstuckPercentStep": 1,
+    "Enabled": true,
+    "SlowUnstuckThresholdPercent": -0.18,
+    "SlowUnstuckPositionThresholdPercent": -0.07,
+    "ForceUnstuckThresholdPercent": -0.12,
+    "ForceUnstuckPositionThresholdPercent": -0.28,
+    "SlowUnstuckPercentStep": 0.35,
+    "ForceUnstuckPercentStep": 0.76,
     "ForceKillTheWorst": true
   },
   "Strategies": {
@@ -71,9 +71,9 @@
   },
   "CriticalMode": {
     "EnableCriticalModeLong": true,
-    "EnableCriticalModeShort": true,
-    "WalletExposureThresholdLong": 0.3,
-    "WalletExposureThresholdShort": 0.3
+    "EnableCriticalModeShort": false,
+    "WalletExposureThresholdLong": 8.8,
+    "WalletExposureThresholdShort": 10
   },
   "SymbolVolumePreference": [
     "HIGH",
