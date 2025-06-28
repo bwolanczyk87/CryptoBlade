@@ -103,6 +103,7 @@ namespace CryptoBlade.Strategies.Common
         protected decimal? ShortTakeProfitFraction { get; set; }
         protected decimal? LongTakeProfitPrice { get; set; }
         protected decimal? LongTakeProfitFraction { get; set; }
+        protected decimal? EntryPrice { get; set; }
         protected decimal? StopLossPrice { get; set; }
         protected decimal? TakeProfitPrice { get; set; }
         protected decimal? TrailingStopActivePrice { get; set; }
@@ -124,6 +125,7 @@ namespace CryptoBlade.Strategies.Common
         protected abstract decimal WalletExposureLong { get; }
         protected abstract decimal WalletExposureShort { get; }
         protected IWalletManager WalletManager { get; }
+        private bool PlaceTradingStopAcitivated { get; set; } = false;
 
         public Task UpdateTradingStateAsync(Position? longPosition, Position? shortPosition, Order[] orders, CancellationToken cancel)
         {
@@ -327,15 +329,17 @@ namespace CryptoBlade.Strategies.Common
                     }
 
                     else {
-                        bool placed = await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
-                        if (placed && stopLossPrice.HasValue)
-                        {
-                            await PlaceTradingStopAsync(
-                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
-                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
-                        }
+                        var price = EntryPrice ?? ticker.BestBidPrice;
+                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, price, lastPrimaryQuote.Date, cancel);
                     }
 
+                }
+
+                if (longPosition != null && buyOrders.Any() && stopLossPrice.HasValue && takeProfitPrice.HasValue)
+                {
+                    await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.BuyHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
                 }
 
                 if (hasSellSignal
@@ -349,7 +353,8 @@ namespace CryptoBlade.Strategies.Common
                 {
                     m_logger.LogInformation($"{Name}: {Symbol} trying to open short position");
 
-                    if (UseMarketOrdersForEntries) {
+                    if (UseMarketOrdersForEntries)
+                    {
                         bool placed = await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                         if (placed && stopLossPrice.HasValue)
                         {
@@ -359,16 +364,21 @@ namespace CryptoBlade.Strategies.Common
                         }
                     }
 
-                    else {
-                        bool placed = await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
-                        if (placed && stopLossPrice.HasValue)
-                        {
-                            await PlaceTradingStopAsync(
-                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
-                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
-                        }
+                    else
+                    {
+                        var price = EntryPrice ?? ticker.BestBidPrice;
+                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, price, lastPrimaryQuote.Date, cancel);
                     }
                 }
+
+                if (shortPosition != null && sellOrders.Any() && stopLossPrice.HasValue && takeProfitPrice.HasValue)
+                {
+                    await PlaceTradingStopAsync(
+                                BybitEnums.PositionIdx.SellHedgeMode, stopLossPrice.Value, takeProfitPrice, trailingStopPriceDistance,
+                                takeProfitQuantity, stopLossQuantity, trailingStopActivePrice, stopLossTakeProfitMode, cancel);
+
+                }
+
 
                 if (hasBuyExtraSignal
                     && longPosition != null
@@ -387,7 +397,10 @@ namespace CryptoBlade.Strategies.Common
                     if (UseMarketOrdersForEntries)
                         await PlaceMarketBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, ticker.BestBidPrice, lastPrimaryQuote.Date, cancel);
+                    {
+                        var price = EntryPrice ?? ticker.BestBidPrice;
+                        await PlaceLimitBuyOrderAsync(dynamicQtyLong.Value, price, lastPrimaryQuote.Date, cancel);
+                    }    
                 }
 
                 if (hasSellExtraSignal
@@ -407,7 +420,10 @@ namespace CryptoBlade.Strategies.Common
                     if (UseMarketOrdersForEntries)
                         await PlaceMarketSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
                     else
-                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, ticker.BestAskPrice, lastPrimaryQuote.Date, cancel);
+                    {
+                        var price = EntryPrice ?? ticker.BestBidPrice;
+                        await PlaceLimitSellOrderAsync(dynamicQtyShort.Value, price, lastPrimaryQuote.Date, cancel);
+                    }
                 }
             }
 

@@ -35,6 +35,12 @@ namespace CryptoBlade.Strategies
         private readonly object _evalLock = new();
         private readonly ILogger<MomentumStrategy> _log;
 
+        private readonly IOrderBookService _orderBook;
+        private readonly IVolumeFlowService _volumeFlow;
+        private readonly IRiskMetricsService _risk;
+        private readonly IBtcBiasService _btcBias;
+        private readonly INewsSentimentService _news;
+
         public MomentumStrategy(IOptions<MomentumStrategyOptions> strategyOpt,
                                 IOptions<TradingBotOptions> botOpt,
                                 string symbol,
@@ -121,7 +127,7 @@ namespace CryptoBlade.Strategies
             }
         }
 
-        private string BuildUserMessage(Dictionary<TimeFrame, IEnumerable<Quote>> quotes)
+        private async Task<string> BuildUserMessage(Dictionary<TimeFrame, IEnumerable<Quote>> quotes)
         {
             var sb = new StringBuilder();
             int scale = (int)SymbolInfo.PriceScale;
@@ -170,60 +176,73 @@ namespace CryptoBlade.Strategies
 
                 sb.AppendLine($"{pr}={string.Join(';', pivots)}");
             }
+
+            OrderBookStats ob = await _orderBook.GetStatsAsync(Symbol, ct);
+            string wallBid = ob.WallBid.HasValue ? $"{ob.WallBid.Value.Price:F{scale}}@{ob.WallBid.Value.Size / 1_000m:0.#}k" : "-";
+            string wallAsk = ob.WallAsk.HasValue ? $"{ob.WallAsk.Value.Price:F{scale}}@{ob.WallAsk.Value.Size / 1_000m:0.#}k" : "-";
+            sb.AppendLine($"OrderBook: AvgSpread:{ob.AvgSpread:F{scale}},Imb0.05%:{ob.ImbalancePct:+0.##;-0.##;0}%,WallBid:{wallBid},WallAsk:{wallAsk},TopTurnover60s:{ob.TopTurnover60s}");
+
+            VolumeFlow vf = await _volumeFlow.GetFlowAsync(Symbol, ct);
+            sb.AppendLine($"VolumeFlow: 5mCVD:{vf.Cvd5m:F0},1mBuyVol:{vf.BuyVol1m:F0},1mSellVol:{vf.SellVol1m:F0}");
+
+            RiskMetrics rm = await _risk.GetAsync(Symbol, ct);
+            sb.AppendLine($"RiskMetrics: 5mATR:{rm.Atr5m:F{scale}},Funding8h:{rm.Funding8h:+0.0000;-0.0000;0},OIΔ5m:{rm.OiDelta5m:+0.00;-0.00;0}");
+
+            BtcBias bb = await _btcBias.GetAsync(ct);
+            sb.AppendLine($"BTCBias: BTCΔ5m:{bb.PriceDelta5m:+0.00%;-0.00%;0},Corr30d:{bb.RollingCorr30d:F2}");
+
+            var news = await _news.GetImpactAsync(Symbol, ct);
+            sb.AppendLine($"NewsImpact:{news}");
+
+            string positionStatus = IsInLongTrade ? "LONG" : IsInShortTrade ? "SHORT" : "FLAT";
+            var lastPnl = string.Join(',', WalletManager.LastThreeTradePnL.Select(p => p.ToString("+#.##;-#.##;0")));
+            sb.AppendLine($"Position: {positionStatus}, Last3PnL({lastPnl})");
+
             return sb.ToString();
         }
 
-        private async Task<SignalEvaluation> ParseAiJson(string json, Dictionary<TimeFrame, IEnumerable<Quote>> quotes, List<StrategyIndicator> indics)
+        private async Task<SignalEvaluation> ParseAiJson(string json,
+                                                         Dictionary<TimeFrame, IEnumerable<Quote>> quotes,
+                                                         List<StrategyIndicator> indics)
         {
             SignalResponseAI? ai;
-            try { ai = JsonSerializer.Deserialize<SignalResponseAI>(json); }
-            catch (Exception ex) { return NoSignal(indics, $"JSON parse error: {ex.Message}"); }
-            if (ai == null) return NoSignal(indics, "Null AI");
-            _dataDelay = ai.Delay;
+            try
+            {
+                ai = JsonSerializer.Deserialize<SignalResponseAI>(json);
+            }
+            catch (Exception ex)
+            {
+                return NoSignal(indics, $"JSON parse error: {ex.Message}");
+            }
+            if (ai is null)
+                return NoSignal(indics, "Null AI response");
 
+            _dataDelay = ai.Delay;
             indics.Add(new("AI-DataDelay", ai.Delay));
             indics.Add(new("AI-Conf", $"{ai.Confidence}%"));
             indics.Add(new("AI-Note", ai.Reason));
 
-            _confidence = ai.Confidence;
-            if (ai.Confidence < 70 || ai.Signal == "NONE")
-                return NoSignal(indics, $"Low confidence {ai.Confidence}");
+            if (ai.Confidence < 90 || ai.Signal == "NONE")
+                return NoSignal(indics, $"Confidence {ai.Confidence} < 90");
 
             bool isLong = ai.Signal == "LONG";
-            return await GenerateSignal(isLong, ai.StopLoss, indics);
+            return await GenerateSignal(isLong, ai.EntryPrice, ai.StopLoss, ai.TakeProfit, indics);
         }
 
-        private async Task<SignalEvaluation> GenerateSignal(bool isLong, decimal stop, List<StrategyIndicator> indics)
+
+        private async Task<SignalEvaluation> GenerateSignal(bool isLong,
+                                                            decimal entry,
+                                                            decimal stop,
+                                                            decimal tp,
+                                                            List<StrategyIndicator> indics)
         {
-            var ticker = await m_cbFuturesRestClient.GetTickerAsync(Symbol, CancellationToken.None);
-            if (ticker == null)
-                return NoSignal(indics, "Ticker not found");
+            EntryPrice = entry;
+            StopLossPrice = stop;
+            TakeProfitPrice = tp;
 
-            decimal entry = ticker.LastPrice;
+            await CalculateDynamicQtyAsync(); // uses the three prices above
 
-            // odległość ryzyka w punktach
-            decimal risk = isLong ? entry - stop           // LONG: SL poniżej
-                                  : stop - entry;         // SHORT: SL powyżej
-
-            if (risk <= 0)                // SL na złej stronie?
-                return NoSignal(indics, "SL invalid vs entry");
-
-            decimal tp = isLong ? entry + risk/2             // LONG: TP powyżej
-                                : entry - risk/2;            // SHORT: TP poniżej
-
-            // zapisz do pól bazowej klasy
-            StopLossPrice = tp;
-            TakeProfitPrice = stop;
-
-            // (obliczenie wielkości pozycji patrzy już na StopLossPrice)
-            await CalculateDynamicQtyAsync();
-
-            string priceFmt = $"F{SymbolInfo.PriceScale}";
-
-            indics.Add(new("Entry", entry.ToString(priceFmt, CultureInfo.InvariantCulture)));
-            indics.Add(new("TP", tp.ToString(priceFmt, CultureInfo.InvariantCulture)));
-
-            return new SignalEvaluation(!isLong, isLong, false, false, [.. indics]);
+            return new SignalEvaluation(isLong, !isLong, false, false, [.. indics]);
         }
 
         private static SignalEvaluation NoSignal(List<StrategyIndicator> indics, string? reason = null)
@@ -233,19 +252,6 @@ namespace CryptoBlade.Strategies
 
             return new SignalEvaluation(false, false, false, false, [.. indics]);
         }
-
-        //protected override async Task CalculateDynamicQtyAsync()
-        //{
-        //    var ticker = await m_cbFuturesRestClient.GetTickerAsync(Symbol, CancellationToken.None);
-        //    if(StopLossPrice == null || ticker == null)
-        //    {
-        //        return;
-        //    }
-
-        //    var quantity = CalculateQtyRiskBased(SymbolInfo, WalletManager, ticker.LastPrice, StopLossPrice.Value, _confidence, 0.01m, 0.05m);
-        //    DynamicQtyLong = quantity;
-        //    DynamicQtyShort = quantity;
-        //}
 
         protected override Task CalculateTakeProfitAsync(IList<StrategyIndicator> indicators)
         {
