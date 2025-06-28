@@ -113,7 +113,7 @@ namespace CryptoBlade.Strategies
                 }
 
                 var quotesDict = QuoteQueues.ToDictionary(kv => kv.Key, kv => kv.Value.GetQuotes().TakeLast(MaxCandlesPerTimeframe));
-                string userMsg = BuildUserMessage(quotesDict);
+                string userMsg = await BuildUserMessage(quotesDict);
                 _chatAI.TrimConversationHistory();
 
                 _log.LogInformation($"[{Symbol}]Wait for AI respose...");
@@ -177,26 +177,26 @@ namespace CryptoBlade.Strategies
                 sb.AppendLine($"{pr}={string.Join(';', pivots)}");
             }
 
-            OrderBookStats ob = await _orderBook.GetStatsAsync(Symbol, ct);
-            string wallBid = ob.WallBid.HasValue ? $"{ob.WallBid.Value.Price:F{scale}}@{ob.WallBid.Value.Size / 1_000m:0.#}k" : "-";
-            string wallAsk = ob.WallAsk.HasValue ? $"{ob.WallAsk.Value.Price:F{scale}}@{ob.WallAsk.Value.Size / 1_000m:0.#}k" : "-";
-            sb.AppendLine($"OrderBook: AvgSpread:{ob.AvgSpread:F{scale}},Imb0.05%:{ob.ImbalancePct:+0.##;-0.##;0}%,WallBid:{wallBid},WallAsk:{wallAsk},TopTurnover60s:{ob.TopTurnover60s}");
+            //OrderBookStats ob = await _orderBook.GetStatsAsync(Symbol, ct);
+            //string wallBid = ob.WallBid.HasValue ? $"{ob.WallBid.Value.Price:F{scale}}@{ob.WallBid.Value.Size / 1_000m:0.#}k" : "-";
+            //string wallAsk = ob.WallAsk.HasValue ? $"{ob.WallAsk.Value.Price:F{scale}}@{ob.WallAsk.Value.Size / 1_000m:0.#}k" : "-";
+            //sb.AppendLine($"OrderBook: AvgSpread:{ob.AvgSpread:F{scale}},Imb0.05%:{ob.ImbalancePct:+0.##;-0.##;0}%,WallBid:{wallBid},WallAsk:{wallAsk},TopTurnover60s:{ob.TopTurnover60s}");
 
-            VolumeFlow vf = await _volumeFlow.GetFlowAsync(Symbol, ct);
-            sb.AppendLine($"VolumeFlow: 5mCVD:{vf.Cvd5m:F0},1mBuyVol:{vf.BuyVol1m:F0},1mSellVol:{vf.SellVol1m:F0}");
+            //VolumeFlow vf = await _volumeFlow.GetFlowAsync(Symbol, ct);
+            //sb.AppendLine($"VolumeFlow: 5mCVD:{vf.Cvd5m:F0},1mBuyVol:{vf.BuyVol1m:F0},1mSellVol:{vf.SellVol1m:F0}");
 
-            RiskMetrics rm = await _risk.GetAsync(Symbol, ct);
-            sb.AppendLine($"RiskMetrics: 5mATR:{rm.Atr5m:F{scale}},Funding8h:{rm.Funding8h:+0.0000;-0.0000;0},OIΔ5m:{rm.OiDelta5m:+0.00;-0.00;0}");
+            //RiskMetrics rm = await _risk.GetAsync(Symbol, ct);
+            //sb.AppendLine($"RiskMetrics: 5mATR:{rm.Atr5m:F{scale}},Funding8h:{rm.Funding8h:+0.0000;-0.0000;0},OIΔ5m:{rm.OiDelta5m:+0.00;-0.00;0}");
 
-            BtcBias bb = await _btcBias.GetAsync(ct);
-            sb.AppendLine($"BTCBias: BTCΔ5m:{bb.PriceDelta5m:+0.00%;-0.00%;0},Corr30d:{bb.RollingCorr30d:F2}");
+            //BtcBias bb = await _btcBias.GetAsync(ct);
+            //sb.AppendLine($"BTCBias: BTCΔ5m:{bb.PriceDelta5m:+0.00%;-0.00%;0},Corr30d:{bb.RollingCorr30d:F2}");
 
-            var news = await _news.GetImpactAsync(Symbol, ct);
-            sb.AppendLine($"NewsImpact:{news}");
+            //var news = await _news.GetImpactAsync(Symbol, ct);
+            //sb.AppendLine($"NewsImpact:{news}");
 
-            string positionStatus = IsInLongTrade ? "LONG" : IsInShortTrade ? "SHORT" : "FLAT";
-            var lastPnl = string.Join(',', WalletManager.LastThreeTradePnL.Select(p => p.ToString("+#.##;-#.##;0")));
-            sb.AppendLine($"Position: {positionStatus}, Last3PnL({lastPnl})");
+            //string positionStatus = IsInLongTrade ? "LONG" : IsInShortTrade ? "SHORT" : "FLAT";
+            //var lastPnl = string.Join(',', WalletManager.LastThreeTradePnL.Select(p => p.ToString("+#.##;-#.##;0")));
+            //sb.AppendLine($"Position: {positionStatus}, Last3PnL({lastPnl})");
 
             return sb.ToString();
         }
