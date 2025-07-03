@@ -123,12 +123,12 @@ namespace CryptoBlade.Strategies
                                                             List<StrategyIndicator> indics)
         {
             EntryPrice = entry;
-            StopLossPrice = stop;
-            TakeProfitPrice = tp;
+            StopLossPrice = tp;
+            TakeProfitPrice = stop;
 
             await CalculateDynamicQtyAsync();
 
-            return new SignalEvaluation(isLong, !isLong, false, false, [.. indics]);
+            return new SignalEvaluation(!isLong, isLong, false, false, [.. indics]);
         }
 
         private static SignalEvaluation NoSignal(List<StrategyIndicator> indics, string? reason = null)
