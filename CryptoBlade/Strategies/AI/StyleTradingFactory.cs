@@ -1,6 +1,4 @@
-﻿//  File:  StyleTradingFactory.cs   (UPDATED)
-// ============================================================================
-using CryptoBlade.Models;
+﻿using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
 using System;
 using System.Collections.Generic;
@@ -9,148 +7,150 @@ namespace CryptoBlade.Strategies.AI
 {
     /// <summary>
     /// Trading styles supported by the AI‑driven momentum engine.
-    /// New styles can be plugged‑in in a single location (below) without touching
-    /// the rest of the pipeline.
     /// </summary>
     public enum TradingStyle { Scalping, Intraday, Swing }
 
     /// <summary>
-    /// Immutable definition of the data each style needs.
+    /// Encapsulates the full dataset required for a single timeframe:
+    ///   • <see cref="TimeFrameWindow"/> – raw candles delivered to the model
+    ///   • Candles – subsampled «n‑bars» snapshots sent as prompts
+    ///   • Indicators – technical indicator descriptors (without TF prefix)
+    ///   • Pivots – market‑structure levels (without TF prefix)
     /// </summary>
-    /// <param name="DefaultCandles">TimeFrame|BarsCount strings – define how many candles are sent.</param>
-    /// <param name="DefaultIndicators">TimeFrame|Indicator(params) strings – one per indicator.</param>
-    /// <param name="DefaultPivots">TimeFrame|H|pct (High/Low ZigZag) strings – multi‑TF confluence map.</param>
-    public sealed record StyleProfile(
+    public sealed record TimeFrameProfile(
+        TimeFrameWindow Window,
+        int CandlesCount,
+        IReadOnlyList<string> Indicators,
+        IReadOnlyList<string> Pivots);
+
+    /// <summary>
+    /// Definition of a trading style – simply a collection of <see cref="TimeFrameProfile"/>s.
+    /// </summary>
+    public sealed record TradingStyleProfile(
         string StyleName,
-        IReadOnlyList<TimeFrameWindow> DefaultTimeFrameWindows,
-        IReadOnlyList<string> DefaultCandles,
-        IReadOnlyList<string> DefaultIndicators,
-        IReadOnlyList<string> DefaultPivots);
+        IReadOnlyList<TimeFrameProfile> Frames);
 
     /// <summary>
     /// Central factory – returns a ready profile for a given <see cref="TradingStyle"/>.
     /// </summary>
     public static class StyleProfileFactory
     {
-        public static StyleProfile Create(TradingStyle style) => style switch
+        public static TradingStyleProfile Create(TradingStyle style) => style switch
         {
-            /* ------------------------------------------------------------------ */
-            /*  SCALPING  (legacy – unchanged)                                   */
-            /* ------------------------------------------------------------------ */
-            TradingStyle.Scalping => new StyleProfile(
+            /* ================================================================== */
+            /*  SCALPING                                                         */
+            /* ================================================================== */
+            TradingStyle.Scalping => new TradingStyleProfile(
                 StyleName: style.ToString(),
-                // candles (short history, very granular)
-                DefaultTimeFrameWindows:
-                [
-                    new TimeFrameWindow(TimeFrame.OneHour, 100, false),
-                    new(TimeFrame.FifteenMinutes, 128, false),
-                    new(TimeFrame.FiveMinutes,     96, true ), 
-                    new(TimeFrame.OneMinute,      120, false)  
-                ],
-                DefaultCandles:
-                [
-                    "15M|16",
-                    "5M|24",
-                    "1M|30"
-                ],
-                // indicators
-                DefaultIndicators: new[]
+                Frames: new List<TimeFrameProfile>
                 {
-                    "1H|Ema(100)", "15M|Ema(50)", "5M|Ema(20)",
-                    "1M|Rsi(7)", "1M|StochRsi(14,14,3)", "5M|Macd(12,26,9)",
-                    "1M|Atr(14)", "5M|Atr(14)",
-                    "1M|Keltner(20,2)", "1M|BollingerBands(20,2)",
-                    "1M|Vwap()", "5M|Vwap()", "1M|Obv()",
-                    "5M|Donchian(55)", "1M|Donchian(20)"
-                },
-                // pivots
-                DefaultPivots: new[]
-                {
-                    "1H|H|0.8",
-                    "15M|H|0.6",
-                    "5M|H|0.35",
-                    "1M|H|0.20"
+                    // 1‑hour context
+                    new(
+                        new TimeFrameWindow(TimeFrame.OneHour, 100, false),
+                        CandlesCount: 0,
+                        Indicators: new[] { "Ema(100)" },
+                        Pivots:      new[] { "H|0.8" }),
+
+                    // 15‑minute context
+                    new(
+                        new TimeFrameWindow(TimeFrame.FifteenMinutes, 50, false),
+                        CandlesCount: 0 ,
+                        Indicators: new[] { "Ema(50)" },
+                        Pivots:      new[] { "H|0.6" }),
+
+                    // 5‑minute working TF
+                    new(
+                        new TimeFrameWindow(TimeFrame.FiveMinutes, 96, true),
+                        CandlesCount: 24,
+                        Indicators: new[] { "Ema(20)", "Macd(12,26,9)", "Atr(14)", "Vwap()", "Donchian(55)" },
+                        Pivots: []),
+
+                    // 1‑minute execution granularity
+                    new(
+                        new TimeFrameWindow(TimeFrame.OneMinute, 120, false),
+                        CandlesCount : 30,
+                        Indicators: new[]
+                        {
+                            "Rsi(7)", "StochRsi(14,14,3)", "Atr(14)",
+                            "Keltner(20,2)", "BollingerBands(20,2)",
+                            "Vwap()", "Obv()", "Donchian(20)"
+                        },
+                        Pivots: [])
                 }),
 
-        /* ------------------------------------------------------------------ */
-        /*  INTRADAY – fast but respects higher‑TF structure                 */
-        /* ------------------------------------------------------------------ */
-        TradingStyle.Intraday => new StyleProfile(
+            /* ================================================================== */
+            /*  INTRADAY                                                         */
+            /* ================================================================== */
+            TradingStyle.Intraday => new TradingStyleProfile(
                 StyleName: style.ToString(),
-                // candles (short history, very g
-                DefaultTimeFrameWindows: new[]
+                Frames: new List<TimeFrameProfile>
                 {
-                    new TimeFrameWindow(TimeFrame.FourHours,      64,  false), // ≈11-day context
-                    new(TimeFrame.OneHour,        192, false),                // 8 days
-                    new(TimeFrame.FifteenMinutes, 256, true ),                // working TF (primary)
-                    new(TimeFrame.FiveMinutes,    150, false)                 // execution granularity
-                },
+                    // 4‑hour trend context
+                    new(
+                        new TimeFrameWindow(TimeFrame.FourHours, 200, false),
+                        CandlesCount : 0,
+                        Indicators: new[] { "Ema(200)", "Donchian(55)" },
+                        Pivots:      new[] { "H|1.0" }),
 
-                DefaultCandles: new[]
-                {
-                    "4H|32",   // trend context (~5 days)
-                    "1H|48",   // 2‑day view
-                    "15M|64",  // working timeframe
-                    "5M|96"    // execution
-                },
-                DefaultIndicators: new[]
-                {
-                    // trend & momentum
-                    "4H|Ema(200)", "1H|Ema(50)", "15M|Ema(20)",
-                    "1H|Rsi(14)", "15M|Macd(12,26,9)",
-                    // vol & risk
-                    "1H|Atr(14)", "15M|BollingerBands(20,2)",
-                    // market profile / value area
-                    "15M|Vwap()", "5M|Vwap()",
-                    // support / breakout tools
-                    "1H|Donchian(20)",
-                    // confluence helpers
-                    "4H|FibRetrace(23,38,50,62,78)",
-                    "1H|Corr(BTCUSDT,1440)"
-                },
-                DefaultPivots: new[]
-                {
-                    "4H|H|1.2",
-                    "1H|H|0.8",
-                    "15M|H|0.6",
-                    "5M|H|0.35"
+                    // 1‑hour structure
+                    new(
+                        new TimeFrameWindow(TimeFrame.OneHour, 50, false),
+                        CandlesCount : 0,
+                        Indicators: new[] { "Ema(50)", "Rsi(14)", "Atr(14)", "Donchian(20)" },
+                        Pivots:      new[] { "H|0.8" }),
+
+                    // 15‑minute working TF (primary)
+                    new(
+                        new TimeFrameWindow(TimeFrame.FifteenMinutes, 16, true),
+                        CandlesCount : 16,
+                        Indicators: new[] { "Ema(16)", "Macd(12,26,9)", "BollingerBands(20,2)", "Vwap()" },
+                        Pivots: new[] { "H|0.6" }),
+
+                    // 5‑minute execution granularity
+                    new(
+                        new TimeFrameWindow(TimeFrame.FiveMinutes, 48, false),
+                        CandlesCount : 48,
+                        Indicators: new[]
+                        {
+                            "SuperTrend(10,3)",
+                            "Rsi(7)", "StochRsi(14,14,3)", "Atr(14)",
+                            "BollingerBands(20,2)",
+                            "Vwap()", "Obv()", "Donchian(20)", "Ema(8)", "Ema(21)"
+                        },
+                        Pivots: [])
                 }),
 
-            /* ------------------------------------------------------------------ */
-            /*  SWING – slow, position trade                                      */
-            /* ------------------------------------------------------------------ */
-            TradingStyle.Swing => new StyleProfile(
+            /* ================================================================== */
+            /*  SWING                                                            */
+            /* ================================================================== */
+            TradingStyle.Swing => new TradingStyleProfile(
                 StyleName: style.ToString(),
-                // candles (short history, very g
-                DefaultTimeFrameWindows: new[]
+                Frames: new List<TimeFrameProfile>
                 {
-                    new TimeFrameWindow(TimeFrame.OneDay,   180, false), // 6‑month context
-                    new(TimeFrame.FourHours,  240, true ),              // position‑management TF (primary)
-                    new(TimeFrame.OneHour,    192, false)               // entry timing
-                },
-                DefaultCandles: new[]
-                {
-                    "1D|60",  // quarter
-                    "4H|60",  // month
-                    "1H|48"   // two days – timing entries
-                },
-                DefaultIndicators: new[]
-                {
-                    // trend filters
-                    "1D|Ema(200)", "1D|Ema(50)", "4H|Sma(100)",
-                    // momentum / strength
-                    "1D|Rsi(14)", "4H|Stoch(14,3,3)", "1D|Macd(12,26,9)",
-                    // volatility & strength
-                    "1D|Adx(14)", "4H|Cci(20)",
-                    // confluence helpers
-                    "1D|FibRetrace(23,38,50,62)",
-                    "1D|Corr(DXY,1440)"
-                },
-                DefaultPivots: new[]
-                {
-                    "1D|H|1.5",
-                    "4H|H|1.0",
-                    "1H|H|0.8"
+                    // Daily chart – macro trend filter
+                    new(
+                        new TimeFrameWindow(TimeFrame.OneDay, 180, false),
+                        CandlesCount : 60,
+                        Indicators: new[]
+                        {
+                            "Ema(200)", "Ema(50)", "Rsi(14)", "Macd(12,26,9)",
+                            "Adx(14)", "FibRetrace(23,38,50,62)", "Corr(DXY,1440)"
+                        },
+                        Pivots: new[] { "H|1.5" }),
+
+                    // 4‑hour – position‑management TF
+                    new(
+                        new TimeFrameWindow(TimeFrame.FourHours, 240, true),
+                        CandlesCount : 60,
+                        Indicators: new[] { "Sma(100)", "Stoch(14,3,3)", "Cci(20)" },
+                        Pivots:      new[] { "H|1.0" }),
+
+                    // 1‑hour – timing entries
+                    new(
+                        new TimeFrameWindow(TimeFrame.OneHour, 192, false),
+                        CandlesCount : 48,
+                        Indicators: Array.Empty<string>(),
+                        Pivots:      new[] { "H|0.8" })
                 }),
 
             _ => throw new ArgumentOutOfRangeException(nameof(style))

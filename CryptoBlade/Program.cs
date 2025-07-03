@@ -18,6 +18,7 @@ using CryptoBlade.BackTesting.Bybit;
 using CryptoBlade.Optimizer;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Strategies.Symbols;
+using CryptoBlade.Strategies.AI;
 
 namespace CryptoBlade
 {
@@ -43,9 +44,9 @@ namespace CryptoBlade
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
 
             // Wczytaj konfigurację kont
-            var configReader = new DeepSeekAccountReader("appsettings.Accounts.json");
-            DeepSeekAccountConfig deepSeekConfig = configReader.ReadConfig();
-            builder.Services.AddSingleton(deepSeekConfig);
+            var aiAccountsReader = new AIAccountReader("appsettings.Accounts.json");
+            AiAccountsRoot aiAccounts = aiAccountsReader.ReadConfig();
+            builder.Services.AddSingleton(aiAccounts);
 
 
             // Add services to the container.

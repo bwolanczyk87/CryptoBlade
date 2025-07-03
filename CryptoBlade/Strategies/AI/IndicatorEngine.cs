@@ -64,14 +64,6 @@ namespace CryptoBlade.Strategies.AI
                    typeof(IQuote).IsAssignableFrom(t.GetGenericArguments()[0]);
         }
 
-        /* ------------------------------------------------------------------ */
-        /*  FORMAT                                                            */
-        /* ------------------------------------------------------------------ */
-
-        /// <summary>
-        /// Serialises indicator output to a compact string using dot as decimal separator.
-        /// Numbers are rounded to <paramref name="scale"/> decimal places (price scale).
-        /// </summary>
         public static string Format(object result, int scale = 2)
         {
             if (result == null) return "N/A";
@@ -80,11 +72,9 @@ namespace CryptoBlade.Strategies.AI
                 => Convert.ToDecimal(v, CultureInfo.InvariantCulture)
                           .ToString($"F{scale}", CultureInfo.InvariantCulture);
 
-            // simple numeric value
             if (result is IConvertible && result is not string)
                 return ToStr(result);
 
-            // composite result → concatenate all numeric public props
             var vals = result.GetType()
                               .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                               .Select(p => p.GetValue(result))
