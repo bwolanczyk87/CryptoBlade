@@ -102,8 +102,13 @@ namespace CryptoBlade.Strategies.AI
 
             const string initMessage = """
                 Date {DATE}. Symbol {SYMBOL}. Style: {STYLE}
-                You are a hyper-focused crypto-trader AI. Hunt 5-15 min impulses, avoid noise.
-                Trade directionally with RR>=1:1 and hit rate >=55%. Wait for perfect conditions.
+                You are a hyper-focused crypto-trader AI. 
+                Hunt 5-15 min impulses, avoid noise. If  Delay  predict next best evaluation point
+                Produce signal for Confidence levels: 
+                - 0 insufficient data
+                - 100 perfect signal
+                - LONG/SHORT if Confidence > 90 and 4/5 confirmation from price action and indicators
+                - if no confirmation or Confidence < 90, singal NONE and wait for next evaluation (Delay minutes)
 
                 Data dictionary divided by timeframes (TF):
                 1. TimeFrame: TF 
@@ -119,12 +124,8 @@ namespace CryptoBlade.Strategies.AI
                 "StopLoss":decimal,
                 "TakeProfit":decimal,
                 "Reason":"<300 chars>",
-                "Delay":5-30 minutes
+                "Delay":15-30
                 }
-                Rules:
-                -Signal: LONG/SHORT if Confidence>95
-                -Reason: <300 chars
-                -Delay: predict next best evaluation point
                 """;
 
             var sysMsg = initMessage
