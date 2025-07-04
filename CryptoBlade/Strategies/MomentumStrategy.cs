@@ -124,7 +124,11 @@ namespace CryptoBlade.Strategies
         {
             EntryPrice = entry;
             StopLossPrice = stop;
-            TakeProfitPrice = tp/2;
+
+            decimal distance = Math.Abs(entry - stop);
+            TakeProfitPrice = isLong
+                ? entry + distance
+                : entry - distance;
 
             await CalculateDynamicQtyAsync();
 
