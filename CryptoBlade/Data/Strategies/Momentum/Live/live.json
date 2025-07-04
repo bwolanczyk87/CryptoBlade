@@ -84,48 +84,18 @@
     "WalletExposureThresholdShort": 0.3
   },
   "SymbolVolumePreference": [
-    "LARGE",
+    "LOW",
     "MEDIUM"
   ],
   "SymbolVolatilityPreference": [
     "MEDIUM",
-    "HIGH"
+    "LOW"
   ],
   "SymbolMaturityPreference": [
-    "LARGE",
+    "MEDIUM",
     "HIGH"
   ],
   "Whitelist": [
-    "XRPUSDT",
-    "DOGEUSDT",
-    "ADAUSDT",
-    "SOLUSDT",
-    "TRXUSDT",
-    "HYPEUSDT",
-    "WIFUSDT",
-    "MOVEUSDT",
-    "VIRTUALUSDT",
-    "AVAXUSDT",
-    "SPXUSDT",
-    "POPCATUSDT",
-    "NEARUSDT",
-    "TRUMPUSDT",
-    "AI16ZUSDT",
-    "AGLDUSDT",
-    "TRBUSDT",
-    "ZECUSDT",
-    "UNIUSDT",
-    "CVXUSDT",
-    "ZENUSDT",
-    "DYDXUSDT",
-    "AXSUSDT",
-    "GMXUSDT",
-    "OGNUSDT",
-    "ENSUSDT",
-    "ATOMUSDT",
-    "FILUSDT",
-    "MTLUSDT",
-    "MKRUSDT"
   ],
   "Blacklist": [
     "EOSUSDT",
