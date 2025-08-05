@@ -19,6 +19,7 @@ using CryptoBlade.Optimizer;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.AI;
+using Microsoft.Extensions.FileProviders;
 
 namespace CryptoBlade
 {
@@ -95,7 +96,16 @@ namespace CryptoBlade
                 app.UseExceptionHandler("/Error");
             }
 
-            app.UseStaticFiles();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "Data")),
+                RequestPath = "/data",
+                ServeUnknownFileTypes = true,
+                OnPrepareResponse = ctx =>
+                {
+                    ctx.Context.Response.Headers["Cache-Control"] = "no-store";
+                }
+            });
             app.UseRouting();
             app.UseAuthorization();
             app.MapHealthChecks("/healthz");
