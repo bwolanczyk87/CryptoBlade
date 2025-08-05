@@ -96,6 +96,7 @@
     "HIGH"
   ],
   "Whitelist": [
+    "BTCUSDT"
   ],
   "Blacklist": [
     "EOSUSDT",

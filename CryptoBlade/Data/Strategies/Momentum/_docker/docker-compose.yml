@@ -5,7 +5,7 @@ services:
     labels:
         - "autoheal=true"
     ports:
-        - 8098:80
+        - 80:80
     volumes:
         - ../Backtest:/app/Data/Strategies/Momentum/Backtest
         - ../../../HistoricalData:/app/Data/HistoricalData
