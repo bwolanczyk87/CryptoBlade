@@ -1,25 +1,28 @@
-using System.Reflection;
 using Binance.Net.Clients;
 using Bybit.Net;
+using Bybit.Net.Clients;
+using Bybit.Net.Interfaces.Clients;
+using CryptoBlade.Authentication;
 using CryptoBlade.BackTesting;
+using CryptoBlade.BackTesting.Binance;
+using CryptoBlade.BackTesting.Bybit;
 using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.HealthChecks;
 using CryptoBlade.Helpers;
+using CryptoBlade.Optimizer;
 using CryptoBlade.Services;
 using CryptoBlade.Strategies;
+using CryptoBlade.Strategies.AI;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Objects;
-using Microsoft.Extensions.Options;
-using Bybit.Net.Clients;
-using CryptoBlade.BackTesting.Binance;
-using CryptoBlade.BackTesting.Bybit;
-using CryptoBlade.Optimizer;
-using Bybit.Net.Interfaces.Clients;
-using CryptoBlade.Strategies.Symbols;
-using CryptoBlade.Strategies.AI;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
+using ScottPlot.Statistics;
+using System.Reflection;
 
 namespace CryptoBlade
 {
@@ -63,6 +66,32 @@ namespace CryptoBlade
                     o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
                 });
             });
+            builder.Services.AddControllers();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new() { Title = "CryptoBlade API", Version = "v1" });
+                c.AddSecurityDefinition("ApiKey", new()
+                {
+                    In = ParameterLocation.Header,
+                    Name = "X-API-TOKEN",
+                    Type = SecuritySchemeType.ApiKey,
+                    Description = "Constant token from appsettings"
+                });
+                c.AddSecurityRequirement(new()
+                {
+                   {
+                        new() { Reference = new() { Type = ReferenceType.SecurityScheme, Id = "ApiKey" } },
+                        Array.Empty<string>()
+                   }
+                });
+            });
+
+            builder.Services.AddAuthentication(ApiKeyAuthenticationHandler.Scheme)
+                 .AddScheme<ApiKeySchemeOptions, ApiKeyAuthenticationHandler>(
+            ApiKeyAuthenticationHandler.Scheme, _ => { });
+
+            builder.Services.Configure<ApiKeyOptions>(builder.Configuration.GetSection("ApiKey"));
 
             if (tradingBotOptions == null)
             {
@@ -90,26 +119,28 @@ namespace CryptoBlade
             ApplicationLogging.LoggerFactory = lf;
             LogVersionAndConfiguration(debugView);
 
-            // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
             }
 
-            app.UseStaticFiles(new StaticFileOptions
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
             {
-                FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "Data")),
-                RequestPath = "/data",
-                ServeUnknownFileTypes = true,
-                OnPrepareResponse = ctx =>
-                {
-                    ctx.Context.Response.Headers["Cache-Control"] = "no-store";
-                }
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "CryptoBlade API");
+                c.RoutePrefix = "swagger";
             });
+            app.UseStaticFiles();
             app.UseRouting();
+            app.UseAuthentication();
             app.UseAuthorization();
             app.MapHealthChecks("/healthz");
-            app.MapRazorPages();
+            app.MapControllers();
+            app.MapGet("/", context =>
+            {
+                context.Response.Redirect("/swagger");
+                return Task.CompletedTask;
+            });
             app.Run();
         }
 

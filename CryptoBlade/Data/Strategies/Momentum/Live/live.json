@@ -99,9 +99,6 @@
     "BTCUSDT"
   ],
   "Blacklist": [
-    "EOSUSDT",
-    "MATICUSDT",
-    "OMGUSDT"
   ],
   "SymbolTradingModes": []
 }
