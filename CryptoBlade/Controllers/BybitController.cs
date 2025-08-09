@@ -1,9 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
-using Bybit.Net.Enums;
+﻿using Bybit.Net.Enums;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Ticker = CryptoBlade.Models.Ticker;
 
 namespace CryptoBlade.Api.Controllers
@@ -27,6 +28,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>PLACE ORDER (market/limit/conditional) + optional TP/SL → returns orderId.</summary>
         [HttpPost("orders/place")]
+        [Authorize]
         public async Task<IActionResult> PlaceOrder([FromBody] PlaceOrderRequest req, CancellationToken ct)
         {
             if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -79,6 +81,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>EDIT ORDER (price/qty/TP/SL on order) → returns orderId.</summary>
         [HttpPatch("orders/edit")]
+        [Authorize]
         public async Task<IActionResult> EditOrder([FromBody] AmendOrderRequest req, CancellationToken ct)
         {
             if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -111,6 +114,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>CANCEL ORDER (by id) → returns orderId.</summary>
         [HttpDelete("orders/{symbol}/{orderId}")]
+        [Authorize]
         public async Task<IActionResult> CancelOrder([FromRoute] string symbol, [FromRoute] string orderId, CancellationToken ct)
         {
             var res = await _client.CancelOrderAsync(symbol, orderId, ct);
@@ -122,6 +126,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>CANCEL ALL OPEN ORDERS (optional symbol filter) → returns count canceled & success.</summary>
         [HttpDelete("orders/cancel-all")]
+        [Authorize]
         public async Task<IActionResult> CancelAllOrders([FromQuery] string? symbol, CancellationToken ct)
         {
             var res = await _client.CancelAllOrdersAndCountAsync(symbol, ct);
@@ -133,6 +138,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>PLACE REDUCE-ONLY TP FOR LONG → returns orderId.</summary>
         [HttpPost("orders/tp/long")]
+        [Authorize]
         public async Task<IActionResult> PlaceLongTp([FromBody] PlaceReduceTpRequest req, CancellationToken ct)
         {
             var res = await _client.PlaceLongTakeProfitOrderAsync(req.Symbol, req.Quantity, req.Price, req.ForceMarket, ct);
@@ -144,6 +150,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>PLACE REDUCE-ONLY TP FOR SHORT → returns orderId.</summary>
         [HttpPost("orders/tp/short")]
+        [Authorize]
         public async Task<IActionResult> PlaceShortTp([FromBody] PlaceReduceTpRequest req, CancellationToken ct)
         {
             var res = await _client.PlaceShortTakeProfitOrderAsync(req.Symbol, req.Quantity, req.Price, req.ForceMarket, ct);
@@ -159,6 +166,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>SET TRADING STOP on POSITION (TP/SL/Trailing) → returns success.</summary>
         [HttpPost("positions/trading-stop")]
+        [Authorize]
         public async Task<IActionResult> SetTradingStop([FromBody] SetTradingStopRequest req, CancellationToken ct)
         {
             if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -203,6 +211,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>SET LEVERAGE for symbol.</summary>
         [HttpPost("account/leverage")]
+        [Authorize]
         public async Task<IActionResult> SetLeverage([FromBody] SetLeverageRequest req, CancellationToken ct)
         {
             var symbolInfo = new SymbolInfo { Name = req.Symbol, MaxLeverage = req.MaxLeverage };
@@ -212,6 +221,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>SET POSITION MODE (one-way / hedge) for symbol.</summary>
         [HttpPost("account/position-mode")]
+        [Authorize]
         public async Task<IActionResult> SwitchPositionMode([FromBody] SwitchPositionModeRequest req, CancellationToken ct)
         {
             var ok = await _client.SwitchPositionModeAsync(req.Mode, req.Symbol, ct);
@@ -220,6 +230,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET WALLET BALANCE (UTA) for configured quote asset.</summary>
         [HttpGet("wallet/balance")]
+        [Authorize]
         public async Task<ActionResult<Strategies.Wallet.Balance>> GetBalance(CancellationToken ct)
         {
             var bal = await _client.GetBalancesAsync(ct);
@@ -232,6 +243,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET SYMBOL LIST (filtered by quote from config) with volume & volatility.</summary>
         [HttpGet("markets/symbols")]
+        [Authorize]
         public async Task<ActionResult<SymbolInfo[]>> GetSymbols(CancellationToken ct)
         {
             var data = await _client.GetSymbolInfoAsync(ct);
@@ -240,6 +252,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET TICKER for a symbol.</summary>
         [HttpGet("markets/ticker/{symbol}")]
+        [Authorize]
         public async Task<ActionResult<Ticker>> GetTicker([FromRoute] string symbol, CancellationToken ct)
         {
             var t = await _client.GetTickerAsync(symbol, ct);
@@ -248,6 +261,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET CLOSED KLINES (end = now - tf).</summary>
         [HttpGet("markets/klines/closed")]
+        [Authorize]
         public async Task<ActionResult<Candle[]>> GetKlinesClosed(
             [FromQuery] string symbol,
             [FromQuery] TimeFrame interval,
@@ -260,6 +274,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET KLINES BY TIME RANGE (UTC).</summary>
         [HttpGet("markets/klines/range")]
+        [Authorize]
         public async Task<ActionResult<Candle[]>> GetKlinesRange(
             [FromQuery] string symbol,
             [FromQuery] TimeFrame interval,
@@ -273,6 +288,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET OPEN ORDERS (with internal cursor paging).</summary>
         [HttpGet("orders")]
+        [Authorize]
         public async Task<ActionResult<Order[]>> GetOrders(CancellationToken ct)
         {
             var data = await _client.GetOrdersAsync(ct);
@@ -281,6 +297,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET POSITIONS.</summary>
         [HttpGet("positions")]
+        [Authorize]
         public async Task<ActionResult<Position[]>> GetPositions(CancellationToken ct)
         {
             var data = await _client.GetPositionsAsync(ct);
@@ -289,6 +306,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET FUNDING HISTORY for a symbol.</summary>
         [HttpGet("markets/funding/{symbol}")]
+        [Authorize]
         public async Task<ActionResult<FundingRate[]>> GetFunding(
             [FromRoute] string symbol,
             [FromQuery] DateTime start,
@@ -305,6 +323,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET FEE RATE (raw from Bybit).</summary>
         [HttpGet("account/fee-rate")]
+        [Authorize]
         public async Task<IActionResult> GetFeeRate([FromQuery] string? symbol, CancellationToken ct)
         {
             var data = await _client.GetFeeRatesRawAsync(symbol, ct);
@@ -313,6 +332,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET TRANSACTION LOG (raw).</summary>
         [HttpGet("account/transactions")]
+        [Authorize]
         public async Task<IActionResult> GetTransactionLog(
             [FromQuery] AccountType accountType = AccountType.Unified,
             [FromQuery] DateTime? start = null,
@@ -326,6 +346,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET ORDER HISTORY (raw).</summary>
         [HttpGet("orders/history")]
+        [Authorize]
         public async Task<IActionResult> GetOrderHistory([FromQuery] string? symbol, [FromQuery] string? cursor, CancellationToken ct)
         {
             var data = await _client.GetOrderHistoryRawAsync(symbol, cursor, ct);
@@ -334,6 +355,7 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET CLOSED PNL (raw).</summary>
         [HttpGet("positions/closed-pnl")]
+        [Authorize]
         public async Task<IActionResult> GetClosedPnl(
             [FromQuery] string? symbol,
             [FromQuery] DateTime? start,
