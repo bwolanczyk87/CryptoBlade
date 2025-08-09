@@ -267,7 +267,6 @@ namespace CryptoBlade.Exchanges
                     price: price,
                     positionIdx: PositionIdx.SellHedgeMode,
                     reduceOnly: false,
-                    timeInForce: TimeInForce.PostOnly,
                     ct: cancel));
 
             if (!sellOrderRes.GetResultOrError(out _, out var error))

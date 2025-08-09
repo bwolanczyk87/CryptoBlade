@@ -23,6 +23,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using ScottPlot.Statistics;
 using System.Reflection;
+using System.Text.Json.Serialization;
 
 namespace CryptoBlade
 {
@@ -66,7 +67,7 @@ namespace CryptoBlade
                     o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
                 });
             });
-            builder.Services.AddControllers();
+            builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -85,6 +86,8 @@ namespace CryptoBlade
                         Array.Empty<string>()
                    }
                 });
+                c.CustomSchemaIds(t => t.FullName);
+                c.SchemaFilter<StringEnumSchemaFilter>();
             });
 
             builder.Services.AddAuthentication(ApiKeyAuthenticationHandler.Scheme)
@@ -370,6 +373,7 @@ namespace CryptoBlade
             }
 
             builder.Services.AddSingleton<ICbFuturesRestClient, BybitCbFuturesRestClient>();
+            builder.Services.AddSingleton<IBybitCBRestClient, BybitCBRestClient>();
             builder.Services.AddOptions<BybitCbFuturesRestClientOptions>().Configure(options =>
             {
                 options.PlaceOrderAttempts = tradingBotOptions.PlaceOrderAttempts;

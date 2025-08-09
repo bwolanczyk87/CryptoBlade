@@ -15,8 +15,8 @@ namespace CryptoBlade.Services
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await m_walletManager.StartAsync(cancellationToken);
-            await m_strategyManager.StartStrategiesAsync(cancellationToken);
+            //await m_walletManager.StartAsync(cancellationToken);
+            //await m_strategyManager.StartStrategiesAsync(cancellationToken);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

@@ -12,6 +12,7 @@
         Untriggered,
         Triggered,
         Deactivated,
-        Active
+        Active,
+        Pending
     }
 }
