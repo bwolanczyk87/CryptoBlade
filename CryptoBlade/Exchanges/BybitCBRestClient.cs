@@ -538,52 +538,22 @@ namespace CryptoBlade.Exchanges
             return new Strategies.Wallet.Balance();
         }
 
-        public async Task<SymbolInfo[]> GetSymbolInfoAsync(CancellationToken cancel = default)
+        public async Task<SymbolInfo> GetSymbolInfoAsync(string symbol, CancellationToken cancel = default)
         {
-            var symbolData = await CryptoBlade.Strategies.Policies.ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            var symbolInfo = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
-                List<SymbolInfo> symbolInfo = new();
-                string? cursor = null;
+                var result = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseSymbolsAsync(
+                         m_category, symbol, null, null, null, null, cancel);
 
-                using var sem = new SemaphoreSlim(4, 4);
-                var bag = new ConcurrentBag<SymbolInfo>();
+                if (!result.GetResultOrError(out var data, out var error))
+                    throw new InvalidOperationException(error.Message);
 
-                while (true)
-                {
-                    var symbolsResult = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseSymbolsAsync(
-                        m_category, null, null, null, null, cursor, cancel);
-
-                    if (!symbolsResult.GetResultOrError(out var data, out var error))
-                        throw new InvalidOperationException(error.Message);
-
-                    var tasks = data.List
-                        .Where(x => string.Equals(m_trading_bot_options.Value.QuoteAsset, x.QuoteAsset))
-                        .Select(async x =>
-                        {
-                            await sem.WaitAsync(cancel);
-                            try
-                            {
-                                var symbol = x.ToSymbolInfo();
-                                symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
-                                symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
-                                bag.Add(symbol);
-                            }
-                            finally { sem.Release(); }
-                        });
-
-                    await Task.WhenAll(tasks);
-
-                    if (string.IsNullOrWhiteSpace(data.NextPageCursor))
-                        break;
-
-                    cursor = data.NextPageCursor;
-                }
-
-                symbolInfo.AddRange(bag);
-                return symbolInfo.ToArray();
+                return data.List.First().ToSymbolInfo();
             });
 
-            return symbolData;
+            symbolInfo.Volume = await GetSymbolVolumeAsync(symbolInfo.Name, cancel);
+            symbolInfo.Volatility = await GetSymbolVolatility(symbolInfo.Name, cancel);
+            return symbolInfo;
         }
 
         public async Task<decimal?> GetSymbolVolumeAsync(string symbol, CancellationToken cancel = default)
@@ -638,8 +608,7 @@ namespace CryptoBlade.Exchanges
 
             return candles;
         }
-
-        public async Task<Ticker> GetTickerAsync(string symbol, CancellationToken cancel = default)
+public async Task<Ticker> GetTickerAsync(string symbol, CancellationToken cancel = default)
         {
             var list = await CryptoBlade.Strategies.Policies.ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
@@ -658,6 +627,7 @@ namespace CryptoBlade.Exchanges
 
             return first.ToTicker();
         }
+        
 
         public async Task<Order[]> GetOrdersAsync(CancellationToken cancel = default)
         {

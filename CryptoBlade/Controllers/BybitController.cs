@@ -241,12 +241,12 @@ namespace CryptoBlade.Api.Controllers
         // MARKET DATA / ORDERS / POSITIONS / FUNDING
         // =========================================================
 
-        /// <summary>GET SYMBOL LIST (filtered by quote from config) with volume & volatility.</summary>
-        [HttpGet("markets/symbols")]
+        /// <summary>GET SYMBOL INFO with volume & volatility.</summary>
+        [HttpGet("markets/symbol-info/{symbol}")]
         [Authorize]
-        public async Task<ActionResult<SymbolInfo[]>> GetSymbols(CancellationToken ct)
+        public async Task<ActionResult<SymbolInfo>> GetSymbolInfo([FromRoute] string symbol, CancellationToken ct)
         {
-            var data = await _client.GetSymbolInfoAsync(ct);
+            var data = await _client.GetSymbolInfoAsync(symbol, ct);
             return Ok(data);
         }
 

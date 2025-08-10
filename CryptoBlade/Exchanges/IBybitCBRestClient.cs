@@ -19,7 +19,7 @@ namespace CryptoBlade.Exchanges
         Task<object?> GetOrderHistoryRawAsync(string? symbol = null, string? cursor = null, CancellationToken cancel = default);
         Task<Order[]> GetOrdersAsync(CancellationToken cancel = default);
         Task<Position[]> GetPositionsAsync(CancellationToken cancel = default);
-        Task<SymbolInfo[]> GetSymbolInfoAsync(CancellationToken cancel = default);
+        Task<SymbolInfo> GetSymbolInfoAsync(string symbol, CancellationToken cancel = default);
         Task<decimal?> GetSymbolVolatility(string symbol, CancellationToken cancel = default);
         Task<decimal?> GetSymbolVolumeAsync(string symbol, CancellationToken cancel = default);
         Task<Ticker> GetTickerAsync(string symbol, CancellationToken cancel = default);
