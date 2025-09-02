@@ -16,6 +16,6 @@
 
         public int InitialUntradableDays { get; set; } = 0;
 
-        public DataSource DataSource { get; set; } = DataSource.Binance;
+        public DataSource DataSource { get; set; } = DataSource.Bybit;
     }
 }

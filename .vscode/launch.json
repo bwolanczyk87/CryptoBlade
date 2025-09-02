@@ -2,31 +2,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": ".NET Core Launch (Web)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/CryptoBlade/bin/Debug/net8.0/CryptoBlade.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/CryptoBlade",
-            "stopAtEntry": false,
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
-            },
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
-            },
-            "sourceFileMap": {
-                "/Views": "${workspaceFolder}/CryptoBlade/Views"
-            }
-        },
-        {
+            "name": "PowerShell",
             "type": "PowerShell",
             "request": "launch",
-            "name": "PowerShell: Launch Script",
             "script": "${file}",
-            "args": []
+            "cwd": "${workspaceFolder}",
+            "createTemporaryIntegratedConsole": true
         }
     ]
 }

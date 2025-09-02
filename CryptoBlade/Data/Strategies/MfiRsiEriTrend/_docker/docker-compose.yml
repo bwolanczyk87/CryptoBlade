@@ -7,7 +7,7 @@ services:
     ports:
         - 8093:80
     volumes:
-        - ../Backtest:/app/Data/Strategies/MfiRsiCandlePrecise/Backtest
+        - ../Backtest:/app/Data/Strategies/MfiRsiEriTrend/Backtest
         - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
         - CB_TradingBot__AccountName=Demo
@@ -27,7 +27,7 @@ services:
         - CB_TradingBot__DynamicBotCount__MaxLongStrategies=30
         - CB_TradingBot__DynamicBotCount__MaxShortStrategies=50
         - CB_TradingBot__DynamicBotCount__Step=00:01:00
-        - CB_TradingBot__DynamicBotCount__TargetLongExposure=100
+        - CB_TradingBot__DynamicBotCount__TargetLongExposure=100.0
         - CB_TradingBot__DynamicBotCount__TargetShortExposure=0
         - CB_TradingBot__EnableRecursiveQtyFactorLong=True
         - CB_TradingBot__EnableRecursiveQtyFactorShort=True
@@ -36,14 +36,14 @@ services:
         - CB_TradingBot__MaxAbsFundingRate=0.0002
         - CB_TradingBot__MaxRunningStrategies=30
         - CB_TradingBot__MinimumPriceDistance=0.015
-        - CB_TradingBot__MinimumVolume=15000
-        - CB_TradingBot__MinNormalizedAverageTrueRangePeriod=1
+        - CB_TradingBot__MinimumVolume=15000.0
+        - CB_TradingBot__MinNormalizedAverageTrueRangePeriod=1.0
         - CB_TradingBot__MinProfitRate=0.0006
         - CB_TradingBot__NormalizedAverageTrueRangePeriod=14
         - CB_TradingBot__PlaceOrderAttempts=5
         - CB_TradingBot__QtyFactorLong=250
         - CB_TradingBot__QtyFactorShort=0
-        - CB_TradingBot__SpotRebalancingRatio=0
+        - CB_TradingBot__SpotRebalancingRatio=0.0
         - CB_TradingBot__Strategies__MfiRsiEriTrend__MfiRsiLookbackPeriod=100
         - CB_TradingBot__Strategies__MfiRsiEriTrend__MinReentryPositionDistanceLong=0
         - CB_TradingBot__Strategies__MfiRsiEriTrend__MinReentryPositionDistanceShort=0
@@ -66,7 +66,7 @@ services:
         - CB_TradingBot__Unstucking__SlowUnstuckPercentStep=0.2
         - CB_TradingBot__Unstucking__SlowUnstuckPositionThresholdPercent=-0.05
         - CB_TradingBot__Unstucking__SlowUnstuckThresholdPercent=-0.3
-        - CB_TradingBot__WalletExposureLong=100
+        - CB_TradingBot__WalletExposureLong=100.0
         - CB_TradingBot__WalletExposureShort=0
         - CB_TradingBot__Whitelist__0=BTCUSDT
         - CB_TradingBot__Whitelist__1=ETHUSDT

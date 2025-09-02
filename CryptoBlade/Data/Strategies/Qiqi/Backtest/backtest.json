@@ -1,135 +1,110 @@
 {
-  "AccountName": "Demo",
-  "BotMode": "Backtest",
-  "TradingMode": "DynamicBackTest",
-  "MaxRunningStrategies": 30,
-  "DcaOrdersCount": 1000,
-  "DynamicBotCount": {
-    "TargetLongExposure": 20,
-    "TargetShortExposure": 20.0,
-    "MaxLongStrategies": 30,
-    "MaxShortStrategies": 30,
-    "MaxDynamicStrategyOpenPerStep": 5,
-    "Step": "00:01:00"
-  },
-  "WalletExposureLong": 100.0,
-  "WalletExposureShort": 100.0,
-  "MinimumVolume": 15000.0,
-  "MinimumPriceDistance": 0.015,
-  "ForceMinQty": false,
-  "QtyFactorLong": 100,
-  "QtyFactorShort": 100,
-  "EnableRecursiveQtyFactorLong": true,
-  "EnableRecursiveQtyFactorShort": true,
-  "PlaceOrderAttempts": 5,
-  "MaxAbsFundingRate": 0.0002,
-  "MakerFeeRate": 0.0002,
-  "TakerFeeRate": 0.00055,
-  "MinProfitRate": 0.0006,
-  "SpotRebalancingRatio": 0.0,
-  "StrategySelectPreference": 1,
-  "NormalizedAverageTrueRangePeriod": 14,
-  "MinNormalizedAverageTrueRangePeriod": 1.0,
-  "BackTest": {
-    "Start": "2024-01-01T00:00:00",
-    "End": "2025-05-23T00:00:00",
-    "InitialBalance": 100,
-    "StartupCandleData": "1.00:00:00",
-    "InitialUntradableDays": 0
-  },
-  "Unstucking": {
-    "Enabled": false,
-    "SlowUnstuckThresholdPercent": -0.3,
-    "SlowUnstuckPositionThresholdPercent": -0.05,
-    "ForceUnstuckThresholdPercent": -0.4,
-    "ForceUnstuckPositionThresholdPercent": -0.2,
-    "SlowUnstuckPercentStep": 0.2,
-    "ForceUnstuckPercentStep": 0.1,
-    "ForceKillTheWorst": true
-  },
-  "Strategies": {
-    "Recursive": {
-      "DDownFactorLong": 3.0,
-      "InitialQtyPctLong": 0.006000000052154064,
-      "ReentryPositionPriceDistanceLong": 0.01600000075995922,
-      "ReentryPositionPriceDistanceWalletExposureWeightingLong": 1.3899999856948853,
-      "DDownFactorShort": 2.621999979019165,
-      "InitialQtyPctShort": 0.017000000923871994,
-      "ReentryPositionPriceDistanceShort": 0.0010000000474974513,
-      "ReentryPositionPriceDistanceWalletExposureWeightingShort": 1.9739999771118164
-    },
-    "Qiqi": {
-      "RsiTakeProfitLong": 70.0,
-      "QflBellowPercentEnterLong": 1.2999999523162842,
-      "RsiTakeProfitShort": 21.0,
-      "QflAbovePercentEnterShort": 4,
-      "MaxTimeStuck": "120.00:00:00",
-      "TakeProfitPercentLong": 0.3499999940395355,
-      "TakeProfitPercentShort": 0.5
-    }
-  },
-  "CriticalMode": {
-    "EnableCriticalModeLong": true,
-    "EnableCriticalModeShort": true,
-    "WalletExposureThresholdLong": 0.3,
-    "WalletExposureThresholdShort": 0.3
-  },
-  "SymbolVolumePreference": [
-    "HIGH",
-    "LARGE"
-  ],
-  "SymbolVolatilityPreference": [
-    "HIGH",
-    "LARGE"
-  ],
-  "SymbolMaturityPreference": [
-    "MEDIUM",
-    "LARGE"
-  ],
-  "Whitelist": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "XRPUSDT",
-    "BNBUSDT",
-    "DOGEUSDT",
-    "ADAUSDT",
-    "SOLUSDT",
-    "TRXUSDT",
-    "MATICUSDT",
-    "LTCUSDT",
-    "DOTUSDT",
-    "BCHUSDT",
-    "SHIB1000U",
-    "AVAXUSDT",
-    "UNIUSDT",
-    "XLMUSDT",
-    "LINKUSDT",
-    "XMRUSDT",
-    "ATOMUSDT",
-    "ETCUSDT",
-    "FILUSDT",
-    "ICPUSDT",
-    "HBARUSDT",
-    "LDOUSDT",
-    "CROUSDT",
-    "ARBUSDT",
-    "APTUSDT",
-    "QNTUSDT",
-    "VETUSDT",
-    "NEARUSDT",
-    "MKRUSDT",
-    "AAVEUSDT",
-    "OPUSDT",
-    "GRTUSDT",
-    "SNXUSDT",
-    "ALGOUSDT",
-    "STXUSDT",
-    "EGLDUSDT",
-    "SANDUSDT"
-  ],
-  "Blacklist": [
-    "EOSUSDT"
-  ],
-  "SymbolTradingModes": [],
-  "StrategyName": "Qiqi"
+    "AccountName":  "Demo",
+    "BotMode":  "Backtest",
+    "TradingMode":  "DynamicBackTest",
+    "MaxRunningStrategies":  30,
+    "DcaOrdersCount":  1000,
+    "DynamicBotCount":  {
+                            "TargetLongExposure":  4.8,
+                            "TargetShortExposure":  4.8,
+                            "MaxLongStrategies":  30,
+                            "MaxShortStrategies":  30,
+                            "MaxDynamicStrategyOpenPerStep":  10,
+                            "Step":  "00:01:00"
+                        },
+    "WalletExposureLong":  0.2,
+    "WalletExposureShort":  0.2,
+    "MinimumVolume":  12373.0,
+    "MinimumPriceDistance":  0.015,
+    "ForceMinQty":  false,
+    "QtyFactorLong":  10,
+    "QtyFactorShort":  10,
+    "EnableRecursiveQtyFactorLong":  true,
+    "EnableRecursiveQtyFactorShort":  true,
+    "PlaceOrderAttempts":  5,
+    "MaxAbsFundingRate":  0.0002,
+    "MakerFeeRate":  0.0002,
+    "TakerFeeRate":  0.00055,
+    "MinProfitRate":  0.0006,
+    "SpotRebalancingRatio":  0.0,
+    "StrategySelectPreference":  1,
+    "NormalizedAverageTrueRangePeriod":  14,
+    "MinNormalizedAverageTrueRangePeriod":  1.0,
+    "BackTest":  {
+                     "Start":  "2023-08-10T00:00:00",
+                     "End":  "2025-08-10T00:00:00",
+                     "InitialBalance":  100000,
+                     "StartupCandleData":  "1.00:00:00",
+                     "InitialUntradableDays":  -2000
+                 },
+    "Unstucking":  {
+                       "Enabled":  true,
+                       "SlowUnstuckThresholdPercent":  -0.18,
+                       "SlowUnstuckPositionThresholdPercent":  -0.07,
+                       "ForceUnstuckThresholdPercent":  -0.12,
+                       "ForceUnstuckPositionThresholdPercent":  -0.28,
+                       "SlowUnstuckPercentStep":  0.35,
+                       "ForceUnstuckPercentStep":  0.76,
+                       "ForceKillTheWorst":  true
+                   },
+    "Strategies":  {
+                       "Qiqi":  {
+                                    "RsiTakeProfitLong":  70.0,
+                                    "QflBellowPercentEnterLong":  1.2999999523162842,
+                                    "RsiTakeProfitShort":  21.0,
+                                    "QflAbovePercentEnterShort":  4,
+                                    "MaxTimeStuck":  "120.00:00:00",
+                                    "TakeProfitPercentLong":  0.3499999940395355,
+                                    "TakeProfitPercentShort":  0.5
+                                },
+                       "Recursive":  {
+                                         "DDownFactorLong":  3.0,
+                                         "InitialQtyPctLong":  0.006000000052154064,
+                                         "ReentryPositionPriceDistanceLong":  0.01600000075995922,
+                                         "ReentryPositionPriceDistanceWalletExposureWeightingLong":  1.3899999856948853,
+                                         "DDownFactorShort":  2.621999979019165,
+                                         "InitialQtyPctShort":  0.017000000923871994,
+                                         "ReentryPositionPriceDistanceShort":  0.0010000000474974513,
+                                         "ReentryPositionPriceDistanceWalletExposureWeightingShort":  1.9739999771118164
+                                     }
+                   },
+    "CriticalMode":  {
+                         "EnableCriticalModeLong":  true,
+                         "EnableCriticalModeShort":  true,
+                         "WalletExposureThresholdLong":  8.8,
+                         "WalletExposureThresholdShort":  10
+                     },
+    "SymbolVolumePreference":  [
+                                   "HIGH",
+                                   "LARGE"
+                               ],
+    "SymbolVolatilityPreference":  [
+                                       "HIGH",
+                                       "LARGE"
+                                   ],
+    "SymbolMaturityPreference":  [
+                                     "MEDIUM",
+                                     "LARGE"
+                                 ],
+    "Whitelist":  [
+                      "QNTUSDT",
+                      "VETUSDT",
+                      "NEARUSDT",
+                      "MKRUSDT",
+                      "AAVEUSDT",
+                      "OPUSDT",
+                      "GRTUSDT",
+                      "SNXUSDT",
+                      "ALGOUSDT",
+                      "STXUSDT",
+                      "EGLDUSDT",
+                      "SANDUSDT"
+                  ],
+    "Blacklist":  [
+                      "EOSUSDT"
+                  ],
+    "SymbolTradingModes":  [
+
+                           ],
+    "StrategyName":  "Qiqi"
 }

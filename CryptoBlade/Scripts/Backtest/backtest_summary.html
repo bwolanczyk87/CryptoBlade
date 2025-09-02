@@ -60,108 +60,141 @@
         </tbody>
     </table>
     <script>
-        const summaryDir = "/Data/Strategies/_globalBacktest/";
+    const summaryDir = "/Data/Strategies/_globalBacktest/";
 
-        fetch(summaryDir)
-            .then(response => response.text())
-            .then(html => {
-                const files = [...html.matchAll(/href="([^"]+\.json)"/g)].map(m => m[1]);
-                files.sort().reverse();
+    async function load() {
+        // Pobierz manifest
+        const idxRes = await fetch(summaryDir + "index.json");
+        if (!idxRes.ok) {
+            console.warn("Brak index.json albo serwer nie serwuje pliku:", idxRes.status);
+            return;
+        }
+        const { files } = await idxRes.json();
+        if (!files || files.length === 0) return;
 
-                Promise.all(files.map(file =>
-                    fetch(summaryDir + file)
-                        .then(r => r.json())
-                        .then(json => ({ file, json }))
-                )).then(results => {
-                    // Zbierz wszystkie strategie z wszystkich plików
-                    const allStrategies = new Set();
-                    results.forEach(({ json }) => {
-                        if (json.Iterations) {
-                            json.Iterations.forEach(iter => allStrategies.add(iter.Strategy));
-                        }
-                    });
-                    const strategies = Array.from(allStrategies).sort();
+        // Wczytaj wszystkie pliki podsumowań
+        const results = await Promise.all(
+            files.map(async (file) => {
+                const r = await fetch(summaryDir + file);
+                if (!r.ok) return null;
+                const json = await r.json();
+                return { file, json };
+            })
+        ).then(arr => arr.filter(x => !!x));
 
-                    // Zbuduj nagłówek
-                    const headerRow = document.getElementById('headerRow');
-                    strategies.forEach(strategy => {
-                        const th = document.createElement('th');
-                        th.textContent = strategy;
-                        headerRow.appendChild(th);
-                    });
+        if (results.length === 0) return;
 
-                    // Zbuduj wiersze
-                    const tbody = document.querySelector('#summaryTable tbody');
-                    results.forEach(({ file, json }) => {
-                        // Data z nazwy pliku
-                        const match = file.match(/^(\d{14})-/);
-                        let dateStr = "-";
-                        if (match) {
-                            const d = match[1];
-                            dateStr = `${d.substr(0, 4)}-${d.substr(4, 2)}-${d.substr(6, 2)} ${d.substr(8, 2)}:${d.substr(10, 2)}:${d.substr(12, 2)}`;
-                        }
-                        const tr = document.createElement('tr');
-                        // Pierwsza kolumna: data
-                        const tdDate = document.createElement('td');
-                        tdDate.textContent = dateStr;
-                        tr.appendChild(tdDate);
+        // Zbierz wszystkie strategie
+        const allStrategies = new Set();
+        results.forEach(({ json }) => {
+            if (json.Iterations) {
+                json.Iterations.forEach(iter => allStrategies.add(iter.Strategy));
+            }
+        });
+        const strategies = Array.from(allStrategies).sort();
 
-                        // Druga kolumna: Backtest (zakres dat i initial balance)
-                        let start = "-", end = "-", initialBalance = "-";
-                        if (json.BacktestConfig && json.BacktestConfig.BackTest) {
-                            start = json.BacktestConfig.BackTest.Start?.replace("T", " ") ?? "-";
-                            end = json.BacktestConfig.BackTest.End?.replace("T", " ") ?? "-";
-                            initialBalance = json.BacktestConfig.BackTest.InitialBalance ?? "-";
-                        }
-                        const tdBacktest = document.createElement('td');
-                        tdBacktest.innerHTML =
-                            `Od: <b>${start}</b><br>` +
-                            `Do: <b>${end}</b><br>` +
-                            `Initial: <b>${initialBalance}</b>`;
-                        tr.appendChild(tdBacktest);
+        // Nagłówek
+        const headerRow = document.getElementById('headerRow');
+        strategies.forEach(strategy => {
+            const th = document.createElement('th');
+            th.textContent = strategy;
+            headerRow.appendChild(th);
+        });
 
-                        // Mapowanie: strategia => {FB, FE, UPnL}
-                        const stratMap = {};
-                        if (json.Iterations) {
-                            json.Iterations.forEach(iter => {
-                                stratMap[iter.Strategy] = iter;
-                            });
-                        }
+        // Wiersze
+        const tbody = document.querySelector('#summaryTable tbody');
+        results.forEach(({ file, json }) => {
+            // Data z nazwy pliku
+            const match = file.match(/^(\d{14})-/);
+            let dateStr = "-";
+            if (match) {
+                const d = match[1];
+                dateStr = `${d.substr(0, 4)}-${d.substr(4, 2)}-${d.substr(6, 2)} ${d.substr(8, 2)}:${d.substr(10, 2)}:${d.substr(12, 2)}`;
+            }
 
-                        // Wyznacz najlepszą/najgorszą strategię dla tego wiersza
-                        let best = null, worst = null, bestVal = -Infinity, worstVal = Infinity;
-                        if (json.Iterations) {
-                            json.Iterations.forEach(iter => {
-                                const fe = iter.FinalEquity ?? null;
-                                if (fe !== null && fe !== initialBalance) {
-                                    if (fe > bestVal) { bestVal = fe; best = iter.Strategy; }
-                                    if (fe < worstVal) { worstVal = fe; worst = iter.Strategy; }
-                                }
-                            });
-                        }
+            const tr = document.createElement('tr');
 
-                        // Kolumny: strategie
-                        strategies.forEach(strategy => {
-                            const td = document.createElement('td');
-                            if (stratMap[strategy]) {
-                                const iter = stratMap[strategy];
-                                td.innerHTML =
-                                    `FB: <b>${iter.FinalBalance ?? '-'}</b><br>` +
-                                    `FE: <b>${iter.FinalEquity ?? '-'}</b><br>` +
-                                    `UPnL: <b>${iter.UnrealizedPnl ?? '-'}</b>`;
-                                if (strategy === best) td.classList.add('best');
-                                if (strategy === worst) td.classList.add('worst');
-                            } else {
-                                td.textContent = "-";
-                            }
-                            tr.appendChild(td);
-                        });
+            const tdDate = document.createElement('td');
+            tdDate.textContent = dateStr;
+            tr.appendChild(tdDate);
 
-                        tbody.appendChild(tr);
-                    });
+            // Backtest meta
+            let start = "-", end = "-", initialBalance = "-";
+            if (json.BacktestConfig && json.BacktestConfig.BackTest) {
+            start = fmtDate(json.BacktestConfig.BackTest.Start);
+            end   = fmtDate(json.BacktestConfig.BackTest.End);
+            initialBalance = fmt2(json.BacktestConfig.BackTest.InitialBalance);
+            }
+            const tdBacktest = document.createElement('td');
+            tdBacktest.innerHTML =
+            `Od: <b>${start}</b><br>` +
+            `Do: <b>${end}</b><br>` +
+            `Initial: <b>${initialBalance}</b>`;
+            tr.appendChild(tdBacktest);
+
+            // Map: strategia => iteracja
+            const stratMap = {};
+            if (json.Iterations) {
+                json.Iterations.forEach(iter => { stratMap[iter.Strategy] = iter; });
+            }
+
+            // Best/worst po FinalEquity
+            let best = null, worst = null, bestVal = -Infinity, worstVal = Infinity;
+            if (json.Iterations) {
+                json.Iterations.forEach(iter => {
+                    const fe = iter.FinalEquity;
+                    if (typeof fe === 'number') {
+                        if (fe > bestVal) { bestVal = fe; best = iter.Strategy; }
+                        if (fe < worstVal) { worstVal = fe; worst = iter.Strategy; }
+                    }
                 });
+            }
+
+            // Kolumny strategii
+            strategies.forEach(strategy => {
+                const td = document.createElement('td');
+                const iter = stratMap[strategy];
+                if (iter) {
+                    td.innerHTML =
+                       td.innerHTML =
+                        `FB: <b>${fmt2(iter.FinalBalance)}</b><br>` +
+                        `FE: <b>${fmt2(iter.FinalEquity)}</b><br>` +
+                        `UPnL: <b>${fmt2(iter.UnrealizedPnl)}</b>`;
+                    if (strategy === best) td.classList.add('best');
+                    if (strategy === worst) td.classList.add('worst');
+                } else {
+                    td.textContent = "-";
+                }
+                tr.appendChild(td);
             });
-    </script>
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    load();
+
+    const fmtDate = (v) => {
+        if (v == null) return "-";
+        if (typeof v === "string") return v.replace("T"," ").replace("Z","");
+        if (typeof v === "number") {
+            const ms = v > 1e12 ? v : v * 1000;
+            const d = new Date(ms);
+            return d.toISOString().slice(0,19).replace("T"," ");
+        }
+        return String(v);
+        };
+
+    const fmt2 = (v) => {
+        if (typeof v === 'number' && Number.isFinite(v))
+            return v.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const n = Number(v);
+        return Number.isFinite(n)
+            ? n.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '-';
+        };
+</script>
+
 </body>
 
 </html>

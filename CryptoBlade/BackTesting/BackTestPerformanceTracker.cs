@@ -284,9 +284,11 @@ namespace CryptoBlade.BackTesting
             var directory = Path.Combine(ConfigPaths.GetBackTestResultDirectory(m_tradingBotOptions.Value.StrategyName), m_testId);
             Directory.CreateDirectory(directory);
             string filePath = Path.Combine(directory, m_tradingBotOptions.Value.BackTest.ResultFileName);
+            m_logger.LogInformation($"Saving backtest results to {filePath}, part 1.");
 
             string json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(filePath, json);
+            m_logger.LogInformation($"Saving backtest results to {filePath}, part 2.");
 
             string filePathDetailed = Path.Combine(directory, m_tradingBotOptions.Value.BackTest.ResultDetailedFileName);
             var openPositions = await m_backTestExchange.GetOpenPositionsWithOrdersAsync();
@@ -294,12 +296,14 @@ namespace CryptoBlade.BackTesting
             Result = result;
             json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(filePathDetailed, json);
+            m_logger.LogInformation($"Saved backtest results to {filePathDetailed}.");
 
             var settings = m_tradingBotOptions.Value;
             settings.Accounts = [];
             var botSettings = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(Path.Combine(directory, "appsettings.json"), botSettings);
             m_resultsSaved = true;
+            m_logger.LogInformation($"Backtest results saved successfully to {directory}.");
         }
 
         private double CalculateEquityBalanceNormalizedRooMeanSquareError(List<BalanceInTime> sampledBalanceHistory)
