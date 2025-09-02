@@ -243,7 +243,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET SYMBOL INFO with volume & volatility.</summary>
         [HttpGet("markets/symbol-info/{symbol}")]
-        [Authorize]
         public async Task<ActionResult<SymbolInfo>> GetSymbolInfo([FromRoute] string symbol, CancellationToken ct)
         {
             var data = await _client.GetSymbolInfoAsync(symbol, ct);
@@ -252,7 +251,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET TICKER for a symbol.</summary>
         [HttpGet("markets/ticker/{symbol}")]
-        [Authorize]
         public async Task<ActionResult<Ticker>> GetTicker([FromRoute] string symbol, CancellationToken ct)
         {
             var t = await _client.GetTickerAsync(symbol, ct);
@@ -261,7 +259,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET CLOSED KLINES (end = now - tf).</summary>
         [HttpGet("markets/klines/closed")]
-        [Authorize]
         public async Task<ActionResult<Candle[]>> GetKlinesClosed(
             [FromQuery] string symbol,
             [FromQuery] TimeFrame interval,
@@ -274,7 +271,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET KLINES BY TIME RANGE (UTC).</summary>
         [HttpGet("markets/klines/range")]
-        [Authorize]
         public async Task<ActionResult<Candle[]>> GetKlinesRange(
             [FromQuery] string symbol,
             [FromQuery] TimeFrame interval,
@@ -288,7 +284,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET OPEN ORDERS (with internal cursor paging).</summary>
         [HttpGet("orders")]
-        [Authorize]
         public async Task<ActionResult<Order[]>> GetOrders(CancellationToken ct)
         {
             var data = await _client.GetOrdersAsync(ct);
@@ -297,7 +292,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET POSITIONS.</summary>
         [HttpGet("positions")]
-        [Authorize]
         public async Task<ActionResult<Position[]>> GetPositions(CancellationToken ct)
         {
             var data = await _client.GetPositionsAsync(ct);
@@ -306,7 +300,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET FUNDING HISTORY for a symbol.</summary>
         [HttpGet("markets/funding/{symbol}")]
-        [Authorize]
         public async Task<ActionResult<FundingRate[]>> GetFunding(
             [FromRoute] string symbol,
             [FromQuery] DateTime start,
@@ -323,7 +316,6 @@ namespace CryptoBlade.Api.Controllers
 
         /// <summary>GET FEE RATE (raw from Bybit).</summary>
         [HttpGet("account/fee-rate")]
-        [Authorize]
         public async Task<IActionResult> GetFeeRate([FromQuery] string? symbol, CancellationToken ct)
         {
             var data = await _client.GetFeeRatesRawAsync(symbol, ct);
