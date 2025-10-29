@@ -5,6 +5,7 @@ using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using CryptoBlade.Strategies.AI;
+using CryptoBlade.Strategies.Sigma;
 
 namespace CryptoBlade.Strategies
 {
@@ -49,6 +50,9 @@ namespace CryptoBlade.Strategies
 
             if (string.Equals(StrategyNames.Momentum, strategyName, StringComparison.OrdinalIgnoreCase))
                 return CreateMomentumStrategy(config, symbol);
+
+            if (string.Equals(StrategyNames.Sigma, strategyName, StringComparison.OrdinalIgnoreCase))
+                return CreateSigmatrategy(config, symbol);
 
             return CreateAutoHedgeStrategy(config, symbol);
         }
@@ -219,7 +223,17 @@ namespace CryptoBlade.Strategies
             return new MomentumStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient, m_aiAccounts);
         }
 
-            private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
+        private ITradingStrategy CreateSigmatrategy(TradingBotOptions config, string symbol)
+        {
+            var options = CreateTradeOptions<SigmaStrategyOptions>(config, symbol, strategyOptions =>
+            {
+                var momentum = config.Strategies.Sigma;
+            });
+
+            return new SigmaStrategy(options, m_botOptions, symbol, m_walletManager, m_restClient);
+        }
+
+        private IOptions<TOptions> CreateTradeOptions<TOptions>(TradingBotOptions config, string symbol, Action<TOptions> optionsSetup)
                 where TOptions : TradingStrategyBaseOptions, new()
         {
             bool isBackTest = config.IsBackTest();

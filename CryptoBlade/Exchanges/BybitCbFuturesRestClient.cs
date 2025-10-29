@@ -474,8 +474,8 @@ namespace CryptoBlade.Exchanges
                         .Select(async x =>
                         {
                             var symbol = x.ToSymbolInfo();
-                            symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
-                            symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
+                            //symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
+                            //symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
                             return symbol;
                         });
                     var symbolInfoTasks = await Task.WhenAll(s);

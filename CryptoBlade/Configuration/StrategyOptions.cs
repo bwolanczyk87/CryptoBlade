@@ -10,5 +10,6 @@
         public RecursiveStrategyOptions Recursive { get; set; } = new RecursiveStrategyOptions();
         public Qiqi Qiqi { get; set; } = new Qiqi();
         public Momentum Momentum { get; set; } = new Momentum();
+        public Sigma Sigma { get; set; } = new Sigma();
     }
 }

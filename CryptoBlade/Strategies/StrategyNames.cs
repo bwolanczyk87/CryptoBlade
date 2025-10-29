@@ -9,6 +9,7 @@
         public const string Momentum = "Momentum";
         public const string Mona = "Mona";
         public const string Qiqi = "Qiqi";
+        public const string Sigma = "Sigma";
         public const string Tartaglia = "Tartaglia";
     }
 }
