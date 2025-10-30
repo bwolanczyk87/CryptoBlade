@@ -28,19 +28,18 @@ namespace CryptoBlade.Strategies.Sigma
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
             _options = options;
-            _data = new BybitSigmaDataProvider(restClient); // adapter danych (wydmuszka/ToDo)
+            _data = new BybitSigmaDataProvider(restClient);
         }
 
         private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o)
         {
-            // Wzorowane na Mona/LinearRegression: główny TF 1m + pomocnicze 5m/15m oraz 1h
-            return new[]
-            {
+            return
+            [
                 new TimeFrameWindow(TimeFrame.OneMinute, o.OneMinuteWindow,  true),
                 new TimeFrameWindow(TimeFrame.FiveMinutes, o.FiveMinuteWindow, false),
                 new TimeFrameWindow(TimeFrame.FifteenMinutes, o.FifteenMinuteWindow, false),
                 new TimeFrameWindow(TimeFrame.OneHour, o.OneHourWindow, false),
-            };
+            ];
         }
 
         public override string Name => "Sigma";
@@ -48,39 +47,36 @@ namespace CryptoBlade.Strategies.Sigma
         // --- Kluczowe: ocena sygnałów. Tu sterujemy reżimami i odpalamy odpowiednie kontrolery (wydmuszki). ---
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
-            // 0) Zbierz dane lokalne z kolejek i tickera
+            List<StrategyIndicator> indicators = [];
             var ticker = Ticker;
             var quotes1m = QuoteQueues[TimeFrame.OneMinute].GetQuotes();
             var quotes5m = QuoteQueues[TimeFrame.FiveMinutes].GetQuotes();
             var quotes15m = QuoteQueues[TimeFrame.FifteenMinutes].GetQuotes();
             var quotes1h = QuoteQueues[TimeFrame.OneHour].GetQuotes();
 
-            List<StrategyIndicator> indicators = new();
-            bool hasBuy = false, hasSell = false, hasBuyExtra = false, hasSellExtra = false;
-
             if (ticker == null || quotes1m.Length == 0 || quotes5m.Length == 0 || quotes15m.Length == 0 || quotes1h.Length == 0)
             {
-                Indicators = indicators.ToArray();
-                return new SignalEvaluation(hasBuy, hasSell, hasBuyExtra, hasSellExtra, Indicators);
+                return new SignalEvaluation(false, false, false, false, [.. indicators]);
             }
 
             // 1) Filtry jakości (spread, ATR%_1H)
-            var spread5Min = TradeSignalHelpers.Get5MinSpread(quotes1m); // wzór jak w innych strategiach
-            var lastAtr1h = quotes1h.GetAtr(14).LastOrDefault()?.Atr;
-            double? atrPct1h = (lastAtr1h.HasValue && ticker.BestAskPrice > 0)
-                ? (double)(lastAtr1h.Value / (double)ticker.BestAskPrice) * 100.0
-                : null;
+            var fallbackSpread5m = TradeSignalHelpers.Get5MinSpread(quotes1m); // tylko fallback/telemetria
+            var (spreadOk, spreadBps, rawSpread) = CheckSpreadOk(ticker, _options.Value, fallbackSpread5m);
+            var (atrOk, atrPct1h, atrAbs1h) = CheckAtrOk(quotes1h, ticker, _options.Value);
 
-            bool spreadOk = (spread5Min / ticker.LastPrice) * 10000m <= _options.Value.MaxSpreadBps;
-            bool atrOk = atrPct1h.HasValue &&
-                         atrPct1h.Value >= (double)_options.Value.MinAtr1hPct &&
-                         atrPct1h.Value <= (double)_options.Value.MaxAtr1hPct;
-
+            // Telemetria/indikatory
             indicators.Add(new StrategyIndicator(nameof(IndicatorType.MainTimeFrameVolume),
                 TradeSignalHelpers.VolumeInQuoteCurrency(quotes1m.Last())));
+
+            indicators.Add(new StrategyIndicator("Sigma.Spread.Bps", Math.Round(spreadBps, 4)));
+            if (rawSpread > 0)
+                indicators.Add(new StrategyIndicator("Sigma.Spread.Raw", Math.Round(rawSpread, 8)));
+
             if (atrPct1h.HasValue)
                 indicators.Add(new StrategyIndicator(nameof(IndicatorType.NormalizedAverageTrueRange),
                     (decimal)Math.Round(atrPct1h.Value, 6)));
+            if (atrAbs1h.HasValue)
+                indicators.Add(new StrategyIndicator("Sigma.ATR1h.Abs", Math.Round(atrAbs1h.Value, 8)));
 
             if (!spreadOk || !atrOk)
             {
@@ -118,17 +114,56 @@ namespace CryptoBlade.Strategies.Sigma
                 _ => ModeDecision.None
             };
 
-            hasBuy = decision.HasBuy;
-            hasSell = decision.HasSell;
-            hasBuyExtra = decision.HasBuyExtra;
-            hasSellExtra = decision.HasSellExtra;
-
-            // 5) Zapisz wskaźniki i wyjdź
-            Indicators = indicators.ToArray();
-            return new SignalEvaluation(hasBuy, hasSell, hasBuyExtra, hasSellExtra, Indicators);
+            return new SignalEvaluation(
+                decision.HasBuy, 
+                decision.HasSell, 
+                decision.HasBuyExtra, 
+                decision.HasSellExtra,
+                [.. indicators]);
         }
 
-        // Wartości z TradingStrategyBaseOptions (wallet exposure, DCA, ForceMinQty) są już obsługiwane w bazie. :contentReference[oaicite:3]{index=3}
-    }
+        // === Helpers: Spread & ATR gates ===
+        private static (bool ok, decimal spreadBps, decimal rawSpread) CheckSpreadOk(
+            Ticker ticker,
+            SigmaStrategyOptions opt,
+            decimal? fallbackSpread = null)
+        {
+            // Priorytet: realny bid-ask z tickera
+            if (ticker == null || ticker.LastPrice <= 0 || ticker.BestAskPrice <= 0 || ticker.BestBidPrice <= 0)
+            {
+                // Fallback: użyj preliczonego 5m spreadu jeśli podany
+                if (fallbackSpread is null || fallbackSpread <= 0)
+                    return (false, 0m, 0m);
 
+                var fbBps = (fallbackSpread.Value / (ticker?.LastPrice ?? 1m)) * 10_000m;
+                return (fbBps <= opt.MaxSpreadBps, fbBps, fallbackSpread.Value);
+            }
+
+            var spread = ticker.BestAskPrice - ticker.BestBidPrice;
+            var spreadBps = (spread / ticker.LastPrice) * 10_000m;
+            return (spreadBps <= opt.MaxSpreadBps, spreadBps, spread);
+        }
+
+        private static (bool ok, double? atrPct1h, decimal? atrAbs) CheckAtrOk(
+            Quote[] quotes1h,
+            Ticker ticker,
+            SigmaStrategyOptions opt)
+        {
+            if (quotes1h == null || quotes1h.Length == 0)
+                return (false, null, null);
+
+            var atrRes = quotes1h.GetAtr(14).LastOrDefault();
+            if (atrRes?.Atr is null || atrRes.Atr <= 0)
+                return (false, null, null);
+
+            // Odniesienie do ceny: preferuj ticker, fallback na last close 1h
+            var refPx = ticker?.BestAskPrice > 0 ? ticker.BestAskPrice : quotes1h.Last().Close;
+            if (refPx <= 0) return (false, null, (decimal)atrRes.Atr);
+
+            var atrPct = (double)((decimal)atrRes.Atr / refPx) * 100.0;
+            var ok = atrPct >= (double)opt.MinAtr1hPct && atrPct <= (double)opt.MaxAtr1hPct;
+            return (ok, atrPct, (decimal)atrRes.Atr);
+        }
+
+    }
 }

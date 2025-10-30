@@ -25,6 +25,14 @@
         public decimal MinAtr1hPct { get; init; } = 1.2m;
         public decimal MaxAtr1hPct { get; init; } = 4.0m;
 
-        // Drobne: użycie marketu na wejścia – strategia bazowa ma flagę UseMarketOrdersForEntries
+        // ATR gates per-mode (progi domyślne; kalibrowalne)
+        public decimal MmAtrMinPct { get; init; } = 1.2m;
+        public decimal MmAtrMaxPct { get; init; } = 4.0m;
+        public decimal MrAtrMinPct { get; init; } = 1.0m;
+        public decimal MrAtrMaxPct { get; init; } = 3.5m;
+
+        // BO nie ma dolnego progu; tylko górny bezpiecznik
+        public decimal BoAtrMaxPct { get; init; } = 7.0m;
+
     }
 }

@@ -8,6 +8,9 @@
         {
             // Szkic: licz proste punkty; finalnie wstawisz pełne formuły
             double mm = 0, mr = 0, bo = 0;
+            bool mmAtrOk = f.AtrPct1h >= (double)o.MmAtrMinPct && f.AtrPct1h <= (double)o.MmAtrMaxPct;
+            bool mrAtrOk = f.AtrPct1h >= (double)o.MrAtrMinPct && f.AtrPct1h <= (double)o.MrAtrMaxPct;
+            bool boAtrOk = f.AtrPct1h <= (double)o.BoAtrMaxPct; // brak dolnego progu dla BO
 
             // Momentum: ADX wysoki, nachylenie wartości >, OI↑, dodatnia autokorelacja
             if (f.Adx1h >= (double)o.AdxEnableMomentum) mm += 20;
@@ -15,17 +18,20 @@
             if (f.OiDelta1hPct > 0) mm += 15;
             if (f.AutoCorr5m > 0) mm += 10;
             if (f.Bbw15mPct >= 60) mm += 10;
+            if (!mmAtrOk) mm = 0;
 
             // Mean Reversion: trend słaby, |zVWAP| duże, OI neutral/↓
             if (f.Adx1h <= (double)o.AdxDisableMomentum) mr += 20;
             if (Math.Abs(f.ZDvwap) >= (double)o.ZVwapEnableMR) mr += 15;
             if (f.Bbw15mPct is >= 35 and <= 60) mr += 15;
             if (f.OiDelta1hPct <= 0) mr += 10;
+            if (!mrAtrOk) mr = 0;
 
             // Breakout: niska BBW, inside/NR7 flagi, OI↑ w kompresji
             if (f.Bbw15mPct <= (double)o.BbWidthBreakoutPct) bo += 25;
             if (f.HasInsideOrNr7) bo += 15;
             if (f.OiDelta1hPct > 0 && f.Bbw15mPct <= 40) bo += 10;
+            if (!boAtrOk) bo = 0;
 
             return new RegimeScores(mm, mr, bo);
         }

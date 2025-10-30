@@ -8,6 +8,7 @@ namespace CryptoBlade.Strategies.Sigma
         // Pierwotne cechy
         public string Symbol { get; private set; } = "";
         public double Adx1h { get; private set; }
+        public double AtrPct1h { get; private set; }
         public double ZDvwap { get; private set; }          // z-score odległości od D-VWAP
         public double ZSlopeDvwap { get; private set; }     // z-score nachylenia D-VWAP
         public double AutoCorr5m { get; private set; }      // autokorelacja 5m
@@ -35,6 +36,15 @@ namespace CryptoBlade.Strategies.Sigma
 
             // ADX(1H)
             f.Adx1h = q1h.GetAdx(14).LastOrDefault()?.Adx ?? 0;
+
+            // ART(1H)
+            var atrRes = q1h.GetAtr(14).LastOrDefault();
+            if (atrRes?.Atr is > 0)
+            {
+                var refPx = ticker?.BestAskPrice > 0 ? ticker.BestAskPrice : q1h.Last().Close;
+                if (refPx > 0)
+                    f.AtrPct1h = (double)(atrRes.Atr / (double)refPx) * 100.0;
+            }
 
             // VWAP dzienny – przybliżenie z 1m: liczymy od północy/UTC lub sesyjnego okna; tu szkic/placeholder
             // TODO: wprowadź precyzyjny VWAP_D z sum(p*q) / sum(q) na tickach/trades
