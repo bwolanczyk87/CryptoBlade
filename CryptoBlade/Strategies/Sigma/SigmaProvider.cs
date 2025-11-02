@@ -2,16 +2,17 @@
 
 namespace CryptoBlade.Strategies.Sigma
 {
-    internal interface ISigmaDataProvider
+    public interface ISigmaDataProvider
     {
         Task<double> GetOpenInterestDelta1hPctAsync(string symbol, CancellationToken cancel);
         Task<double> GetFundingRateAsync(string symbol, CancellationToken cancel);
         Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel);
         Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel);
         Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel);
+        Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel);
     }
 
-    internal sealed class BybitSigmaDataProvider : ISigmaDataProvider
+    public sealed class BybitSigmaDataProvider : ISigmaDataProvider
     {
         private readonly ICbFuturesRestClient _rest;
 
@@ -48,6 +49,11 @@ namespace CryptoBlade.Strategies.Sigma
             // TODO: jeżeli subskrybujesz All Liquidation (WS), utrzymuj własny bufor heatmapy
             // i licz dystans (%) do najbliższego klastra względem lastPrice.
             return Task.FromResult(1.0); // placeholder
+        }
+
+        public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel)
+        {
+            throw new NotImplementedException();
         }
     }
 }

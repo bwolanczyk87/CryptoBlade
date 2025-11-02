@@ -1,6 +1,6 @@
 ﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    internal static class MeanReversionController
+    public static class MeanReversionController
     {
         public static ModeDecision Evaluate(FeatureSnapshot f, SigmaStrategyOptions o)
         {

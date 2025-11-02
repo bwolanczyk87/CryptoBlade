@@ -1,6 +1,6 @@
 ﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    internal static class MomentumController
+    public static class MomentumController
     {
         public static ModeDecision Evaluate(FeatureSnapshot f, SigmaStrategyOptions o)
         {

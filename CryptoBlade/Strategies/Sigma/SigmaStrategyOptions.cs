@@ -1,16 +1,16 @@
 ﻿namespace CryptoBlade.Strategies.Sigma
 {
-    public sealed class SigmaStrategyOptions : TradingStrategyBaseOptions
+    public class SigmaStrategyOptions : TradingStrategyBaseOptions
     {
-        // Okna na cechy/regime
-        public int RecalcMinutes { get; init; } = 5;              // decyzja reżimu co 5m
-        public int HysteresisLockMinutes { get; init; } = 30;     // minimalny dwell reżimu
-        public int OneMinuteWindow { get; init; } = 500;          // bufor 1m
-        public int FiveMinuteWindow { get; init; } = 200;         // bufor 5m
-        public int FifteenMinuteWindow { get; init; } = 200;      // bufor 15m
-        public int OneHourWindow { get; init; } = 200;            // bufor 1h
+        // Okna buforów (informacyjne; zarządza tym warstwa danych)
+        public int RecalcMinutes { get; init; } = 5;          // decyzja co 5m
+        public int HysteresisLockMinutes { get; init; } = 30; // minimalny dwell reżimu
+        public int OneMinuteWindow { get; init; } = 500;
+        public int FiveMinuteWindow { get; init; } = 200;
+        public int FifteenMinuteWindow { get; init; } = 200;
+        public int OneHourWindow { get; init; } = 200;
 
-        // Progi reżimów (startowe; kalibrowalne)
+        // Progi reżimów (kalibrowalne, pair-aware docelowo)
         public decimal AdxEnableMomentum { get; init; } = 22m;
         public decimal AdxDisableMomentum { get; init; } = 18m;
         public decimal BbWidthBreakoutPct { get; init; } = 30m;   // percentyl
@@ -20,19 +20,18 @@
         public decimal MinScore { get; init; } = 55m;
         public decimal MinMargin { get; init; } = 10m;            // przewaga nad 2. trybem
 
-        // Ryzyka / filtry globalne (hook pod Macro/Funding gate można dodać w Supervisorze)
+        // Globalne gate’y koszt/zmienność (twarde)
         public decimal MaxSpreadBps { get; init; } = 2m;
         public decimal MinAtr1hPct { get; init; } = 1.2m;
         public decimal MaxAtr1hPct { get; init; } = 4.0m;
 
-        // ATR gates per-mode (progi domyślne; kalibrowalne)
+        // ATR gates per-mode (domyślne; kalibrowalne)
         public decimal MmAtrMinPct { get; init; } = 1.2m;
         public decimal MmAtrMaxPct { get; init; } = 4.0m;
         public decimal MrAtrMinPct { get; init; } = 1.0m;
         public decimal MrAtrMaxPct { get; init; } = 3.5m;
 
-        // BO nie ma dolnego progu; tylko górny bezpiecznik
+        // BO: brak dolnego progu; tylko górny bezpiecznik
         public decimal BoAtrMaxPct { get; init; } = 7.0m;
-
     }
 }
