@@ -58,6 +58,46 @@ namespace CryptoBlade.Mapping
             }
         }
 
+        public static TimeFrame ToTimeFrame(this Bybit.Net.Enums.OpenInterestInterval value)
+        {
+            switch (value)
+            {
+                case Bybit.Net.Enums.OpenInterestInterval.FiveMinutes:
+                    return TimeFrame.FiveMinutes;
+                case Bybit.Net.Enums.OpenInterestInterval.FifteenMinutes:
+                    return TimeFrame.FifteenMinutes;
+                case Bybit.Net.Enums.OpenInterestInterval.ThirtyMinutes:
+                    return TimeFrame.ThirtyMinutes;
+                case Bybit.Net.Enums.OpenInterestInterval.OneHour:
+                    return TimeFrame.OneHour;
+                case Bybit.Net.Enums.OpenInterestInterval.FourHours:
+                    return TimeFrame.FourHours;
+                case Bybit.Net.Enums.OpenInterestInterval.OneDay:
+                    return TimeFrame.OneDay;
+                default: throw new ArgumentOutOfRangeException(nameof(value), value, null);
+            }
+        }
+
+        public static Bybit.Net.Enums.OpenInterestInterval ToOpenInterestInterval(this TimeFrame timeFrame)
+        {
+            switch (timeFrame)
+            {
+                case TimeFrame.FiveMinutes:
+                    return Bybit.Net.Enums.OpenInterestInterval.FiveMinutes;
+                case TimeFrame.FifteenMinutes:
+                    return Bybit.Net.Enums.OpenInterestInterval.FifteenMinutes;
+                case TimeFrame.ThirtyMinutes:
+                    return Bybit.Net.Enums.OpenInterestInterval.ThirtyMinutes;
+                case TimeFrame.OneHour:
+                    return Bybit.Net.Enums.OpenInterestInterval.OneHour;
+                case TimeFrame.FourHours:
+                    return Bybit.Net.Enums.OpenInterestInterval.FourHours;
+                case TimeFrame.OneDay:
+                    return Bybit.Net.Enums.OpenInterestInterval.OneDay;
+                default: throw new ArgumentOutOfRangeException(nameof(timeFrame), timeFrame, null);
+            }
+        }
+
         public static Candle ToCandle(this Bybit.Net.Objects.Models.V5.BybitKline kline, TimeFrame timeFrame)
         {
             return new Candle

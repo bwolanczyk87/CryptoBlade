@@ -21,9 +21,9 @@ namespace CryptoBlade.Exchanges
             CancellationToken cancel = default);
 
         Task<bool> PlaceLimitBuyOrderAsync(
-            string symbol, 
-            decimal quantity, 
-            decimal price, 
+            string symbol,
+            decimal quantity,
+            decimal price,
             CancellationToken cancel = default);
 
         Task<bool> PlaceLimitSellOrderAsync(
@@ -59,16 +59,16 @@ namespace CryptoBlade.Exchanges
             CancellationToken cancel = default);
 
         Task<bool> SetTradingStopAsync(
-            string symbol, 
+            string symbol,
             decimal priceScale,
-            decimal stopLoss, 
-            decimal? takeProfit, 
+            decimal stopLoss,
+            decimal? takeProfit,
             decimal? trailingStop,
-            PositionIdx positionIdx, 
-            decimal? activePrice = null, 
-            decimal? takeProfitQuantity = null, 
+            PositionIdx positionIdx,
+            decimal? activePrice = null,
+            decimal? takeProfitQuantity = null,
             decimal? stopLossQuantity = null,
-            StopLossTakeProfitMode? stopLossTakeProfitMode = null, 
+            StopLossTakeProfitMode? stopLossTakeProfitMode = null,
             CancellationToken cancel = default);
 
         Task<Balance> GetBalancesAsync(CancellationToken cancel = default);
@@ -78,7 +78,7 @@ namespace CryptoBlade.Exchanges
         Task<Candle[]> GetKlinesAsync(
             string symbol,
             TimeFrame interval,
-            int limit, 
+            int limit,
             CancellationToken cancel = default);
 
         Task<Candle[]> GetKlinesAsync(
@@ -95,6 +95,38 @@ namespace CryptoBlade.Exchanges
         Task<Position[]> GetPositionsAsync(CancellationToken cancel = default);
 
         Task<FundingRate[]> GetFundingRatesAsync(string symbol, DateTime start, DateTime end,
+            CancellationToken cancel = default);
+
+        // Open Interest (USD) – surowe punkty (np. 1h, limit: 2 dla Δ)
+        Task<OpenInterestPoint[]> GetOpenInterestAsync(
+            string symbol,
+            string interval,      // "1h","4h","1d" – zgodnie z Bybit v5
+            int limit = 2,
+            CancellationToken cancel = default);
+
+        // Ostatni mark oraz index (np. z kline mark/index, limit=1 zamknięta świeca)
+        Task<MarkIndexPair> GetLatestMarkAndIndexAsync(
+            string symbol,
+            string interval = "1m",
+            CancellationToken cancel = default);
+
+        // Public trades w oknie czasu (do CVD)
+        Task<PublicTrade[]> GetRecentTradesAsync(
+            string symbol,
+            DateTime start,
+            DateTime end,
+            CancellationToken cancel = default);
+
+        // Liquidations w oknie czasu (do heatmapy/dystansu)
+        Task<LiquidationEvent[]> GetLiquidationsAsync(
+            string symbol,
+            DateTime start,
+            DateTime end,
+            CancellationToken cancel = default);
+
+        // Spread w bps z top-of-book/tickera
+        Task<double> GetSpreadBpsAsync(
+            string symbol,
             CancellationToken cancel = default);
     }
 }

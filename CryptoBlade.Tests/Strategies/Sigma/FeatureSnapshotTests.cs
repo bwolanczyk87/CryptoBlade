@@ -49,8 +49,8 @@ namespace CryptoBlade.Strategies.Tests
         [Fact]
         public void ComputeAtrPct1h_Zero_When_NoData()
         {
-            FeatureSnapshot.ComputeAtrPct1h([], 100).Should().Be(0);
-            FeatureSnapshot.ComputeAtrPct1h([new Quote { Close = 100m }], 0).Should().Be(0);
+            FeatureSnapshot.ComputeAtr1h([], 100).atrPct.Should().Be(0);
+            FeatureSnapshot.ComputeAtr1h([new Quote { Close = 100m }], 0).atrPct.Should().Be(0);
         }
 
         [Fact]
@@ -98,7 +98,7 @@ namespace CryptoBlade.Strategies.Tests
                 y[i] = trend + noise;
             }
 
-            double t = FeatureSnapshot.ComputeSlopeTstat(y, lastK: 60);
+            double t = FeatureSnapshot.ComputeSlopeTstatHAC(y, lastK: 60);
             t.Should().BeGreaterThan(3.0);
         }
 
@@ -111,7 +111,7 @@ namespace CryptoBlade.Strategies.Tests
                 TestData.MakeNoisyRandomWalk1m(start, minutes: 1500, sigma: 0.0015, baseVolume: 200m, seed: 7),
                 factor: 5);
 
-            double r = FeatureSnapshot.ComputeAutoCorrLag1(q5m);
+            double r = FeatureSnapshot.ComputeAutoCorrLag1Shrunk(q5m);
             r.Should().BeInRange(-0.2, 0.2); // węższe granice przy długiej próbie
         }
 
@@ -161,8 +161,8 @@ namespace CryptoBlade.Strategies.Tests
                 p = c;
             }
 
-            double pct = FeatureSnapshot.ComputeBbwPercentile(q15m, 20, 2.0);
-            pct.Should().BeLessThan(100.0);
+            var bbw = FeatureSnapshot.ComputeBbwPercentileAndRaw(q15m, 20, 2.0);
+            bbw.pct.Should().BeLessThan(100.0);
         }
 
         [Fact]
@@ -216,8 +216,8 @@ namespace CryptoBlade.Strategies.Tests
             var widths = bb.Where(x => x.Width.HasValue).Select(x => (double)x.Width!.Value).ToArray();
             widths[^1].Should().Be(widths.Max()); // unikalny max
 
-            double pct = FeatureSnapshot.ComputeBbwPercentile(q15m, 20, 2.0);
-            pct.Should().Be(100.0); // teraz definicja "≤" daje pełne 100%
+            var bbw = FeatureSnapshot.ComputeBbwPercentileAndRaw(q15m, 20, 2.0);
+            bbw.pct.Should().Be(100.0); // teraz definicja "≤" daje pełne 100%
         }
 
 
@@ -288,6 +288,10 @@ namespace CryptoBlade.Strategies.Tests
             public Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel) => Task.FromResult(0.2);
             public Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel) => Task.FromResult(1.5);
             public Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel) => Task.FromResult(0.8);
+            public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel)
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }

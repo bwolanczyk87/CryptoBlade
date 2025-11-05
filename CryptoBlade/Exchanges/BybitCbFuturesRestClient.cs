@@ -666,5 +666,187 @@ namespace CryptoBlade.Exchanges
 
             return rates;
         }
+
+        public async Task<OpenInterestPoint[]> GetOpenInterestAsync(
+            string symbol,
+            TimeFrame interval,
+            int limit = 2,
+            CancellationToken cancel = default)
+        {
+            // v5 market/open-interest
+            var res = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var r = await m_bybitRestClient.V5Api.ExchangeData.GetOpenInterestAsync(
+                    category: m_category,
+                    symbol: symbol,
+                    interestInterval: interval.ToOpenInterestInterval(),
+                    limit: limit,
+                    ct: cancel);
+                if (r.GetResultOrError(out var data, out var error))
+                    return data;
+                throw new InvalidOperationException(error.Message);
+            });
+
+            // Najnowsze -> najstarsze w V5; normalizujemy do rosnącego czasu
+            var points = res.List
+                .OrderBy(x => x.Timestamp)
+                .Select(x => new OpenInterestPoint
+                {
+                    Timestamp = x.Timestamp,
+                    OpenInterestUsd = x.OpenInterest
+                })
+                .ToArray();
+
+            return points;
+        }
+
+        public async Task<MarkIndexPair> GetLatestMarkAndIndexAsync(
+            string symbol,
+            TimeFrame interval = TimeFrame.OneMinute,
+            CancellationToken cancel = default)
+        {
+            // v5 market/mark-price-kline i index-price-kline (limit=1, zamknięta świeca)
+            var mark = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var r = await m_bybitRestClient.V5Api.ExchangeData.GetMarkPriceKlinesAsync(
+                    category: m_category,
+                    symbol: symbol,
+                    interval: interval.ToKlineInterval(),
+                    startTime: null,
+                    endTime: null,
+                    limit: 1,
+                    ct: cancel);
+                if (r.GetResultOrError(out var data, out var error))
+                    return data.List.FirstOrDefault();
+                throw new InvalidOperationException(error.Message);
+            });
+
+            var index = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var r = await m_bybitRestClient.V5Api.ExchangeData.GetIndexPriceKlinesAsync(
+                    category: m_category,
+                    symbol: symbol,
+                    interval: interval.ToKlineInterval(),
+                    startTime: null,
+                    endTime: null,
+                    limit: 1,
+                    ct: cancel);
+                if (r.GetResultOrError(out var data, out var error))
+                    return data.List.FirstOrDefault();
+                throw new InvalidOperationException(error.Message);
+            });
+
+            if (mark == null || index == null)
+                return new MarkIndexPair { Timestamp = DateTime.UtcNow, MarkPrice = 0, IndexPrice = 0 };
+
+            // Bierzemy zamknięcia z ostatniej zamkniętej świecy
+            return new MarkIndexPair
+            {
+                Timestamp = mark.StartTime,
+                MarkPrice = mark.ClosePrice,
+                IndexPrice = index.ClosePrice
+            };
+        }
+
+        public async Task<PublicTrade[]> GetRecentTradesAsync(
+            string symbol,
+            DateTime start,
+            DateTime end,
+            CancellationToken cancel = default)
+        {
+            // v5 market/recent-trade (stronicowanie kursorem)
+            var trades = new List<PublicTrade>();
+            string? cursor = null;
+
+            while (true)
+            {
+                var batch = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+                {
+                    var r = await m_bybitRestClient.V5Api.ExchangeData.GetTradeHistoryAsync(
+                        category: m_category,
+                        symbol: symbol,
+                        limit: 1000,
+                        startTime: start,
+                        endTime: end,
+                        ct: cancel);
+                    if (r.GetResultOrError(out var data, out var error))
+                        return data;
+                    throw new InvalidOperationException(error.Message);
+                });
+
+                trades.AddRange(batch.List.Select(x => new PublicTrade
+                {
+                    Timestamp = x.Timestamp,
+                    Price = x.Price ?? 0m,
+                    Quantity = x.Quantity ?? 0m,
+                    Side = string.Equals(x.Side, "Buy", StringComparison.OrdinalIgnoreCase) ? "Buy" : "Sell"
+                }));
+
+                if (string.IsNullOrEmpty(batch.NextPageCursor))
+                    break;
+
+                cursor = batch.NextPageCursor;
+            }
+
+            // Rosnąco po czasie
+            return trades.OrderBy(t => t.Timestamp).ToArray();
+        }
+
+        public async Task<LiquidationEvent[]> GetLiquidationsAsync(
+            string symbol,
+            DateTime start,
+            DateTime end,
+            CancellationToken cancel = default)
+        {
+            // v5 market/liquidation (stronicowanie kursorem)
+            var list = new List<LiquidationEvent>();
+            string? cursor = null;
+
+            while (true)
+            {
+                var batch = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+                {
+                    var r = await m_bybitRestClient.V5Api.ExchangeData.GetLiquidationsAsync(
+                        category: m_category,
+                        symbol: symbol,
+                        startTime: start,
+                        endTime: end,
+                        limit: 200,
+                        cursor: cursor,
+                        ct: cancel);
+                    if (r.GetResultOrError(out var data, out var error))
+                        return data;
+                    throw new InvalidOperationException(error.Message);
+                });
+
+                list.AddRange(batch.List.Select(x => new LiquidationEvent
+                {
+                    Timestamp = x.Timestamp,
+                    Price = x.Price ?? 0m,
+                    Quantity = x.Qty ?? 0m,
+                    Side = string.Equals(x.Side, "Buy", StringComparison.OrdinalIgnoreCase) ? "Buy" : "Sell"
+                }));
+
+                if (string.IsNullOrWhiteSpace(batch.NextPageCursor))
+                    break;
+
+                cursor = batch.NextPageCursor;
+            }
+
+            return list.OrderBy(x => x.Timestamp).ToArray();
+        }
+
+        public async Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel = default)
+        {
+            // Najpewniej i najtaniej z tickera (bid1/ask1)
+            var t = await GetTickerAsync(symbol, cancel);   // już zaimplementowane (v5 tickers) :contentReference[oaicite:4]{index=4}
+            if (t == null || t.LastPrice <= 0 || t.BestAskPrice <= 0 || t.BestBidPrice <= 0)
+                return 0.0;
+
+            var raw = t.BestAskPrice - t.BestBidPrice;
+            var bps = (double)((raw / t.LastPrice) * 10_000m);
+            return bps < 0 ? 0.0 : bps;
+        }
     }
+}
 }
