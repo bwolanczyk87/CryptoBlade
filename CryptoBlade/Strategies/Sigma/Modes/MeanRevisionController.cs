@@ -16,7 +16,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeDecision Evaluate(FeatureSnapshot f, RegimeState state, DateTime nowUtc, CancellationToken cancel)
         {
-            throw new NotImplementedException();
+            return ModeDecision.None;
         }
     }
 }

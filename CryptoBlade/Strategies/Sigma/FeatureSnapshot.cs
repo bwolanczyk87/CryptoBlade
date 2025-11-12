@@ -1,13 +1,5 @@
-﻿using CryptoBlade.Helpers;
-using CryptoBlade.Models;
-using CryptoBlade.Strategies.Common;
-using CryptoBlade.Strategies.Sigma.Helpers;
+﻿using CryptoBlade.Strategies.Sigma.Helpers;
 using Skender.Stock.Indicators;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Ticker = CryptoBlade.Models.Ticker;
 
 namespace CryptoBlade.Strategies.Sigma
@@ -26,6 +18,7 @@ namespace CryptoBlade.Strategies.Sigma
         public double AtrPct1h { get; private set; }          // ATR_1h / Price * 100 (%)
         public double Atr1hAbs { get; private set; }          // ATR_1h w punktach
         public double ZDvwap { get; private set; }            // z-score od D-VWAP (kotwica = start sesji)
+        public VwapSource VwapKindUsed { get; private set; } = VwapSource.None;
         public double ZSlopeDvwap { get; private set; }       // t-stat nachylenia D-VWAP (HAC/Newey-West)
         public double AutoCorr5m { get; private set; }        // autokorelacja lag-1 (shrunk)
         public double Bbw15mPct { get; private set; }         // percentyl BBWidth (mid-rank, 0..100)
@@ -83,15 +76,19 @@ namespace CryptoBlade.Strategies.Sigma
             double refPrice = SelectRefPriceDouble(ticker, q1h);
             (f.AtrPct1h, f.Atr1hAbs) = ComputeAtr1h(q1h, refPrice);
 
-            // 3) D-VWAP (1m)
+            // 3) D-VWAP (1m) z fallbackiem do Rolling VWAP
             DateTime anchor = FindCurrentSessionAnchorUtc(q1m, sessionStartHourUtc);
-            var (vwapSeries, lastVwap, tpStdDay) = ComputeAnchoredDailyVwapSeries(q1m, anchor);
+            var (vwapSeries, lastVwap, tpStdDay, vwapSrc) =
+                ComputeAnchoredDailyVwapSeries(q1m, anchor, minIntradayBars: 20, rollingWindow: 60);
 
-            // 4) z-score do VWAP (NaN jeżeli niepoliczalne)
+            f.VwapKindUsed = vwapSrc;
+
+            // 4) Z-score do VWAP (clamp |z|<=10)
             f.ZDvwap = ComputeZDvwap(ticker?.LastPrice, lastVwap, tpStdDay);
 
-            // 5) t-stat nachylenia VWAP (HAC/Newey-West)
-            f.ZSlopeDvwap = ComputeSlopeTstatHAC(vwapSeries, Math.Max(10, vwapSlopeWindow));
+            // 5) t-stat nachylenia VWAP (HAC, clamp)
+            var tStat = ComputeSlopeTstatHAC(vwapSeries, Math.Max(10, vwapSlopeWindow));
+            f.ZSlopeDvwap = Stats.Saturate(tStat, 100.0);
 
             // 6) Autokorelacja lag-1 na 5m (shrunk)
             f.AutoCorr5m = ComputeAutoCorrLag1Shrunk(q5m, kappa: 8);
@@ -109,7 +106,8 @@ namespace CryptoBlade.Strategies.Sigma
             f.Bbw15mExpanding = ComputeBbwExpanding(q15m, 20, 2.0, back: 2);
 
             // 11) Opening Range dla ORB (na 1m)
-            (var orHigh, var orLow) = PatternDetectors.OpeningRange(q1m, minutes: 30);
+            var intraday1m = q1m.Where(b => b.Date >= anchor).ToArray();
+            (var orHigh, var orLow) = PatternDetectors.OpeningRange(intraday1m, minutes: 30);
             f.OpeningRangeHigh = (orHigh == 0m && orLow == 0m) ? null : orHigh;
             f.OpeningRangeLow = (orHigh == 0m && orLow == 0m) ? null : orLow;
 
@@ -152,48 +150,71 @@ namespace CryptoBlade.Strategies.Sigma
             return ((atrAbs / refPrice) * 100.0, atrAbs);
         }
 
-        public static (double[] vwapSeries, double lastVwap, double tpStdDay)
-            ComputeAnchoredDailyVwapSeries(Quote[] q1m, DateTime anchorUtc)
+        public static (double[] vwapSeries, double lastVwap, double tpStdDay, VwapSource source)
+    ComputeAnchoredDailyVwapSeries(
+        Quote[] q1m,
+        DateTime anchorUtc,
+        int minIntradayBars = 20,
+        int rollingWindow = 60)
         {
+            // brak danych
             if (q1m == null || q1m.Length == 0)
-                return (Array.Empty<double>(), double.NaN, double.NaN);
+                return (Array.Empty<double>(), double.NaN, double.NaN, VwapSource.None);
 
+            // intraday – od kotwicy doby
             var intraday = q1m.Where(q => q.Date >= anchorUtc).ToArray();
-            if (intraday.Length < 20) // min rozruch
-                return (Array.Empty<double>(), double.NaN, double.NaN);
 
-            int n = intraday.Length;
-            double[] tp = new double[n];
-            double[] vol = new double[n];
-
-            for (int i = 0; i < n; i++)
+            // helper do liczenia TP std
+            static double TpStdFromQuotes(Quote[] qs)
             {
-                tp[i] = (double)((intraday[i].High + intraday[i].Low + intraday[i].Close) / 3m);
-                vol[i] = (double)intraday[i].Volume;
+                var tp = qs.Select(z => (double)((z.High + z.Low + z.Close) / 3m)).ToArray();
+                return Stats.StdDevSample(tp);
             }
 
-            double[] vwap = new double[n];
-            double accPv = 0.0, accV = 0.0;
-            for (int i = 0; i < n; i++)
+            // --- 1) Anchored daily VWAP (priorytet)
+            if (intraday.Length >= minIntradayBars)
             {
-                accPv += tp[i] * vol[i];
-                accV += vol[i];
-                vwap[i] = (accV > 0.0) ? (accPv / accV) : double.NaN;
+                int n = intraday.Length;
+                var tp = new double[n];
+                var vol = new double[n];
+                for (int i = 0; i < n; i++)
+                {
+                    tp[i] = (double)((intraday[i].High + intraday[i].Low + intraday[i].Close) / 3m);
+                    vol[i] = (double)intraday[i].Volume;
+                }
+
+                var vwap = new double[n];
+                double accPv = 0.0, accV = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    accPv += tp[i] * vol[i];
+                    accV += vol[i];
+                    vwap[i] = (accV > 0.0) ? (accPv / accV) : double.NaN;
+                }
+
+                var last = vwap[^1];
+                if (double.IsFinite(last))
+                {
+                    var tpStdDay = TpStdFromQuotes(intraday);
+                    return (vwap, last, tpStdDay, VwapSource.DailyAnchored);
+                }
+                // jeśli last nie jest finite – spadamy do fallbacku
             }
 
-            double last = vwap[^1];
-            double tpStd = Stats.StdDevSample(tp); // sample SD (korekta Bessela)
-
-            if (!double.IsFinite(last))
+            // --- 2) Fallback: Rolling VWAP (np. 60×1m) – krótkoterminowa „fair value”
+            var (rvwap, rlast) = Stats.RollingVwap(q1m, Math.Max(10, rollingWindow));
+            if (rlast > 0 && rvwap.Length > 0)
             {
-                var (rvwap, rlast) = Stats.RollingVwap(q1m, window: 60); // nowa utilka
-                vwap = rvwap;
-                last = rlast;
-                tpStd = Stats.StdDevSample(q1m.TakeLast(60).Select(z => (double)((z.High + z.Low + z.Close) / 3m)).ToArray());
+                // std TP liczymy z ostatniego okna, żeby Z-score był sensowny
+                var tail = q1m.TakeLast(Math.Min(rollingWindow, q1m.Length)).ToArray();
+                var tpStd = TpStdFromQuotes(tail);
+                return (rvwap, rlast, tpStd, VwapSource.Rolling);
             }
 
-            return (vwap, last, tpStd);
+            // --- 3) Nic się nie udało
+            return (Array.Empty<double>(), double.NaN, double.NaN, VwapSource.None);
         }
+
 
         public static double ComputeZDvwap(decimal? lastPrice, double lastVwap, double tpStdDay)
         {
@@ -506,4 +527,6 @@ namespace CryptoBlade.Strategies.Sigma
             return v;
         }
     }
+
+    public enum VwapSource { None = 0, DailyAnchored = 1, Rolling = 2 }
 }

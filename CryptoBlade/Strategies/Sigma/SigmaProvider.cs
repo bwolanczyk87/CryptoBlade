@@ -6,6 +6,17 @@ using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies.Sigma
 {
+    public interface IBybitSigmaDataProvider
+    {
+        Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel);
+        Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel);
+        Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel);
+        Task<double> GetFundingRateAsync(string symbol, CancellationToken cancel);
+        Task<double> GetOpenInterestDelta1hPctAsync(string symbol, CancellationToken cancel);
+        Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel);
+        Task<(double Corr, double LastBtcRet)> GetCorrToBtc15mAsync(string symbol, int window, CancellationToken cancel);
+    }
+
     public sealed class BybitSigmaDataProvider : IBybitSigmaDataProvider
     {
         private readonly ICbFuturesRestClient _rest;
@@ -30,15 +41,14 @@ namespace CryptoBlade.Strategies.Sigma
             var start = end.AddHours(-24);
             var rates = await _rest.GetFundingRatesAsync(symbol, start, end, cancel);
             var last = rates?.OrderBy(x => x.Time).LastOrDefault()?.Rate ?? 0m;
-            return (double)last;
+            return (double)(last * 100m);
         }
 
         public async Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel)
         {
-            var t = await _rest.GetTickerAsync(symbol, cancel);
-            if (t == null || t.LastPrice <= 0) return double.NaN;
-            var basis = (t.MarkPrice - t.LastPrice) / t.LastPrice;
-            var pct = (double)(basis * 100m);
+            var t = await _rest.GetLatestMarkAndIndexAsync(symbol, TimeFrame.OneMinute, cancel);
+            if (t == null || t.IndexPrice <= 0 || t.MarkPrice <= 0) return double.NaN;
+            var pct = (double)((t.MarkPrice - t.IndexPrice) / t.IndexPrice * 100m);
             return double.IsFinite(pct) ? pct : double.NaN;
         }
 

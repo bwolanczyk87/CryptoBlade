@@ -18,6 +18,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         private sealed class RollingSignedQty
         {
+            public bool HasData => _q.Count > 0;
             private readonly Deque<(DateTime ts, decimal signedQty)> _q = new();
             private decimal _sum;
 
@@ -123,9 +124,9 @@ namespace CryptoBlade.Strategies.Sigma
         public static (double spreadBps, bool ok) TryGetSpreadBps(string symbol, decimal lastPrice)
         {
             var x = S(symbol);
-            if (lastPrice <= 0 || x.BestAsk <= 0 || x.BestBid <= 0) return (0, false);
-            var spr = x.BestAsk - x.BestBid;
-            var bps = (double)((spr / lastPrice) * 10_000m);
+            var mid = (x.BestAsk + x.BestBid) / 2m;
+            if (mid <= 0) return (0, false);
+            var bps = (double)(((x.BestAsk - x.BestBid) / mid) * 10_000m);
             return (bps, bps >= 0 && double.IsFinite(bps));
         }
 
@@ -133,7 +134,7 @@ namespace CryptoBlade.Strategies.Sigma
         {
             var x = S(symbol);
             var v = (double)x.Cvd5m.Delta5m(nowUtc);
-            return (v, true);
+            return (v, x.Cvd5m.HasData);
         }
 
         public static (double distPct, bool ok) TryGetDistToLiqPct(string symbol, decimal lastPrice, DateTime nowUtc)

@@ -1,8 +1,5 @@
-﻿using CryptoBlade.Strategies.Sigma;            // IModeController, FeatureSnapshot, RegimeState, SigmaStrategyOptions
-using CryptoBlade.Strategies.Sigma.Modes;     // ModeDecision
+﻿using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Sigma.Regimes;
-using System;
-using System.Threading;
 
 namespace CryptoBlade.Strategies.Sigma
 {
@@ -15,18 +12,12 @@ namespace CryptoBlade.Strategies.Sigma
     /// - Extra: przy mocniejszej konfirmacji (|OiDelta1hPct| >= 0.5 lub ADX >= 22)
     /// Zwracamy wyłącznie flagi (ModeDecision): HasBuy/HasSell/(opcjonalnie) HasBuyExtra/HasSellExtra.
     /// </summary>
-    public sealed class MomentumController : IModeController
+    public sealed class MomentumController(SigmaStrategyOptions options) : IModeController
     {
-        private readonly SigmaStrategyOptions _o;
-        public MomentumController(SigmaStrategyOptions options) => _o = options;
+        private readonly SigmaStrategyOptions _o = options;
 
         public ModeDecision Evaluate(FeatureSnapshot f, RegimeState state, DateTime nowUtc, CancellationToken cancel)
         {
-            // 1) Spread gate (twardy)
-            var maxSpread = Convert.ToDouble(_o.MaxSpreadBps);
-            if (!double.IsFinite(f.SpreadBps) || f.SpreadBps > maxSpread)
-                return ModeDecision.None;
-
             // 2) ATR "zdrowy trend"
             if (f.AtrPct1h < 1.2 || f.AtrPct1h > 4.0)
                 return ModeDecision.None;

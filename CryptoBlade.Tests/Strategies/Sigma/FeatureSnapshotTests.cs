@@ -1,6 +1,7 @@
 ﻿// CryptoBlade.Strategies.Tests/FeatureSnapshotTests.cs
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma;
+using CryptoBlade.Strategies.Sigma.Helpers;
 using CryptoBlade.Tests.Strategies.Sigma;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -59,7 +60,7 @@ namespace CryptoBlade.Strategies.Tests
             var start = new DateTime(2025, 10, 31, 0, 0, 0, DateTimeKind.Utc);
             var q1m = TestData.MakeFlat1mSeries(start, 60, 100m, 200m); // stały TP i stały wolumen
             var anchor = FeatureSnapshot.FindCurrentSessionAnchorUtc(q1m, 0);
-            var (series, last, tpStd) = FeatureSnapshot.ComputeAnchoredDailyVwapSeries(q1m, anchor);
+            var (series, last, tpStd, source) = FeatureSnapshot.ComputeAnchoredDailyVwapSeries(q1m, anchor);
 
             series.Length.Should().Be(60);
             // VWAP przy stałym TP jest stały (równy TP)
@@ -220,39 +221,6 @@ namespace CryptoBlade.Strategies.Tests
             bbw.pct.Should().Be(100.0); // teraz definicja "≤" daje pełne 100%
         }
 
-
-
-        [Fact]
-        public void DetectInsideOrNr7_Works_For_Synthetic_Patterns()
-        {
-            var start = DateTime.UtcNow.Date;
-            var q = new Quote[10];
-            // Zbuduj serie gdzie ostatnia świeca ma najmniejszy range (NR7)
-            for (int i = 0; i < 9; i++)
-            {
-                q[i] = new Quote
-                {
-                    Date = start.AddMinutes(i * 15),
-                    Open = 100,
-                    High = 110,
-                    Low = 90,
-                    Close = 100,
-                    Volume = 100
-                };
-            }
-            // najmniejszy range
-            q[9] = new Quote
-            {
-                Date = start.AddMinutes(9 * 15),
-                Open = 100,
-                High = 101,
-                Low = 99,
-                Close = 100,
-                Volume = 100
-            };
-            FeatureSnapshot.DetectInsideOrNr7(q).Should().BeTrue();
-        }
-
         [Fact]
         public async Task BuildAsync_Integrates_All_Features_With_Safe_Defaults()
         {
@@ -288,10 +256,8 @@ namespace CryptoBlade.Strategies.Tests
             public Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel) => Task.FromResult(0.2);
             public Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel) => Task.FromResult(1.5);
             public Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel) => Task.FromResult(0.8);
-            public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel)
-            {
-                throw new NotImplementedException();
-            }
+            public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel) => Task.FromResult(3.0);
+            public Task<(double Corr, double LastBtcRet)> GetCorrToBtc15mAsync(string symbol, int window, CancellationToken cancel) => Task.FromResult((0.6, 0.002));
         }
     }
 }

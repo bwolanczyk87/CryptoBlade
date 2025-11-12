@@ -1,6 +1,5 @@
-﻿using System;
-using System.Linq;
-using MathNet.Numerics.Statistics;
+﻿using MathNet.Numerics.Statistics;
+using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies.Sigma.Helpers
 {
@@ -80,6 +79,49 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             if (v > limit) return limit;
             if (v < -limit) return -limit;
             return v;
+        }
+
+        /// <summary>
+        /// Rolling VWAP na bazie (H+L+C)/3 i wolumenu. Zwraca serię tej samej długości
+        /// z NaN dla próbek < window (warmup). lastVwap to ostatnia wartość serii.
+        /// </summary>
+        public static (double[] vwapSeries, double lastVwap) RollingVwap(Quote[] q, int window)
+        {
+            if (q == null || q.Length == 0 || window <= 1)
+                return (Array.Empty<double>(), double.NaN);
+
+            int n = q.Length;
+            var vwap = new double[n];
+            var tp = new double[n];
+            var vol = new double[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                tp[i] = (double)((q[i].High + q[i].Low + q[i].Close) / 3m);
+                vol[i] = (double)q[i].Volume;
+            }
+
+            double sumPv = 0.0, sumV = 0.0;
+            var qPv = new Queue<double>(window);
+            var qV = new Queue<double>(window);
+
+            for (int i = 0; i < n; i++)
+            {
+                double pv = tp[i] * vol[i];
+                sumPv += pv; sumV += vol[i];
+                qPv.Enqueue(pv); qV.Enqueue(vol[i]);
+
+                if (qPv.Count > window)
+                {
+                    sumPv -= qPv.Dequeue();
+                    sumV -= qV.Dequeue();
+                }
+
+                vwap[i] = (qPv.Count == window && sumV > 0.0) ? (sumPv / sumV) : double.NaN;
+            }
+
+            var last = vwap.Length > 0 ? vwap[^1] : double.NaN;
+            return (vwap, last);
         }
     }
 }
