@@ -1,13 +1,15 @@
-﻿using System.Text.Json;
-using System.Threading;
-using CryptoBlade.Configuration;
+﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
+using CryptoBlade.Strategies.Sigma;
 using CryptoBlade.Strategies.Wallet;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 using ScottPlot;
 using ScottPlot.Extensions;
+using System.Text.Json;
+using System.Threading;
 
 namespace CryptoBlade.BackTesting
 {

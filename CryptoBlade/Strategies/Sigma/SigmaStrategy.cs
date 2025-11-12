@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using CryptoBlade.Configuration;
+﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -11,16 +7,23 @@ using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Sigma.Regimes;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
+using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies.Sigma
 {
     public class SigmaStrategy : TradingStrategyBase
     {
         private readonly IOptions<SigmaStrategyOptions> _options;
-        private readonly ISigmaDataProvider _data;
+        private readonly IBybitSigmaDataProvider _data;
+        private readonly IModeController _mm;
+        private readonly IModeController _mr;
+        private readonly IModeController _bo;
+        private readonly IRegimeAuditSink _audit;
 
         private DateTime _lastRegimeDecisionUtc = DateTime.MinValue;
         private RegimeState _regimeState = new(Regime.None, DateTime.MinValue, RegimeScores.Zero);
+
+
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -34,16 +37,23 @@ namespace CryptoBlade.Strategies.Sigma
         {
             _options = options;
             _data = new BybitSigmaDataProvider(restClient);
+            _mm = new MomentumController(options.Value);
+            _mr = new MeanReversionController();
+            _bo = new BreakoutController();
+
+            var relDir = Path.Combine("Data", "Strategies", "Sigma", "audit", symbol);
+            var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
+            _audit = new RegimeAuditSink(relFile);
         }
 
         private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o)
-            => new[]
-            {
+            =>
+            [
                 new TimeFrameWindow(TimeFrame.OneMinute,       o.OneMinuteWindow,  true),
                 new TimeFrameWindow(TimeFrame.FiveMinutes,     o.FiveMinuteWindow, false),
                 new TimeFrameWindow(TimeFrame.FifteenMinutes,  o.FifteenMinuteWindow, false),
                 new TimeFrameWindow(TimeFrame.OneHour,         o.OneHourWindow, false),
-            };
+            ];
 
         public override string Name => "Sigma";
 
@@ -63,55 +73,45 @@ namespace CryptoBlade.Strategies.Sigma
             indicators.Add(new StrategyIndicator(nameof(IndicatorType.MainTimeFrameVolume),
                 TradeSignalHelpers.VolumeInQuoteCurrency(quotes1m[^1])));
 
-            // 1) Cechy
-            var f = await FeatureSnapshot.BuildAsync(Symbol, quotes1m, quotes5m, quotes15m, quotes1h, ticker, _data, cancel);
-
+            // 1) Cechy (korelacja BTC liczy się w providerze)
+            var f = await FeatureSnapshot.BuildAsync(
+                Symbol, quotes1m, quotes5m, quotes15m, quotes1h,
+                ticker, _data, cancel, sessionStartHourUtc: 0, vwapSlopeWindow: 60);
 
             indicators.Add(new StrategyIndicator("Sigma.Spread.Bps", (decimal)Math.Round(f.SpreadBps, 4)));
             indicators.Add(new StrategyIndicator("Sigma.ATR1h.Pct", (decimal)Math.Round(f.AtrPct1h, 4)));
 
-            // 2) Global gates + scoring na KAŻDYM wywołaniu
+            // 2) Jedno wywołanie silnika: reżim + kontroler
             var nowUtc = DateTime.UtcNow;
-            var eval = RegimeEngine.Evaluate(f, _regimeState, nowUtc, _options.Value);
+            var (tradable, reason, decision, tradeDecision) =
+                RegimeEngine.EvaluateTrade(
+                    f, _regimeState, nowUtc, _options.Value,
+                    momentumCtrl: _mm, meanReversionCtrl: _mr, breakoutCtrl: _bo,
+                    cancel: cancel, audit: _audit);
 
-            // Aktualizuj wskaźniki score'ów ZAWSZE (telemetria świeża)
-            indicators.Add(new StrategyIndicator("MM.Score", (decimal)eval.Decision.State.Scores.Momentum));
-            indicators.Add(new StrategyIndicator("MR.Score", (decimal)eval.Decision.State.Scores.MeanReversion));
-            indicators.Add(new StrategyIndicator("BO.Score", (decimal)eval.Decision.State.Scores.Breakout));
+            // 3) Telemetria score'ów i aktywnego reżimu
+            indicators.Add(new StrategyIndicator("MM.Score", (decimal)decision.State.Scores.Momentum));
+            indicators.Add(new StrategyIndicator("MR.Score", (decimal)decision.State.Scores.MeanReversion));
+            indicators.Add(new StrategyIndicator("BO.Score", (decimal)decision.State.Scores.Breakout));
 
-            // 3) Przełączenie reżimu tylko co RecalcMinutes (lepkość)
+            // 4) Lepkość (harmonogram) + aktualizacja stanu tylko przy realnej zmianie
             bool timeToDecide = (nowUtc - _lastRegimeDecisionUtc) >= TimeSpan.FromMinutes(_options.Value.RecalcMinutes);
-            if (timeToDecide)
+            if (timeToDecide && decision.Changed)
             {
-                _regimeState = eval.Decision.State;
+                _regimeState = decision.State;
                 _lastRegimeDecisionUtc = nowUtc;
             }
 
-            indicators.Add(new StrategyIndicator("Active", _regimeState.Mode.ToString()));
-
-            if (!eval.Tradable)
-            {
-                indicators.Add(new StrategyIndicator("NoTrade.Reason", eval.Reason));
-                Indicators = [.. indicators];
-                return new SignalEvaluation(false, false, false, false, Indicators);
-            }
-
-            // 4) Tryby
-            ModeDecision decision = _regimeState.Mode switch
-            {
-                Regime.Momentum => MomentumController.Evaluate(f, _options.Value),
-                Regime.MeanReversion => MeanReversionController.Evaluate(f, _options.Value),
-                Regime.Breakout => BreakoutController.Evaluate(f, _options.Value),
-                _ => ModeDecision.None
-            };
+            indicators.Add(new StrategyIndicator("Regime.Active", _regimeState.Mode.ToString()));
+            indicators.Add(new StrategyIndicator("Regime.Proposed", decision.State.Mode.ToString()));
+            indicators.Add(new StrategyIndicator("Regime.Tradable", tradable.ToString()));
+            indicators.Add(new StrategyIndicator("Regime.Reason", reason));
 
             Indicators = [.. indicators];
+
+            var d = tradeDecision;
             return new SignalEvaluation(
-                decision.HasBuy,
-                decision.HasSell,
-                decision.HasBuyExtra,
-                decision.HasSellExtra,
-                Indicators);
+                d.HasBuy, d.HasSell, d.HasBuyExtra, d.HasSellExtra, Indicators);
         }
     }
 }

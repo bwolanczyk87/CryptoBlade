@@ -10,6 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Data\Strategies\Tartaglia - Copy\**" />
+    <Content Remove="Data\Strategies\Tartaglia - Copy\**" />
+    <EmbeddedResource Remove="Data\Strategies\Tartaglia - Copy\**" />
+    <None Remove="Data\Strategies\Tartaglia - Copy\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Accord" Version="3.8.0" />
     <PackageReference Include="Accord.MachineLearning" Version="3.8.0" />
     <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
@@ -19,6 +26,7 @@
     <PackageReference Include="CryptoExchange.Net" Version="8.8.0" />
     <PackageReference Include="CsvHelper" Version="30.0.1" />
     <PackageReference Include="GeneticSharp" Version="3.1.4" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Microsoft.FASTER.Core" Version="2.5.23" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.0" />
     <PackageReference Include="Nito.AsyncEx.Coordination" Version="5.1.2" />
@@ -51,7 +59,7 @@
     <Folder Include="Data\Strategies\Mona\Optimizer\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Backtest\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\Tartaglia - Copy\Optimizer\Results\" />
+    <Folder Include="Data\Strategies\Sigma\audit\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 

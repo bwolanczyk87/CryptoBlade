@@ -358,5 +358,16 @@ namespace CryptoBlade.Mapping
                 Status = value.Status.ToOrderStatus(),
             };
         }
+
+        public static OrderSide ToOrderSide(this Bybit.Net.Enums.PositionSide value)
+        {
+            return value switch
+            {
+                Bybit.Net.Enums.PositionSide.Buy => OrderSide.Buy,
+                Bybit.Net.Enums.PositionSide.Sell => OrderSide.Sell,
+                Bybit.Net.Enums.PositionSide.None => throw new ArgumentOutOfRangeException(nameof(value), value, "Cannot convert 'None' position side to order side."),
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
+        }
     }
 }

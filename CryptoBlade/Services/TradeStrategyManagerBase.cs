@@ -257,6 +257,40 @@ namespace CryptoBlade.Services
             tickerSubscription.AutoReconnect(m_logger);
             m_subscriptions.Add(tickerSubscription);
 
+            // NOWE: top-of-book -> spread bps
+            var obTopSub = await m_socketClient.SubscribeToOrderBookTopUpdatesAsync(
+                symbols,
+                (symbol, bestBid, bestAsk) =>
+                {
+                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnOrderBookTop(symbol, bestBid, bestAsk);
+                },
+                cancel);
+            obTopSub.AutoReconnect(m_logger);
+            m_subscriptions.Add(obTopSub);
+
+            // NOWE: public trades -> CVD 5m
+            var tradesSub = await m_socketClient.SubscribeToPublicTradeUpdatesAsync(
+                symbols,
+                (symbol, trade) =>
+                {
+                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnPublicTrade(symbol, trade);
+                },
+                cancel);
+            tradesSub.AutoReconnect(m_logger);
+            m_subscriptions.Add(tradesSub);
+
+            // NOWE: likwidacje -> heatmapa/klastry
+            var liqSub = await m_socketClient.SubscribeToAllLiquidationUpdatesAsync(
+                symbols,
+                (symbol, liq) =>
+                {
+                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnLiquidation(symbol, liq);
+                },
+                cancel);
+            liqSub.AutoReconnect(m_logger);
+            m_subscriptions.Add(liqSub);
+
+
             await Task.WhenAll(initTasks);
             m_strategyExecutionTask = Task.Run(async () => await StrategyExecutionAsync(cancel), cancel);
         }

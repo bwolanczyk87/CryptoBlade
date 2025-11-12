@@ -750,96 +750,43 @@ namespace CryptoBlade.Exchanges
 
         public async Task<PublicTrade[]> GetRecentTradesAsync(
             string symbol,
-            DateTime start,
-            DateTime end,
+            int limit = 1000,
             CancellationToken cancel = default)
         {
-            // v5 market/recent-trade (stronicowanie kursorem)
-            var trades = new List<PublicTrade>();
-            string? cursor = null;
+            limit = Math.Clamp(limit, 1, 1000);
 
-            while (true)
+            var data = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
-                var batch = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
-                {
-                    var r = await m_bybitRestClient.V5Api.ExchangeData.GetTradeHistoryAsync(
-                        category: m_category,
-                        symbol: symbol,
-                        limit: 1000,
-                        startTime: start,
-                        endTime: end,
-                        ct: cancel);
-                    if (r.GetResultOrError(out var data, out var error))
-                        return data;
-                    throw new InvalidOperationException(error.Message);
-                });
+                var r = await m_bybitRestClient.V5Api.ExchangeData.GetTradeHistoryAsync(
+                    category: m_category,           // "linear" dla USDT perpów / "inverse" dla inverse
+                    symbol: symbol,
+                    limit: limit,
+                    ct: cancel);
 
-                trades.AddRange(batch.List.Select(x => new PublicTrade
-                {
-                    Timestamp = x.Timestamp,
-                    Price = x.Price ?? 0m,
-                    Quantity = x.Quantity ?? 0m,
-                    Side = string.Equals(x.Side, "Buy", StringComparison.OrdinalIgnoreCase) ? "Buy" : "Sell"
-                }));
+                if (r.GetResultOrError(out var res, out var error))
+                    return res;
+                throw new InvalidOperationException(error.Message);
+            });
 
-                if (string.IsNullOrEmpty(batch.NextPageCursor))
-                    break;
+            // Mapowanie na nasz model
+            var trades = data.List.Select(x => new PublicTrade
+            {
+                Timestamp = x.Timestamp,
+                Price = x.Price,
+                Quantity = x.Quantity,
+                Side = x.Side.ToOrderSide()
+            });
 
-                cursor = batch.NextPageCursor;
-            }
-
-            // Rosnąco po czasie
             return trades.OrderBy(t => t.Timestamp).ToArray();
         }
 
-        public async Task<LiquidationEvent[]> GetLiquidationsAsync(
-            string symbol,
-            DateTime start,
-            DateTime end,
-            CancellationToken cancel = default)
-        {
-            // v5 market/liquidation (stronicowanie kursorem)
-            var list = new List<LiquidationEvent>();
-            string? cursor = null;
+        
 
-            while (true)
-            {
-                var batch = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
-                {
-                    var r = await m_bybitRestClient.V5Api.ExchangeData.GetLiquidationsAsync(
-                        category: m_category,
-                        symbol: symbol,
-                        startTime: start,
-                        endTime: end,
-                        limit: 200,
-                        cursor: cursor,
-                        ct: cancel);
-                    if (r.GetResultOrError(out var data, out var error))
-                        return data;
-                    throw new InvalidOperationException(error.Message);
-                });
-
-                list.AddRange(batch.List.Select(x => new LiquidationEvent
-                {
-                    Timestamp = x.Timestamp,
-                    Price = x.Price ?? 0m,
-                    Quantity = x.Qty ?? 0m,
-                    Side = string.Equals(x.Side, "Buy", StringComparison.OrdinalIgnoreCase) ? "Buy" : "Sell"
-                }));
-
-                if (string.IsNullOrWhiteSpace(batch.NextPageCursor))
-                    break;
-
-                cursor = batch.NextPageCursor;
-            }
-
-            return list.OrderBy(x => x.Timestamp).ToArray();
-        }
 
         public async Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel = default)
         {
             // Najpewniej i najtaniej z tickera (bid1/ask1)
-            var t = await GetTickerAsync(symbol, cancel);   // już zaimplementowane (v5 tickers) :contentReference[oaicite:4]{index=4}
+            var t = await GetTickerAsync(symbol, cancel);
             if (t == null || t.LastPrice <= 0 || t.BestAskPrice <= 0 || t.BestBidPrice <= 0)
                 return 0.0;
 
@@ -847,6 +794,34 @@ namespace CryptoBlade.Exchanges
             var bps = (double)((raw / t.LastPrice) * 10_000m);
             return bps < 0 ? 0.0 : bps;
         }
+
+        public async Task<(DateTime Ts, decimal Value)[]> GetOpenInterestUsdHistoryAsync(
+            string symbol,
+            TimeFrame interval,
+            int limit = 2,
+            CancellationToken cancel = default)
+        {
+            // Bybit.Net v5: ExchangeData.GetOpenInterestAsync(...)
+            var data = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var res = await m_bybitRestClient.V5Api.ExchangeData.GetOpenInterestAsync(
+                    category: m_category,        // linear (USDT-M)
+                    symbol: symbol,
+                    interestInterval: interval.ToOpenInterestInterval(),          // "1h"
+                    limit: limit,
+                    ct: cancel);
+
+                if (!res.GetResultOrError(out var payload, out var error))
+                    throw new InvalidOperationException(error.Message);
+
+                // payload.List: { Timestamp, OpenInterest (USD) ... }
+                return payload.List
+                    .OrderBy(x => x.Timestamp)
+                    .Select(x => (x.Timestamp, x.OpenInterest))
+                    .ToArray();
+            });
+
+            return data;
+        }
     }
-}
 }

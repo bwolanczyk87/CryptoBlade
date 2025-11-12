@@ -281,7 +281,7 @@ namespace CryptoBlade.Strategies.Tests
         private static double GetPrivateRefPrice(Ticker t, Quote[] q1h)
             => FeatureSnapshot.SelectRefPriceDouble(t, q1h);
 
-        private sealed class FakeProvider : ISigmaDataProvider
+        private sealed class FakeProvider : IBybitSigmaDataProvider
         {
             public Task<double> GetOpenInterestDelta1hPctAsync(string symbol, CancellationToken cancel) => Task.FromResult(0.5);
             public Task<double> GetFundingRateAsync(string symbol, CancellationToken cancel) => Task.FromResult(-0.01);

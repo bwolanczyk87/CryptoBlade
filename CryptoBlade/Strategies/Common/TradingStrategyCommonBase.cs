@@ -19,7 +19,7 @@ namespace CryptoBlade.Strategies.Common
         private readonly Channel<Candle> m_candleBuffer;
         public const int c_defaultCandleBufferSize = 1000;
         protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
-        private readonly ILogger m_logger;
+        protected readonly ILogger m_logger;
         private readonly Random m_random = new Random();
 
         protected TradingStrategyCommonBase(IOptions<TradingStrategyCommonBaseOptions> options,

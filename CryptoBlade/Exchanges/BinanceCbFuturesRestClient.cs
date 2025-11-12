@@ -137,5 +137,35 @@ namespace CryptoBlade.Exchanges
         {
             throw new NotImplementedException();
         }
+
+        public Task<OpenInterestPoint[]> GetOpenInterestAsync(string symbol, TimeFrame interval, int limit = 2, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<MarkIndexPair> GetLatestMarkAndIndexAsync(string symbol, TimeFrame interval = TimeFrame.OneMinute, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<LiquidationEvent[]> GetLiquidationsAsync(string symbol, DateTime start, DateTime end, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<(DateTime Ts, decimal Value)[]> GetOpenInterestUsdHistoryAsync(string symbol, TimeFrame interval = TimeFrame.OneHour, int limit = 2, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<PublicTrade[]> GetRecentTradesAsync(string symbol, int limit, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

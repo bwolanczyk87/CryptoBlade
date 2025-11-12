@@ -1,11 +1,12 @@
 ﻿using Bybit.Net.Enums;
 using Bybit.Net.Interfaces.Clients;
-using CryptoBlade.Strategies.Policies;
 using Bybit.Net.Objects.Models.V5;
+using CryptoBlade.Configuration;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
-using CryptoBlade.Configuration;
+using CryptoBlade.Strategies.Policies;
 using Microsoft.Extensions.Options;
+using System;
 
 namespace CryptoBlade.Exchanges
 {
@@ -123,6 +124,106 @@ namespace CryptoBlade.Exchanges
             });
 
             return new BybitUpdateSubscription(tickerSubscription);
+        }
+
+        public async Task<IUpdateSubscription> SubscribeToAllLiquidationUpdatesAsync(
+            string[] symbols,
+            Action<string, LiquidationEvent> handler,
+            CancellationToken cancel = default)
+        {
+            var sub = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var res = await m_bybitSocketLinearClient.V5LinearApi
+                    .SubscribeToAllLiquidationUpdatesAsync(
+                        symbols,
+                        evt =>
+                        {
+                            // evt.Symbol, evt.Data (lista)
+                            var symbol = evt.Symbol ?? string.Empty;
+                            foreach (var x in evt.Data)
+                            {
+                                var liq = new LiquidationEvent
+                                {
+                                    Timestamp = x.UpdateTime,
+                                    Price = x.Price,
+                                    Quantity = x.Quantity,
+                                    Side = x.Side.ToOrderSide()
+                                };
+                                handler(symbol, liq);
+                            }
+                        },
+                        cancel);
+                if (res.GetResultOrError(out var data, out var error)) return data;
+                throw new InvalidOperationException(error.Message);
+            });
+
+            return new BybitUpdateSubscription(sub);
+        }
+
+        public async Task<IUpdateSubscription> SubscribeToPublicTradeUpdatesAsync(
+            string[] symbols,
+            Action<string, PublicTrade> handler,
+            CancellationToken cancel = default)
+        {
+            var sub = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var res = await m_bybitSocketLinearClient.V5LinearApi
+                    .SubscribeToTradeUpdatesAsync(
+                        symbols,
+                        evt =>
+                        {
+                            var symbol = evt.Symbol ?? string.Empty;
+                            foreach (var t in evt.Data)
+                            {
+                                var trade = new PublicTrade
+                                {
+                                    Timestamp = t.Timestamp,
+                                    Price = t.Price,
+                                    Quantity = t.Quantity,
+                                    Side = t.Side.ToOrderSide()
+                                };
+                                handler(symbol, trade);
+                            }
+                        },
+                        cancel);
+                if (res.GetResultOrError(out var data, out var error)) return data;
+                throw new InvalidOperationException(error.Message);
+            });
+
+            return new BybitUpdateSubscription(sub);
+        }
+
+        // Top of book (bid/ask) pod spread bps:
+        public async Task<IUpdateSubscription> SubscribeToOrderBookTopUpdatesAsync(
+            string[] symbols,
+            Action<string, decimal, decimal> handler,
+            CancellationToken cancel = default)
+        {
+            var sub = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+            {
+                var res = await m_bybitSocketLinearClient.V5LinearApi
+                    .SubscribeToOrderbookUpdatesAsync(
+                        symbols,
+                        depth: 1, // tylko top
+                        evt =>
+                        {
+                            var symbol = evt.Symbol ?? string.Empty;
+                            var ob = evt.Data; // <— pojedynczy obiekt
+
+                            if (ob?.Bids?.Count() > 0 && ob.Asks?.Count() > 0)
+                            {
+                                var bestBid = ob.Bids.First().Price;
+                                var bestAsk = ob.Asks.First().Price;
+                                handler(symbol, bestBid, bestAsk);
+                            }
+                        },
+                        cancel);
+
+                if (res.GetResultOrError(out var data, out var error)) return data;
+                throw new InvalidOperationException(error.Message);
+            });
+
+            return new BybitUpdateSubscription(sub);
         }
     }
 }

@@ -100,33 +100,36 @@ namespace CryptoBlade.Exchanges
         // Open Interest (USD) – surowe punkty (np. 1h, limit: 2 dla Δ)
         Task<OpenInterestPoint[]> GetOpenInterestAsync(
             string symbol,
-            string interval,      // "1h","4h","1d" – zgodnie z Bybit v5
+            TimeFrame interval,      // "1h","4h","1d" – zgodnie z Bybit v5
             int limit = 2,
             CancellationToken cancel = default);
 
         // Ostatni mark oraz index (np. z kline mark/index, limit=1 zamknięta świeca)
         Task<MarkIndexPair> GetLatestMarkAndIndexAsync(
             string symbol,
-            string interval = "1m",
+            TimeFrame interval = TimeFrame.OneMinute,
             CancellationToken cancel = default);
 
         // Public trades w oknie czasu (do CVD)
         Task<PublicTrade[]> GetRecentTradesAsync(
             string symbol,
-            DateTime start,
-            DateTime end,
-            CancellationToken cancel = default);
-
-        // Liquidations w oknie czasu (do heatmapy/dystansu)
-        Task<LiquidationEvent[]> GetLiquidationsAsync(
-            string symbol,
-            DateTime start,
-            DateTime end,
+            int limit,
             CancellationToken cancel = default);
 
         // Spread w bps z top-of-book/tickera
         Task<double> GetSpreadBpsAsync(
             string symbol,
+            CancellationToken cancel = default);
+
+        /// <summary>
+        /// Bybit v5 market/open-interest (USD notionals). Zwraca serię (ts, value).
+        /// interval: "5m" | "15m" | "30m" | "1h" | "4h" | "1d"
+        /// limit: 1..200
+        /// </summary>
+        Task<(DateTime Ts, decimal Value)[]> GetOpenInterestUsdHistoryAsync(
+            string symbol,
+            TimeFrame interval = TimeFrame.OneHour,
+            int limit = 2,
             CancellationToken cancel = default);
     }
 }

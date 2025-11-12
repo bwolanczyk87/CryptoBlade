@@ -1,7 +1,7 @@
 ﻿using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
-using CryptoExchange.Net.CommonObjects;
+using CryptoBlade.Strategies.Sigma.Helpers;
 using Skender.Stock.Indicators;
 using System;
 using System.Collections.Generic;
@@ -12,35 +12,49 @@ using Ticker = CryptoBlade.Models.Ticker;
 
 namespace CryptoBlade.Strategies.Sigma
 {
+    /// <summary>
+    /// Snapshot cech rynku używanych przez RegimeEngine.
+    /// Zasada: brak danych = double.NaN (zamiast flag HasX).
+    /// </summary>
     public class FeatureSnapshot
     {
-        // ====== Cechy surowe ======
+        // ====== Cechy surowe (NaN oznacza "brak/niepoliczalne") ======
         public string Symbol { get; private set; } = "";
-        public double Adx1h { get; private set; }
-        public double AtrPct1h { get; private set; }
-        public double Atr1hAbs { get; private set; }
-        public double ZDvwap { get; private set; }
-        public double ZSlopeDvwap { get; private set; }
-        public double AutoCorr5m { get; private set; }
-        public double Bbw15mPct { get; private set; }
-        public double Bbw15mRaw { get; private set; }
-        public double SpreadBps { get; set; }   // <- jawny set: nadpisujemy z tickera
 
-        // ====== Derywaty/flow ======
-        public double OiDelta1hPct { get; private set; }
-        public double Funding8h { get; private set; }
-        public double BasisPct { get; private set; }
-        public double DeltaCvd5m { get; private set; }
-        public double DistToLiqPct { get; private set; }
+        // Trend / zmienność / value
+        public double Adx1h { get; private set; }             // [0..100] lub NaN
+        public double AtrPct1h { get; private set; }          // ATR_1h / Price * 100 (%)
+        public double Atr1hAbs { get; private set; }          // ATR_1h w punktach
+        public double ZDvwap { get; private set; }            // z-score od D-VWAP (kotwica = start sesji)
+        public double ZSlopeDvwap { get; private set; }       // t-stat nachylenia D-VWAP (HAC/Newey-West)
+        public double AutoCorr5m { get; private set; }        // autokorelacja lag-1 (shrunk)
+        public double Bbw15mPct { get; private set; }         // percentyl BBWidth (mid-rank, 0..100)
+        public double Bbw15mRaw { get; private set; }         // surowa szerokość BB (Upper-Lower)/SMA * 100
 
-        // ====== Flagi jakości ======
-        public bool HasDerivatives { get; private set; }
-        public bool HasCvd { get; private set; }
-        public bool HasLiq { get; private set; }
-        public bool HasVwap { get; private set; }
-        public bool HasVol15m { get; private set; }
+        // Mikrostruktura / egzekucja
+        public double SpreadBps { get; set; }                 // spread bid-ask w bps (NaN jeśli brak)
+
+        // Derywaty / flow
+        public double OiDelta1hPct { get; private set; }      // ΔOI$ 1h w %
+        public double Funding8h { get; private set; }         // funding 8h w %
+        public double BasisPct { get; private set; }          // (Mark-Index)/Index * 100
+        public double DeltaCvd5m { get; private set; }        // ΔCVD 5m (jeśli dostępne)
+        public double DistToLiqPct { get; private set; }      // dystans do najbliższej likwidacji w %
+
+        // Struktura/patterny (liczone poza klasą – PatternDetectors)
         public bool HasInsideOrNr7 { get; private set; }
+        public bool DonchianBreakUp { get; private set; }
+        public bool DonchianBreakDown { get; private set; }
+        public bool DonchianBreak => DonchianBreakUp || DonchianBreakDown;
 
+        // Sygnały pomocnicze
+        public bool Bbw15mExpanding { get; private set; }     // ekspansja BBW vs kilka barów wstecz
+        public decimal? OpeningRangeHigh { get; private set; }
+        public decimal? OpeningRangeLow { get; private set; }
+
+        // Korelacja z BTC (NaN = brak)
+        public double CorrToBtc15m { get; private set; }      // Pearson r (NaN jeśli brak)
+        public bool BtcBiasOpposite { get; private set; }     // heurystyka pod Supervisor
 
         // ========= BUILD =========
         public static async Task<FeatureSnapshot> BuildAsync(
@@ -50,7 +64,7 @@ namespace CryptoBlade.Strategies.Sigma
             Quote[] q15m,
             Quote[] q1h,
             Ticker ticker,
-            ISigmaDataProvider data,
+            IBybitSigmaDataProvider data,
             CancellationToken cancel,
             int sessionStartHourUtc = 0,
             int vwapSlopeWindow = 60)
@@ -72,46 +86,47 @@ namespace CryptoBlade.Strategies.Sigma
             // 3) D-VWAP (1m)
             DateTime anchor = FindCurrentSessionAnchorUtc(q1m, sessionStartHourUtc);
             var (vwapSeries, lastVwap, tpStdDay) = ComputeAnchoredDailyVwapSeries(q1m, anchor);
-            f.HasVwap = vwapSeries.Length >= 10 && !double.IsNaN(lastVwap);
 
-            // 4) Z-score do VWAP (clamp |z|<=10)
+            // 4) z-score do VWAP (NaN jeżeli niepoliczalne)
             f.ZDvwap = ComputeZDvwap(ticker?.LastPrice, lastVwap, tpStdDay);
 
-            // 5) t-stat nachylenia VWAP (clamp)
-            var tStat = ComputeSlopeTstatHAC(vwapSeries, Math.Max(10, vwapSlopeWindow));
-            f.ZSlopeDvwap = Saturate(tStat, 100.0);
+            // 5) t-stat nachylenia VWAP (HAC/Newey-West)
+            f.ZSlopeDvwap = ComputeSlopeTstatHAC(vwapSeries, Math.Max(10, vwapSlopeWindow));
 
-            // 6) Autokorelacja lag-1 na 5m
+            // 6) Autokorelacja lag-1 na 5m (shrunk)
             f.AutoCorr5m = ComputeAutoCorrLag1Shrunk(q5m, kappa: 8);
 
-            // 7) BBW percentyl (mid-rank) + raw
-            (f.Bbw15mPct, f.Bbw15mRaw, bool hasVol) = ComputeBbwPercentileAndRaw(q15m, 20, 2.0);
-            f.HasVol15m = hasVol;
+            // 7) BBW percentyl + raw (NaN, gdy brak)
+            (f.Bbw15mPct, f.Bbw15mRaw) = ComputeBbwPercentileAndRaw(q15m, 20, 2.0);
 
-            // 8) Inside/NR7 (15m lub 1h)
-            f.HasInsideOrNr7 = DetectInsideOrNr7(q15m) || DetectInsideOrNr7(q1h);
+            // 8) Inside/NR7 (na 5m – kompresja mikro)
+            f.HasInsideOrNr7 = PatternDetectors.HasInsideOrNr7(q5m);
 
-            // 9) Spread (bps) z providera (może być nadpisany w strategii realnym bid-ask)
-            f.SpreadBps = ComputeSpreadBps(ticker) ?? double.MaxValue;
+            // 9) Donchian break (15m lub 5m – tu 15m pod reżim BO)
+            (f.DonchianBreakUp, f.DonchianBreakDown) = PatternDetectors.DonchianBreak(q15m, period: 20);
 
-            // 10) Derywaty/flow
-            var (oi, okOi) = await TryGet(async () => await data.GetOpenInterestDelta1hPctAsync(symbol, cancel));
-            var (fund, okFr) = await TryGet(async () => await data.GetFundingRateAsync(symbol, cancel));
-            var (bas, okBs) = await TryGet(async () => await data.GetBasisPctAsync(symbol, cancel));
-            var (cvd, okCvd) = await TryGet(async () => await data.GetDeltaCvd5mAsync(symbol, cancel));
-            var (liq, okLiq) = await TryGet(async () => await data.GetDistToNearestLiquidationPctAsync(symbol, (ticker?.LastPrice) ?? 0m, cancel));
+            // 10) Ekspansja BBW 15m (prosty proxy: now > sprzed 2 barów)
+            f.Bbw15mExpanding = ComputeBbwExpanding(q15m, 20, 2.0, back: 2);
 
-            f.OiDelta1hPct = oi;
-            f.Funding8h = fund;
-            f.BasisPct = bas;
-            f.DeltaCvd5m = cvd;
-            f.DistToLiqPct = liq;
+            // 11) Opening Range dla ORB (na 1m)
+            (var orHigh, var orLow) = PatternDetectors.OpeningRange(q1m, minutes: 30);
+            f.OpeningRangeHigh = (orHigh == 0m && orLow == 0m) ? null : orHigh;
+            f.OpeningRangeLow = (orHigh == 0m && orLow == 0m) ? null : orLow;
 
-            f.HasDerivatives = okOi || okFr || okBs;
-            f.HasCvd = okCvd;
-            f.HasLiq = okLiq;
 
-            // Sanity/clamp
+            // 12) Spread (bps) z providera (NaN, gdy brak)
+            f.SpreadBps = await TryGetOrNaN(() => data.GetSpreadBpsAsync(symbol, cancel));
+
+            // 13) Derywaty/flow (NaN, gdy brak)
+            f.OiDelta1hPct = await TryGetOrNaN(() => data.GetOpenInterestDelta1hPctAsync(symbol, cancel));
+            f.Funding8h = await TryGetOrNaN(() => data.GetFundingRateAsync(symbol, cancel));
+            f.BasisPct = await TryGetOrNaN(() => data.GetBasisPctAsync(symbol, cancel));
+            f.DeltaCvd5m = await TryGetOrNaN(() => data.GetDeltaCvd5mAsync(symbol, cancel));
+            f.DistToLiqPct = await TryGetOrNaN(() => data.GetDistToNearestLiquidationPctAsync(symbol, (ticker?.LastPrice) ?? 0m, cancel));
+
+            // 14) Korelacja do BTC + heurystyka biasu
+            await PopulateCorrToBtcAndBiasAsync(f, data, symbol, corrWindow: 80, cancel);
+
             Sanitize(ref f);
             return f;
         }
@@ -120,20 +135,20 @@ namespace CryptoBlade.Strategies.Sigma
 
         public static double ComputeAdx1h(Quote[] q1h)
         {
-            if (q1h == null || q1h.Length < 2) return 0;
+            if (q1h == null || q1h.Length < 2) return double.NaN;
             var adx = q1h.GetAdx(14).LastOrDefault(x => x != null && x.Adx.HasValue);
-            return adx?.Adx ?? 0;
+            return adx?.Adx ?? double.NaN;
         }
-
-
 
         public static (double atrPct, double atrAbs) ComputeAtr1h(Quote[] q1h, double refPrice)
         {
-            double atrAbs = 0;
+            double atrAbs = double.NaN;
             if (q1h != null && q1h.Length > 0)
-                atrAbs = q1h.GetAtr(14).LastOrDefault()?.Atr ?? 0;
+                atrAbs = (double)(q1h.GetAtr(14).LastOrDefault()?.Atr ?? 0);
 
-            if (!(atrAbs > 0) || refPrice <= 0) return (0, atrAbs);
+            if (!double.IsFinite(atrAbs) || !(atrAbs > 0) || !(refPrice > 0))
+                return (double.NaN, atrAbs);
+
             return ((atrAbs / refPrice) * 100.0, atrAbs);
         }
 
@@ -167,64 +182,86 @@ namespace CryptoBlade.Strategies.Sigma
             }
 
             double last = vwap[^1];
-            double tpStd = StdDevSample(tp);
+            double tpStd = Stats.StdDevSample(tp); // sample SD (korekta Bessela)
+
+            if (!double.IsFinite(last))
+            {
+                var (rvwap, rlast) = Stats.RollingVwap(q1m, window: 60); // nowa utilka
+                vwap = rvwap;
+                last = rlast;
+                tpStd = Stats.StdDevSample(q1m.TakeLast(60).Select(z => (double)((z.High + z.Low + z.Close) / 3m)).ToArray());
+            }
+
             return (vwap, last, tpStd);
         }
 
         public static double ComputeZDvwap(decimal? lastPrice, double lastVwap, double tpStdDay)
         {
-            if (!(lastPrice > 0) || double.IsNaN(lastVwap) || !(tpStdDay > 0)) return 0;
+            if (!(lastPrice > 0) || !double.IsFinite(lastVwap) || !(tpStdDay > 0))
+                return double.NaN;
+
             var z = ((double)lastPrice!.Value - lastVwap) / tpStdDay;
-            return Saturate(z, 10.0);
+            return Stats.Saturate(z, 10.0);
         }
 
-        public static (double pct, double lastRaw, bool hasVol) ComputeBbwPercentileAndRaw(Quote[] q15m, int bbPeriod, double bbStdMult)
+        /// <summary>
+        /// Zwraca: (percentyl BBWidth, BBWidth raw w %). NaN gdy niepoliczalne.
+        /// </summary>
+        public static (double pct, double lastRaw) ComputeBbwPercentileAndRaw(Quote[] q15m, int bbPeriod, double bbStdMult)
         {
-            if (q15m == null || q15m.Length < bbPeriod + 2) return (0, 0, false);
+            if (q15m == null || q15m.Length < bbPeriod + 2) return (double.NaN, double.NaN);
+
             var bb = q15m.GetBollingerBands(bbPeriod, bbStdMult).ToArray();
-            var widths = bb.Where(x => x != null && x.Width.HasValue)
-                           .Select(x => (double)x.Width!.Value)
+            var widths = bb.Where(x => x != null && x.Width.HasValue && x.Sma != 0)
+                           .Select(x => (double)((x.UpperBand!.Value - x.LowerBand!.Value) / x.Sma!.Value * 100))
                            .ToArray();
+
             int n = widths.Length;
-            if (n == 0) return (0, 0, false);
+            if (n == 0) return (double.NaN, double.NaN);
 
             double last = widths[^1];
 
-            int lt = 0, eq = 0; // mid-rank
+            // percentyl mid-rank
+            int lt = 0, eq = 0;
             for (int i = 0; i < n; i++)
             {
                 if (widths[i] < last) lt++;
                 else if (widths[i] == last) eq++;
             }
             double p = (lt + 0.5 * eq) * 100.0 / n;
-            return (p, last, true);
+            return (p, last);
         }
 
-        public static bool DetectInsideOrNr7(Quote[] q)
+        /// <summary>
+        /// Czy BBWidth rośnie względem stanu sprzed 'back' barów.
+        /// </summary>
+        public static bool ComputeBbwExpanding(Quote[] q15m, int bbPeriod, double bbStdMult, int back = 2)
         {
-            if (q == null || q.Length < 8) return false;
-            var a = q[^1];
-            var b = q[^2];
+            if (q15m == null || q15m.Length < bbPeriod + back + 1) return false;
+            var bb = q15m.GetBollingerBands(bbPeriod, bbStdMult).ToArray();
 
-            bool inside = a.High <= b.High && a.Low >= b.Low;
+            double Bw(int idx)
+            {
+                var r = bb[idx];
+                if (r == null || !r.UpperBand.HasValue || !r.LowerBand.HasValue || r.Sma == 0) return double.NaN;
+                return (double)((r.UpperBand.Value - r.LowerBand.Value) / r.Sma!.Value * 100);
+            }
 
-            var last7 = q[^7..];
-            if (last7.Count(x => x.Volume <= 0) >= 5) return inside;
-
-            decimal lastRange = a.High - a.Low;
-            decimal minRange = last7.Min(x => x.High - x.Low);
-            bool nr7 = lastRange <= minRange;
-
-            return inside || nr7;
+            int last = bb.Length - 1;
+            int prev = bb.Length - 1 - back;
+            var now = Bw(last);
+            var was = Bw(prev);
+            if (!double.IsFinite(now) || !double.IsFinite(was)) return false;
+            return now > was;
         }
 
         // ===== HAC/Newey–West t-stat dla slope(D-VWAP) =====
         public static double ComputeSlopeTstatHAC(double[] series, int lastK)
         {
-            if (series == null) return 0;
+            if (series == null) return double.NaN;
             int nAll = series.Length;
             int k = Math.Min(lastK, nAll);
-            if (k < 10) return 0;
+            if (k < 10) return double.NaN;
 
             var y = series[^k..];
 
@@ -234,16 +271,16 @@ namespace CryptoBlade.Strategies.Sigma
             for (int i = 0; i < k; i++)
             {
                 double yi = y[i];
-                if (!double.IsNaN(yi) && !double.IsInfinity(yi))
+                if (double.IsFinite(yi))
                 {
                     xs.Add(i);            // równy krok czasowy
                     ys.Add(yi);
                 }
             }
             int n = ys.Count;
-            if (n < 10) return 0;
+            if (n < 10) return double.NaN;
 
-            // X: [1, x], OLS: beta = (X'X)^-1 X'y
+            // OLS: beta = (X'X)^-1 X'y, gdzie X = [1, x]
             double sx = 0, sy = 0, sxx = 0, sxy = 0;
             for (int i = 0; i < n; i++)
             {
@@ -254,7 +291,7 @@ namespace CryptoBlade.Strategies.Sigma
                 sxy += x * yy;
             }
             double denom = (n * sxx - sx * sx);
-            if (denom == 0) return 0;
+            if (Math.Abs(denom) < 1e-12) return double.NaN;
 
             double beta1 = (n * sxy - sx * sy) / denom;         // slope
             double beta0 = (sy - beta1 * sx) / n;               // intercept
@@ -264,38 +301,31 @@ namespace CryptoBlade.Strategies.Sigma
             for (int i = 0; i < n; i++)
                 e[i] = ys[i] - (beta0 + beta1 * xs[i]);
 
-            // X'X oraz jego odwrotność
-            // XtX = [[n, sx], [sx, sxx]]
+            // inv(X'X) dla 2x2
             double a = n, b = sx, c = sx, d = sxx;
             double det = a * d - b * c;
-            if (Math.Abs(det) < 1e-12) return 0;
-            // inv(X'X)
-            double inv00 = d / det;
-            double inv01 = -b / det;
-            double inv10 = -c / det;
-            double inv11 = a / det;
+            if (Math.Abs(det) < 1e-12) return double.NaN;
+            double inv00 = d / det, inv01 = -b / det, inv10 = -c / det, inv11 = a / det;
 
-            // Newey–West: bandwidth L (Bartlett weights)
+            // Newey–West bandwidth (Bartlett)
             int L = Math.Max(1, (int)Math.Floor(4.0 * Math.Pow(n / 100.0, 2.0 / 9.0)));
             L = Math.Min(L, n - 1);
 
-            // S = X' diag(e^2) X + sum_{l=1..L} w_l [ X_l' diag(e_l * e_0) X_0 + T' ]
-            // pracujemy na macierzach 2x2
+            // S = Gamma0 + sum_{lag=1..L} w_l (Gamma_l + Gamma_l')
             double S00 = 0, S01 = 0, S11 = 0;
 
-            // Gamma_0 = X' diag(e^2) X
+            // Gamma_0
             for (int t = 0; t < n; t++)
             {
                 double w0 = e[t] * e[t];
-                double x0 = 1.0;
-                double x1 = xs[t];
+                double x0 = 1.0, x1 = xs[t];
 
-                S00 += w0 * x0 * x0;      // (1,1)
-                S01 += w0 * x0 * x1;      // (1,2) i (2,1) symetrycznie
-                S11 += w0 * x1 * x1;      // (2,2)
+                S00 += w0 * x0 * x0;
+                S01 += w0 * x0 * x1;
+                S11 += w0 * x1 * x1;
             }
 
-            // L-agi Bartlett
+            // lags
             for (int lag = 1; lag <= L; lag++)
             {
                 double w = 1.0 - (double)lag / (L + 1.0); // Bartlett
@@ -305,92 +335,95 @@ namespace CryptoBlade.Strategies.Sigma
                 {
                     double et = e[t];
                     double es = e[t - lag];
-
                     double x0t = 1.0, x1t = xs[t];
                     double x0s = 1.0, x1s = xs[t - lag];
 
-                    // X_s' diag(e_t * e_s) X_t  (2x2 z iloczynów krzyżowych)
                     A00 += es * et * (x0s * x0t);
                     A01 += es * et * (x0s * x1t);
                     A11 += es * et * (x1s * x1t);
                 }
 
-                // dodaj składową symetryczną: A + A'
                 S00 += w * 2.0 * A00;
                 S01 += w * 2.0 * A01;
                 S11 += w * 2.0 * A11;
             }
 
-            // Var(beta) ≈ (X'X)^-1 * S * (X'X)^-1
-            // Interesuje nas element [1,1] (slope)
-            // M = inv * S * inv
+            // Var(beta) ≈ (X'X)^-1 * S * (X'X)^-1; interesuje nas [1,1] (slope)
             double M00 = inv00 * S00 + inv01 * S01;
             double M01 = inv00 * S01 + inv01 * S11;
             double M10 = inv10 * S00 + inv11 * S01;
             double M11 = inv10 * S01 + inv11 * S11;
 
             double varSlope = M10 * inv01 + M11 * inv11;
-            if (varSlope < 1e-12) varSlope = 1e-12;
+            if (!(varSlope > 0)) return double.NaN;
 
             double seSlope = Math.Sqrt(varSlope);
-            if (seSlope < 1e-12) seSlope = 1e-12;
+            if (!(seSlope > 0)) return double.NaN;
 
             return beta1 / seSlope;
         }
 
-        // ===== Shrink dla autokorelacji lag-1 (ciągły) =====
+        // ===== Autokorelacja lag-1 (ciągły shrink) =====
         public static double ComputeAutoCorrLag1Shrunk(Quote[] q5m, int kappa = 8)
         {
-            if (q5m == null || q5m.Length < 3) return 0;
+            if (q5m == null || q5m.Length < 3) return double.NaN;
             int n = q5m.Length;
 
             var px = new double[n];
             for (int i = 0; i < n; i++) px[i] = (double)q5m[i].Close;
 
-            var r = ReturnsLog(px);
+            var r = Stats.ReturnsLog(px);
             int m = r.Length;
-            if (m < 3) return 0;
+            if (m < 3) return double.NaN;
 
-            double mean = Mean(r);
+            double mean = Stats.Mean(r);
             double num = 0.0, den = 0.0;
             for (int i = 1; i < m; i++)
                 num += (r[i] - mean) * (r[i - 1] - mean);
             for (int i = 0; i < m; i++)
                 den += (r[i] - mean) * (r[i] - mean);
-            if (den == 0.0) return 0;
+            if (!(den > 0)) return double.NaN;
 
             double rhohat = num / den;
 
-            // shrink: lambda = m / (m + kappa), kappa ~ 5–20
+            // shrink: lambda = m / (m + kappa)
             double lambda = (double)m / (m + kappa);
             double rho = lambda * rhohat;
 
-            // sanity clamp
+            // clamp
             if (rho > 1) rho = 1;
             if (rho < -1) rho = -1;
             return rho;
         }
 
-        public static double? ComputeSpreadBps(Ticker? t, decimal? minMidGuard = 1m)
+        private static async Task PopulateCorrToBtcAndBiasAsync(
+           FeatureSnapshot f,
+           IBybitSigmaDataProvider data,
+           string symbol,
+           int corrWindow,
+           CancellationToken cancel)
         {
-            if (t is null) return null;
-            var bid = t.BestBidPrice;
-            var ask = t.BestAskPrice;
-            if (bid <= 0 || ask <= 0) return double.MaxValue;
-            if (ask <= bid) return 0.0; // zdegenerowany arkusz (cross)
+            f.CorrToBtc15m = double.NaN;
+            f.BtcBiasOpposite = false;
 
-            var mid = (bid + ask) / 2m;
-            if (minMidGuard.HasValue && mid < minMidGuard.Value) return null;
+            try
+            {
+                var (corr, lastBtcRet) = await data.GetCorrToBtc15mAsync(symbol, corrWindow, cancel);
+                f.CorrToBtc15m = corr;
 
-            var bps = (double)((ask - bid) / mid * 10_000m);
-            if (double.IsNaN(bps) || double.IsInfinity(bps)) return null;
-
-            // lekkie sanity na śmieciowe ticki
-            if (bps < 0) bps = 0;
-            if (bps > 100_000) bps = 100_000;
-            return bps;
+                if (double.IsFinite(f.CorrToBtc15m) && Math.Abs(f.CorrToBtc15m) >= 0.85 && double.IsFinite(f.ZSlopeDvwap))
+                {
+                    f.BtcBiasOpposite =
+                        (lastBtcRet > 0 && f.ZSlopeDvwap < 0) ||
+                        (lastBtcRet < 0 && f.ZSlopeDvwap > 0);
+                }
+            }
+            catch
+            {
+                f.CorrToBtc15m = double.NaN;
+                f.BtcBiasOpposite = false;
+            }
         }
-
 
         // ========= Pomocnicze =========
 
@@ -398,11 +431,13 @@ namespace CryptoBlade.Strategies.Sigma
         {
             if (q == null || q.Length < 2) return;
             for (int i = 1; i < q.Length; i++)
+            {
                 if (q[i].Date < q[i - 1].Date)
                 {
                     Array.Sort(q, (a, b) => a.Date.CompareTo(b.Date));
                     break;
                 }
+            }
         }
 
         public static DateTime FindCurrentSessionAnchorUtc(Quote[] q1m, int sessionStartHourUtc)
@@ -418,84 +453,57 @@ namespace CryptoBlade.Strategies.Sigma
         {
             if (t != null && t.LastPrice > 0) return (double)t.LastPrice;
             if (q1h != null && q1h.Length > 0) return (double)q1h[^1].Close;
-            return 0.0;
+            return double.NaN;
         }
 
-        public static async Task<(double val, bool ok)> TryGet(Func<Task<double>> f)
+        /// <summary>
+        /// Pobiera wartość z providera; w razie błędu/NaN zwraca double.NaN.
+        /// </summary>
+        public static async Task<double> TryGetOrNaN(Func<Task<double>> f)
         {
             try
             {
                 var v = await f();
-                bool ok = !(double.IsNaN(v) || double.IsInfinity(v));
-                return (ok ? v : 0.0, ok);
+                return (double.IsNaN(v) || double.IsInfinity(v)) ? double.NaN : v;
             }
-            catch { return (0.0, false); }
+            catch
+            {
+                return double.NaN;
+            }
         }
 
+        /// <summary>
+        /// Clamp tylko dla wartości skończonych; NaN/Infty pozostają NaN (sygnalizują brak).
+        /// </summary>
         public static void Sanitize(ref FeatureSnapshot f)
         {
-            f.Adx1h = CleanClamp(f.Adx1h, 100);
-            f.AtrPct1h = CleanClamp(f.AtrPct1h, 50);
-            f.Atr1hAbs = CleanClamp(f.Atr1hAbs, 1e9);
-            f.ZDvwap = CleanClamp(f.ZDvwap, 10);
-            f.ZSlopeDvwap = CleanClamp(f.ZSlopeDvwap, 100);
-            f.AutoCorr5m = CleanClamp(f.AutoCorr5m, 1);
-            f.Bbw15mPct = CleanClamp(f.Bbw15mPct, 100);
-            f.Bbw15mRaw = CleanClamp(f.Bbw15mRaw, 1e9);
-            f.SpreadBps = CleanClamp(f.SpreadBps, 1e6);
+            f.Adx1h = ClampFinite(f.Adx1h, 0, 100, allowNaN: true);
+            f.AtrPct1h = ClampFinite(f.AtrPct1h, -1e6, 1e6, allowNaN: true);
+            f.Atr1hAbs = ClampFinite(f.Atr1hAbs, -1e12, 1e12, allowNaN: true);
+            f.ZDvwap = ClampFinite(f.ZDvwap, -10, 10, allowNaN: true);
+            f.ZSlopeDvwap = ClampFinite(f.ZSlopeDvwap, -100, 100, allowNaN: true);
+            f.AutoCorr5m = ClampFinite(f.AutoCorr5m, -1, 1, allowNaN: true);
+            f.Bbw15mPct = ClampFinite(f.Bbw15mPct, 0, 100, allowNaN: true);
+            f.Bbw15mRaw = ClampFinite(f.Bbw15mRaw, -1e6, 1e6, allowNaN: true);
+            f.SpreadBps = ClampFinite(f.SpreadBps, 0, 1e6, allowNaN: true);
 
-            f.OiDelta1hPct = CleanClamp(f.OiDelta1hPct, 100);
-            f.Funding8h = CleanClamp(f.Funding8h, 5);
-            f.BasisPct = CleanClamp(f.BasisPct, 20);
-            f.DeltaCvd5m = CleanClamp(f.DeltaCvd5m, 1e12);
-            f.DistToLiqPct = CleanClamp(f.DistToLiqPct, 1000);
+            f.OiDelta1hPct = ClampFinite(f.OiDelta1hPct, -1e6, 1e6, allowNaN: true);
+            f.Funding8h = ClampFinite(f.Funding8h, -100, 100, allowNaN: true);
+            f.BasisPct = ClampFinite(f.BasisPct, -1e4, 1e4, allowNaN: true);
+            f.DeltaCvd5m = ClampFinite(f.DeltaCvd5m, -1e15, 1e15, allowNaN: true);
+            f.DistToLiqPct = ClampFinite(f.DistToLiqPct, -1e6, 1e6, allowNaN: true);
+
+            f.CorrToBtc15m = ClampFinite(f.CorrToBtc15m, -1, 1, allowNaN: true);
         }
 
-        public static double CleanClamp(double v, double lim)
+        private static double ClampFinite(double v, double lo, double hi, bool allowNaN)
         {
-            if (double.IsNaN(v) || double.IsInfinity(v)) return 0.0;
-            if (v > lim) return lim;
-            if (v < -lim) return -lim;
+            if (double.IsNaN(v) || double.IsInfinity(v))
+                return allowNaN ? double.NaN : 0.0;
+
+            if (v < lo) return lo;
+            if (v > hi) return hi;
             return v;
         }
-
-        public static double[] ReturnsLog(double[] px)
-        {
-            int n = px.Length;
-            if (n < 2) return Array.Empty<double>();
-            var r = new double[n - 1];
-            for (int i = 1; i < n; i++)
-            {
-                double p0 = px[i - 1], p1 = px[i];
-                if (p0 <= 0 || p1 <= 0) { r[i - 1] = 0; continue; }
-                r[i - 1] = Math.Log(p1 / p0);
-            }
-            return r;
-        }
-
-        public static double Mean(double[] v)
-        {
-            if (v.Length == 0) return 0;
-            double s = 0;
-            for (int i = 0; i < v.Length; i++) s += v[i];
-            return s / v.Length;
-        }
-
-        public static double StdDevSample(double[] v)
-        {
-            int n = v.Length;
-            if (n < 2) return 0;
-            double m = Mean(v);
-            double ss = 0;
-            for (int i = 0; i < n; i++)
-            {
-                double d = v[i] - m;
-                ss += d * d;
-            }
-            return Math.Sqrt(ss / (n - 1));
-        }
-
-        public static double Saturate(double v, double limit)
-            => v > limit ? limit : v < -limit ? -limit : v;
     }
 }

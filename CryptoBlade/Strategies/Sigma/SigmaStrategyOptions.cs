@@ -22,8 +22,6 @@
 
         // Globalne gate’y koszt/zmienność (twarde)
         public decimal MaxSpreadBps { get; init; } = 2m;
-        public decimal MinAtr1hPct { get; init; } = 1.2m;
-        public decimal MaxAtr1hPct { get; init; } = 4.0m;
 
         // ATR gates per-mode (domyślne; kalibrowalne)
         public decimal MmAtrMinPct { get; init; } = 1.2m;
@@ -33,5 +31,7 @@
 
         // BO: brak dolnego progu; tylko górny bezpiecznik
         public decimal BoAtrMaxPct { get; init; } = 7.0m;
+        public decimal DefaultQuoteSize { get; init; } = 500m; // kwota per trade (USDT)
+        public decimal MinAtr5mFloor { get; init; } = 0.5m;    // minimalny „floor” ATR5m w USD, by SL nie był zbyt blisko
     }
 }
