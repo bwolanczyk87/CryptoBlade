@@ -1,292 +1,190 @@
-﻿using CryptoBlade.Strategies.Sigma.Modes;
+﻿using Accord.MachineLearning;
+using Accord.Statistics.Kernels;
+using CryptoBlade.Strategies.Sigma.Modes;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CryptoBlade.Strategies.Sigma.Regimes
 {
-    public enum Regime { None, Momentum, MeanReversion, Breakout }
-    public readonly struct RegimeState(Regime mode, DateTime sinceUtc, RegimeScores scores)
+    public enum Regime { None, MM, MR, BO }
+
+    public readonly record struct RegimeScores(double Momentum, double MeanReversion, double Breakout)
     {
-        public readonly Regime Mode = mode;
-        public readonly DateTime SinceUtc = sinceUtc;
-        public readonly RegimeScores Scores = scores;
+        public static readonly RegimeScores Zero = new(0,0,0);
+        public double this[Regime r] => r switch
+        {
+            Regime.MM => Momentum,
+            Regime.MR => MeanReversion,
+            Regime.BO => Breakout,
+            _ => 0
+        };
     }
 
-    public readonly struct RegimeScores(double mm, double mr, double bo)
-    {
-        public readonly double Momentum = mm;
-        public readonly double MeanReversion = mr;
-        public readonly double Breakout = bo;
+    public readonly record struct RegimeState(Regime Mode, DateTime SinceUtc, RegimeScores Scores);
 
-        public static RegimeScores Zero => new(0, 0, 0);
-    }
+    public readonly record struct RegimeDecision(
+        bool Changed,
+        RegimeState State,
+        Regime ProposedMode,
+        double ProposedScore,
+        double SecondBestScore,
+        double Margin);
 
-    public static class RegimeClassifier
+    public static class RegimeEngine
     {
+        // ====== scoring: pair-aware ATR + clamping/tanh dla outlierów ======
+
+        const int ATR_CAP = 500; // ~500 godzin historii (kilka tygodni)
+        static readonly ConcurrentDictionary<string, Queue<double>> _atrHist = new();
+        static readonly ConcurrentDictionary<string, object> _atrLocks = new();
+
         public static RegimeScores Score(FeatureSnapshot f, SigmaStrategyOptions o)
         {
             double mm = 0, mr = 0, bo = 0;
 
-            // ATR gates per-mode (NaN => false)
-            bool mmAtrOk = Finite(f.AtrPct1h) && f.AtrPct1h >= (double)o.MmAtrMinPct && f.AtrPct1h <= (double)o.MmAtrMaxPct;
-            bool mrAtrOk = Finite(f.AtrPct1h) && f.AtrPct1h >= (double)o.MrAtrMinPct && f.AtrPct1h <= (double)o.MrAtrMaxPct;
-            bool boAtrOk = !Finite(f.AtrPct1h) || f.AtrPct1h <= (double)o.BoAtrMaxPct; // brak dolnego progu dla BO; NaN traktuj neutralnie
+            // Guardy/normalizacje
+            double adx  = Helpers.Stats.Clamp(f.Adx1h,        0, 100);
+            double zdev = Helpers.Stats.Clamp(f.ZDvwap,     -10,  10);
+            double zslo = Helpers.Stats.Clamp(f.ZSlopeDvwap, -10,  10);
+            double bbwP = Helpers.Stats.Clamp(f.Bbw15mPct,     0, 100);
+            double ac   = Helpers.Stats.Clamp(f.AutoCorr5m,   -1,   1);
+            double oiT  = Helpers.Stats.TanhScaled(f.OiDelta1hPct, 0.8);
 
-            // ===== Momentum: silny trend, "value" rośnie, przepływy +, autokorelacja +, wysoka zmienność =====
-            if (Finite(f.Adx1h) && f.Adx1h >= (double)o.AdxEnableMomentum) mm += 20;
-            if (Finite(f.ZSlopeDvwap) && Math.Abs(f.ZSlopeDvwap) >= 0.8) mm += 15;
-            if (Finite(f.OiDelta1hPct) && f.OiDelta1hPct > 0) mm += 15;
-            if (Finite(f.AutoCorr5m) && f.AutoCorr5m > 0) mm += 10;
-            if (Finite(f.Bbw15mPct) && f.Bbw15mPct >= 60) mm += 10;
-            if (!mmAtrOk) mm = 0;
+            double zdevT = Helpers.Stats.TanhScaled(Math.Abs(zdev), 2.0); // [0,1]
+            double zsloT = Helpers.Stats.TanhScaled(zslo,           2.0); // [-1,1]
 
-            // ===== Mean Reversion: trend słaby, odchylenie od wartości duże, BBW średnie, OI neutral/↓ =====
-            if (Finite(f.Adx1h) && f.Adx1h <= (double)o.AdxDisableMomentum) mr += 20;
-            if (Finite(f.ZDvwap) && Math.Abs(f.ZDvwap) >= (double)o.ZVwapEnableMR) mr += 15;
-            if (Finite(f.Bbw15mPct) && f.Bbw15mPct is >= 35 and <= 60) mr += 15;
-            if (Finite(f.OiDelta1hPct) && f.OiDelta1hPct <= 0) mr += 10;
-            if (!mrAtrOk) mr = 0;
+            // Rolling ATR%_1h histogram per symbol (pair-aware progi)
+            var q = _atrHist.GetOrAdd(f.Symbol, _ => new Queue<double>(ATR_CAP));
+            var locker = _atrLocks.GetOrAdd(f.Symbol, _ => new object());
+            if (double.IsFinite(f.AtrPct1h) && f.AtrPct1h > 0)
+            {
+                lock (locker)
+                {
+                    if (q.Count >= ATR_CAP) q.Dequeue();
+                    q.Enqueue(f.AtrPct1h);
+                }
+            }
 
-            // ===== Breakout: kompresja + wybicie + preferencja ekspansji i flow =====
-            if (Finite(f.Bbw15mPct) && f.Bbw15mPct <= (double)o.BbWidthBreakoutPct) bo += 25; // squeeze
-            if (f.HasInsideOrNr7) bo += 15;        // mikro-kompresja świec
-            if (f.DonchianBreak && Finite(f.Bbw15mPct) && f.Bbw15mPct <= 40) bo += 10;        // wybicie kanału z niskiej BBW
-            if (f.Bbw15mExpanding) bo += 5;         // ekspansja po squeeze
-            if (Finite(f.OiDelta1hPct) && f.OiDelta1hPct > 0 && Finite(f.Bbw15mPct) && f.Bbw15mPct <= 40) bo += 5; // ΔOI$ w kompresji
-            if (!boAtrOk) bo = 0;
+            double mmMin = (double)o.MmAtrMinPct, mmMax = (double)o.MmAtrMaxPct;
+            double mrMin = (double)o.MrAtrMinPct, mrMax = (double)o.MrAtrMaxPct;
+            double boMax = (double)o.BoAtrMaxPct;
+
+            int histCount; double[] xs;
+            lock (locker) { histCount = q.Count; xs = q.ToArray(); }
+
+            if (histCount >= 120) // dopiero po sensownej historii
+            {
+                double p20 = Helpers.Stats.Percentiles.Pctl(xs, 20);
+                double p50 = Helpers.Stats.Percentiles.Pctl(xs, 50);
+                double p60 = Helpers.Stats.Percentiles.Pctl(xs, 60);
+                double p80 = Helpers.Stats.Percentiles.Pctl(xs, 80);
+
+                // Momentum: wyższe percentyle ATR
+                mmMin = p50; mmMax = p80;
+
+                // MR: umiarkowane percentyle
+                mrMin = p20; mrMax = p60;
+
+                // BO: górny bezpiecznik
+                boMax = Math.Max(boMax, p80);
+            }
+
+            bool haveAtr = double.IsFinite(f.AtrPct1h);
+            bool mmAtrOk = haveAtr && f.AtrPct1h >= mmMin && f.AtrPct1h <= mmMax;
+            bool mrAtrOk = haveAtr && f.AtrPct1h >= mrMin && f.AtrPct1h <= mrMax;
+            bool boAtrOk = haveAtr && f.AtrPct1h <= boMax;
+
+            // ===== Momentum =====
+            if (adx >= (double)o.AdxEnableMomentum)          mm += 20;
+            if (Math.Abs(zsloT) >= 0.30)                     mm += 10 * (1.0 + Math.Abs(zsloT)); // 10..20
+            if (oiT > 0)                                     mm += 12 * oiT;                      // 0..12
+            if (ac  > 0)                                     mm +=  8 * ac;                       // 0..8
+            if (bbwP >= (double)o.BbWidthBreakoutPct)        mm +=  8;
+            if (!mmAtrOk)                                    mm  =  0;
+
+            // ===== Mean Reversion =====
+            if (adx <= (double)o.AdxDisableMomentum)         mr += 20;
+            mr += (zdevT >= 0.9 ? 18 : 12);
+            if (bbwP >= 25 && bbwP <= 65)                    mr +=  8;
+            if (Math.Abs(oiT) <= 0.30)                       mr +=  6;
+            if (!mrAtrOk)                                    mr  =  0;
+
+            // ===== Breakout =====
+            if (bbwP <= (double)o.BbWidthBreakoutPct)        bo += 20; // kompresja
+            bo += 10 * Math.Abs(zsloT);                              // 0..10
+            if (ac > 0)                                      bo +=  6 * ac;
+            if (!boAtrOk)                                    bo  =  0;
+
+            mm = Helpers.Stats.Clamp(mm, 0, 100);
+            mr = Helpers.Stats.Clamp(mr, 0, 100);
+            bo = Helpers.Stats.Clamp(bo, 0, 100);
 
             return new RegimeScores(mm, mr, bo);
         }
 
-        public static (bool Changed, RegimeState NewState) Decide(
-            RegimeScores s,
-            RegimeState prev,
-            DateTime nowUtc,
-            SigmaStrategyOptions o)
-        {
-            // Brak kandydatów
-            if (s.Momentum == 0 && s.MeanReversion == 0 && s.Breakout == 0)
-            {
-                if (prev.Mode == Regime.None)
-                    return (false, new RegimeState(
-                        Regime.None,
-                        prev.SinceUtc == DateTime.MinValue ? nowUtc : prev.SinceUtc,
-                        s));
+        // ====== klasyfikacja: argmax + histereza/dwell/minScore/minMargin ======
 
-                return (true, new RegimeState(Regime.None, nowUtc, s));
-            }
-
-            // argmax + margines + minimum score + dwell lock
-            var list = new List<(Regime Mode, double Score)>
-            {
-                (Regime.Momentum, s.Momentum),
-                (Regime.MeanReversion, s.MeanReversion),
-                (Regime.Breakout, s.Breakout),
-            }.OrderByDescending(x => x.Score).ToArray();
-
-            var best = list[0];
-            var second = list[1];
-
-            bool pass = best.Score >= (double)o.MinScore &&
-                        best.Score - second.Score >= (double)o.MinMargin;
-
-            bool dwellOk = nowUtc - prev.SinceUtc >= TimeSpan.FromMinutes(o.HysteresisLockMinutes);
-            var target = pass ? best.Mode : Regime.None;
-
-            if (target == prev.Mode)
-                return (false, new RegimeState(prev.Mode,
-                    prev.SinceUtc == DateTime.MinValue ? nowUtc : prev.SinceUtc, s));
-
-            if (!dwellOk && prev.Mode != Regime.None)
-                return (false, new RegimeState(prev.Mode, prev.SinceUtc, s));
-
-            return (true, new RegimeState(target, nowUtc, s));
-        }
-
-        // ===== utils =====
-        private static bool Finite(double v) => !double.IsNaN(v) && !double.IsInfinity(v);
-    }
-
-    public static class RegimeEngine
-    {
-        /// <summary>
-        /// Tylko selekcja reżimu (bez wejścia w trade). Opcjonalnie zapisuje audyt.
-        /// </summary>
-        public static (bool Tradable, string Reason, (bool Changed, RegimeState State) Decision)
-            Evaluate(FeatureSnapshot f, RegimeState prev, DateTime nowUtc, SigmaStrategyOptions o, IRegimeAuditSink audit)
-        {
-            var noneState = new RegimeState(Regime.None,
-                prev.SinceUtc == DateTime.MinValue ? nowUtc : prev.SinceUtc,
-                RegimeScores.Zero);
-
-            bool tradable = true;
-            string reason = "OK";
-
-            // [1] Globalny: twardy gate na spread
-            if (!double.IsFinite(f.SpreadBps) || f.SpreadBps > (double)o.MaxSpreadBps)
-            {
-                tradable = false;
-                var spreadTxt = double.IsFinite(f.SpreadBps) ? f.SpreadBps.ToString("F2") : "NaN";
-                reason = $"Spread gate: {spreadTxt} bps > {o.MaxSpreadBps}";
-                var recGate = MakeRecord(f, prev, nowUtc, o, tradable, reason, noneState);
-                audit.Add(recGate);
-                return (false, reason, (false, noneState));
-            }
-
-            // [2] Supervisor: korelacja BTC
-            if (double.IsFinite(f.CorrToBtc15m) &&
-                Math.Abs(f.CorrToBtc15m) >= 0.85 &&
-                f.BtcBiasOpposite)
-            {
-                tradable = false;
-                reason = "Supervisor: BTC corr≥0.85 & opposite bias";
-                var recSup = MakeRecord(f, prev, nowUtc, o, tradable, reason, noneState);
-                audit.Add(recSup);
-                return (false, reason, (false, noneState));
-            }
-
-            // [3] Scoring + decyzja
-            var scores = RegimeClassifier.Score(f, o);
-            var decision = RegimeClassifier.Decide(scores, prev, nowUtc, o);
-
-            // Audyt z decyzją
-            var rec = MakeRecord(f, prev, nowUtc, o, tradable, reason, decision.NewState);
-            audit.Add(rec);
-
-            return (tradable, reason, decision);
-        }
-
-        /// <summary>
-        /// Selekcja reżimu + decyzja kontrolera. Audyt tworzy Evaluate(...).
-        /// </summary>
-        public static (bool Tradable, string Reason, (bool Changed, RegimeState State) Decision, ModeDecision TradeDecision)
-            EvaluateTrade(
-                FeatureSnapshot f,
-                RegimeState prev,
-                DateTime nowUtc,
-                SigmaStrategyOptions o,
-                IModeController momentumCtrl,
-                IModeController meanReversionCtrl,
-                IModeController breakoutCtrl,
-                IRegimeAuditSink? audit,
-                CancellationToken cancel = default)
-        {
-            var (tradable, reason, decision) = Evaluate(f, prev, nowUtc, o, audit);
-            if (!tradable)
-                return (false, reason, decision, ModeDecision.None);
-
-            var activeState = decision.State;
-
-            // Supervisory gates (miękkie)
-            if (IsFundingFreeze(nowUtc, TimeSpan.FromMinutes(3)))
-                return (false, "Supervisor: funding freeze ±3m", decision, ModeDecision.None);
-
-            if (IsMacroFreeze(nowUtc, o))
-                return (false, "Supervisor: macro freeze window", decision, ModeDecision.None);
-
-            IModeController? ctrl = activeState.Mode switch
-            {
-                Regime.Momentum => momentumCtrl,
-                Regime.MeanReversion => meanReversionCtrl,
-                Regime.Breakout => breakoutCtrl,
-                _ => null
-            };
-
-            if (ctrl is null) return (true, "OK", decision, ModeDecision.None);
-            var tradeDecision = ctrl.Evaluate(f, activeState, nowUtc, cancel);
-            return (true, "OK", decision, tradeDecision);
-        }
-
-        // ===== Helpers =====
-
-        private static RegimeAuditRecord MakeRecord(
+        public static RegimeDecision Classify(
             FeatureSnapshot f,
             RegimeState prev,
             DateTime nowUtc,
             SigmaStrategyOptions o,
-            bool tradable,
-            string reason,
-            RegimeState decided)
+            IRegimeAuditSink? audit = null,
+            double stickyBoost = 6.0,      // boost dla aktywnego reżimu w czasie dwell
+            double minSwitchGain = 8.0)    // dodatkowy warunek gdy dwell minął
         {
-            return new RegimeAuditRecord
+            var scores = Score(f, o);
+            var dict = new Dictionary<Regime, double>
             {
-                TimeUtc = nowUtc,
-                Symbol = f.Symbol,
-                Selected = (RegimeLabel)decided.Mode,
-                Prev = (RegimeLabel)prev.Mode,
-                Oracle = null,
-
-                Tradable = tradable,
-                Reason = reason,
-                MinScore = (double)o.MinScore,
-                MinMargin = (double)o.MinMargin,
-                HysteresisLockMinutes = o.HysteresisLockMinutes,
-
-                ScoreMM = decided.Scores.Momentum,
-                ScoreMR = decided.Scores.MeanReversion,
-                ScoreBO = decided.Scores.Breakout,
-
-                Adx1h = f.Adx1h,
-                AtrPct1h = f.AtrPct1h,
-                Atr1hAbs = f.Atr1hAbs,
-                ZDvwap = f.ZDvwap,
-                VwapKindUsed = (int)f.VwapKindUsed,
-                ZSlopeDvwap = f.ZSlopeDvwap,
-                AutoCorr5m = f.AutoCorr5m,
-                Bbw15mPct = f.Bbw15mPct,
-                Bbw15mRaw = f.Bbw15mRaw,
-
-                SpreadBps = f.SpreadBps,
-
-                OiDelta1hPct = f.OiDelta1hPct,
-                Funding8h = f.Funding8h,
-                BasisPct = f.BasisPct,
-                DeltaCvd5m = f.DeltaCvd5m,
-                DistToLiqPct = f.DistToLiqPct,
-
-                HasInsideOrNr7 = f.HasInsideOrNr7,
-                DonchianBreakUp = f.DonchianBreakUp,
-                DonchianBreakDown = f.DonchianBreakDown,
-                Bbw15mExpanding = f.Bbw15mExpanding,
-                OpeningRangeHigh = f.OpeningRangeHigh,
-                OpeningRangeLow = f.OpeningRangeLow,
-
-                CorrToBtc15m = f.CorrToBtc15m,
-                BtcBiasOpposite = f.BtcBiasOpposite,
-
-                SinceUtc = decided.SinceUtc,
+                { Regime.MM, scores.Momentum },
+                { Regime.MR, scores.MeanReversion },
+                { Regime.BO, scores.Breakout }
             };
-        }
 
-        private static bool IsFundingFreeze(DateTime nowUtc, TimeSpan around, int intervalHours = 8, int anchorHourUtc = 0)
-        {
-            var dayAnchor = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, anchorHourUtc, 0, 0, DateTimeKind.Utc);
-            var sinceAnchor = nowUtc - dayAnchor;
-            var hours = sinceAnchor.TotalHours;
-            var mod = hours % intervalHours;
-            var minutesFromFunding = Math.Min(mod, intervalHours - mod) * 60.0;
-            return Math.Abs(minutesFromFunding) <= Math.Abs(around.TotalMinutes);
-        }
+            // Sticky boost w okresie histerezy
+            var dwell = TimeSpan.FromMinutes(o.HysteresisLockMinutes);
+            if (prev.Mode != Regime.None && (nowUtc - prev.SinceUtc) < dwell)
+                dict[prev.Mode] += stickyBoost;
 
-        private static bool IsMacroFreeze(DateTime nowUtc, SigmaStrategyOptions o)
-        {
-            var arr = o.MacroEventsUtc ?? [.. Array.Empty<DateTime>()
-                .Select(d => DateTime.SpecifyKind(d, DateTimeKind.Utc))
-                .OrderBy(d => d)];
+            // argmax
+            var ordered = dict.OrderByDescending(kv => kv.Value).ToArray();
+            var proposed = ordered[0].Key;
+            var proposedScore = ordered[0].Value;
+            var secondScore = ordered.Length > 1 ? ordered[1].Value : 0;
+            var margin = proposedScore - secondScore;
 
-            if (arr.Count == 0) return false;
+            // Warunki aktywacji (bez globalnych gate'ów!)
+            bool passMinScore  = proposedScore >= (double)o.MinScore;
+            bool passMinMargin = margin        >= (double)o.MinMargin;
 
-            var before = TimeSpan.FromMinutes(o.MacroFreezeMinutesBefore);
-            var after = TimeSpan.FromMinutes(o.MacroFreezeMinutesAfter);
+            Regime next = prev.Mode;
+            DateTime since = prev.SinceUtc;
 
-            // arr jest posortowane – przerywamy, kiedy minęliśmy okno
-            foreach (var t in arr)
+            // pozwól na przełączenie:
+            bool dwellOver = (nowUtc - prev.SinceUtc) >= dwell;
+            bool enoughGain = proposedScore - dict.GetValueOrDefault(prev.Mode, 0) >= minSwitchGain;
+
+            if ((passMinScore && passMinMargin) || (dwellOver && enoughGain))
             {
-                var from = t - before;
-                if (nowUtc < from) return false;           // przed najbliższym oknem ⇒ brak freeze
-                var to = t + after;
-                if (nowUtc <= to) return true;             // w oknie [t-before, t+after]
-                                                           // else: jesteśmy po tym oknie, sprawdzamy kolejne
+                if (proposed != prev.Mode)
+                {
+                    next  = proposed;
+                    since = nowUtc;
+                }
             }
-            return false;
+
+            var state = new RegimeState(next, since == DateTime.MinValue ? nowUtc : since, scores);
+            var changed = next != prev.Mode;
+
+            return new RegimeDecision(
+                Changed: changed,
+                State: state,
+                ProposedMode: proposed,
+                ProposedScore: proposedScore,
+                SecondBestScore: secondScore,
+                Margin: margin);
         }
     }
 }

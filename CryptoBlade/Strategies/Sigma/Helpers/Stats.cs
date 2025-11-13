@@ -123,5 +123,30 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             var last = vwap.Length > 0 ? vwap[^1] : double.NaN;
             return (vwap, last);
         }
+
+        public static double Clamp(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
+
+        // gładkie ścięcie outlierów (x ~ N(0,1), k=2-3)
+        public static double TanhScaled(double z, double k = 2.0) => Math.Tanh(z / k);
+
+        // zscore z guardami
+        public static double Z(double x, double mean, double std)
+            => (std > 1e-12) ? (x - mean) / std : 0.0;
+
+        public static class Percentiles
+        {
+            // upraszczamy: wejście posortowane lub sortujemy; tu wersja z sortowaniem
+            public static double Pctl(double[] xs, double p01to99)
+            {
+                if (xs == null || xs.Length == 0) return double.NaN;
+                var p = Clamp(p01to99, 0, 100) / 100.0;
+                var arr = xs.OrderBy(v => v).ToArray();
+                var idx = (arr.Length - 1) * p;
+                var i = (int)Math.Floor(idx);
+                var frac = idx - i;
+                if (i + 1 < arr.Length) return arr[i] * (1 - frac) + arr[i + 1] * frac;
+                return arr[^1];
+            }
+        }
     }
 }

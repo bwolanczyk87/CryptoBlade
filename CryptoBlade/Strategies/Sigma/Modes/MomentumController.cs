@@ -16,7 +16,7 @@ namespace CryptoBlade.Strategies.Sigma
     {
         private readonly SigmaStrategyOptions _o = options;
 
-        public ModeDecision Evaluate(FeatureSnapshot f, RegimeState state, DateTime nowUtc, CancellationToken cancel)
+        public ModeDecision Evaluate(FeatureSnapshot f, DateTime nowUtc, CancellationToken cancel)
         {
             // 2) ATR "zdrowy trend"
             if (f.AtrPct1h < 1.2 || f.AtrPct1h > 4.0)

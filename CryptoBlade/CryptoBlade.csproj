@@ -59,7 +59,7 @@
     <Folder Include="Data\Strategies\Mona\Optimizer\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Backtest\Results\" />
     <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\Sigma\audit\" />
+    <Folder Include="Data\Strategies\Sigma\Audit\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 

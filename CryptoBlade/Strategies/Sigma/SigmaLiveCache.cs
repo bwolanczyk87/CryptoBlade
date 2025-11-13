@@ -121,7 +121,7 @@ namespace CryptoBlade.Strategies.Sigma
             x.Liqs.Add(liq);
         }
 
-        public static (double spreadBps, bool ok) TryGetSpreadBps(string symbol, decimal lastPrice)
+        public static (double spreadBps, bool ok) TryGetSpreadBps(string symbol)
         {
             var x = S(symbol);
             var mid = (x.BestAsk + x.BestBid) / 2m;

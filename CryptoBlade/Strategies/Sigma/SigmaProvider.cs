@@ -66,26 +66,26 @@ namespace CryptoBlade.Strategies.Sigma
 
         public async Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel)
         {
-            var ticker = await _rest.GetTickerAsync(symbol, cancel);
-
-            // 1) live z cache (jeśli mamy last do normalizacji) – OK
-            decimal last = ticker?.LastPrice ?? 0m;
-            var live = last > 0 ? SigmaLiveCache.TryGetSpreadBps(symbol, last) : (spreadBps: 0.0, ok: false);
+            // 1) Spróbuj z live-cache (najlepsza jakość i zero latency)
+            var live = SigmaLiveCache.TryGetSpreadBps(symbol);
             if (live.ok) return live.spreadBps;
 
-            // 2) Fallback: licz przez MID (nie przez LastPrice!)
-            if (ticker != null && ticker.BestAskPrice > 0 && ticker.BestBidPrice > 0)
+            // 2) Fallback: użyj aktualnego tickera i policz po MID (nie po Last!)
+            var t = await _rest.GetTickerAsync(symbol, cancel);
+            if (t != null && t.BestBidPrice > 0m && t.BestAskPrice > 0m)
             {
-                var spr = ticker.BestAskPrice - ticker.BestBidPrice;
-                var mid = (ticker.BestAskPrice + ticker.BestBidPrice) / 2m;
-                if (mid > 0)
+                var spr = t.BestAskPrice - t.BestBidPrice;
+                var mid = (t.BestAskPrice + t.BestBidPrice) / 2m;
+                if (mid > 0m)
                 {
                     var bps = (double)((spr / mid) * 10_000m);
                     return double.IsFinite(bps) ? bps : double.NaN;
                 }
             }
+
             return double.NaN;
         }
+
 
         public async Task<Quote[]> GetKlinesAsync(string symbol, TimeFrame tf, int limit, CancellationToken cancel)
         {

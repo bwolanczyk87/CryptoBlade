@@ -1,4 +1,9 @@
-﻿using CryptoBlade.Configuration;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -12,42 +17,48 @@ namespace CryptoBlade.Strategies.Sigma
 {
     public class SigmaStrategyOptions : TradingStrategyBaseOptions
     {
-        // Okna buforów (informacyjne; zarządza tym warstwa danych)
-        public int RecalcMinutes { get; init; } = 5;          // decyzja co 5m
-        public int HysteresisLockMinutes { get; init; } = 30; // minimalny dwell reżimu
+        // Okna buforów
+        public int RecalcMinutes { get; init; } = 5;
+        public int HysteresisLockMinutes { get; init; } = 30;
         public int OneMinuteWindow { get; init; } = 500;
         public int FiveMinuteWindow { get; init; } = 200;
         public int FifteenMinuteWindow { get; init; } = 200;
         public int OneHourWindow { get; init; } = 200;
 
-        // Progi reżimów (kalibrowalne, pair-aware docelowo)
+        // Progi reżimów
         public decimal AdxEnableMomentum { get; init; } = 22m;
         public decimal AdxDisableMomentum { get; init; } = 18m;
-        public decimal BbWidthBreakoutPct { get; init; } = 30m;   // percentyl
+        public decimal BbWidthBreakoutPct { get; init; } = 30m;
         public decimal BbWidthExitBreakoutPct { get; init; } = 45m;
-        public decimal ZVwapEnableMR { get; init; } = 1.8m;       // |z| od D-VWAP
+        public decimal ZVwapEnableMR { get; init; } = 1.8m;
         public decimal ZVwapExitMR { get; init; } = 1.0m;
         public decimal MinScore { get; init; } = 55m;
-        public decimal MinMargin { get; init; } = 10m;            // przewaga nad 2. trybem
+        public decimal MinMargin { get; init; } = 10m;
 
-        // Globalne gate’y koszt/zmienność (twarde)
+        // Globalne gate’y
         public decimal MaxSpreadBps { get; init; } = 2m;
 
-        // ATR gates per-mode (domyślne; kalibrowalne)
+        // ATR gates per-mode
         public decimal MmAtrMinPct { get; init; } = 1.2m;
         public decimal MmAtrMaxPct { get; init; } = 4.0m;
         public decimal MrAtrMinPct { get; init; } = 1.0m;
         public decimal MrAtrMaxPct { get; init; } = 3.5m;
-
-        // BO: brak dolnego progu; tylko górny bezpiecznik
         public decimal BoAtrMaxPct { get; init; } = 7.0m;
-        public decimal DefaultQuoteSize { get; init; } = 500m; // kwota per trade (USDT)
-        public decimal MinAtr5mFloor { get; init; } = 0.5m;    // minimalny „floor” ATR5m w USD, by SL nie był zbyt blisko
 
-        // Harmonogramy makro wydarzeń (czas UTC)
+        // Egzekucja
+        public decimal DefaultQuoteSize { get; init; } = 500m;
+        public decimal MinAtr5mFloor { get; init; } = 0.5m;
+
+        // Makro
         public int MacroFreezeMinutesBefore { get; init; } = 10;
         public int MacroFreezeMinutesAfter { get; init; } = 30;
-        public IReadOnlyList<DateTime> MacroEventsUtc = [];
+        public IReadOnlyList<DateTime> MacroEventsUtc { get; init; } =
+        [
+            new DateTime(2025, 12, 05, 13, 30, 00, DateTimeKind.Utc), // NFP
+            new DateTime(2025, 12, 10, 13, 30, 00, DateTimeKind.Utc), // CPI
+            new DateTime(2025, 12, 10, 19, 00, 00, DateTimeKind.Utc), // FOMC statement
+            new DateTime(2025, 12, 18, 13, 15, 00, DateTimeKind.Utc), // ECB
+        ];
     }
 
     public class SigmaStrategy : TradingStrategyBase
@@ -61,8 +72,6 @@ namespace CryptoBlade.Strategies.Sigma
 
         private DateTime _lastRegimeDecisionUtc = DateTime.MinValue;
         private RegimeState _regimeState = new(Regime.None, DateTime.MinValue, RegimeScores.Zero);
-
-
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -80,7 +89,7 @@ namespace CryptoBlade.Strategies.Sigma
             _mr = new MeanReversionController();
             _bo = new BreakoutController();
 
-            var relDir = Path.Combine("Data", "Strategies", "Sigma", "audit", symbol);
+            var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
             _audit = new RegimeAuditSink(relFile);
         }
@@ -91,7 +100,7 @@ namespace CryptoBlade.Strategies.Sigma
                 new TimeFrameWindow(TimeFrame.OneMinute,       o.OneMinuteWindow,  true),
                 new TimeFrameWindow(TimeFrame.FiveMinutes,     o.FiveMinuteWindow, false),
                 new TimeFrameWindow(TimeFrame.FifteenMinutes,  o.FifteenMinuteWindow, false),
-                new TimeFrameWindow(TimeFrame.OneHour,         o.OneHourWindow, false),
+                new TimeFrameWindow(TimeFrame.OneHour,         o.OneHourWindow,    false),
             ];
 
         public override string Name => "Sigma";
@@ -112,7 +121,7 @@ namespace CryptoBlade.Strategies.Sigma
             indicators.Add(new StrategyIndicator(nameof(IndicatorType.MainTimeFrameVolume),
                 TradeSignalHelpers.VolumeInQuoteCurrency(quotes1m[^1])));
 
-            // 1) Cechy (korelacja BTC liczy się w providerze)
+            // 1) Features
             var f = await FeatureSnapshot.BuildAsync(
                 Symbol, quotes1m, quotes5m, quotes15m, quotes1h,
                 ticker, _data, cancel, sessionStartHourUtc: 0, vwapSlopeWindow: 60);
@@ -120,37 +129,63 @@ namespace CryptoBlade.Strategies.Sigma
             indicators.Add(new StrategyIndicator("Sigma.Spread.Bps", (decimal)Math.Round(f.SpreadBps, 4)));
             indicators.Add(new StrategyIndicator("Sigma.ATR1h.Pct", (decimal)Math.Round(f.AtrPct1h, 4)));
 
-            // 2) Jedno wywołanie silnika: reżim + kontroler
             var nowUtc = DateTime.UtcNow;
-            var (tradable, reason, decision, tradeDecision) =
-                RegimeEngine.EvaluateTrade(
-                    f, _regimeState, nowUtc, _options.Value,
-                    momentumCtrl: _mm, meanReversionCtrl: _mr, breakoutCtrl: _bo,
-                    cancel: cancel, audit: _audit);
+            bool isTimeToDecide = (nowUtc - _lastRegimeDecisionUtc) >= TimeSpan.FromMinutes(_options.Value.RecalcMinutes);
 
-            // 3) Telemetria score'ów i aktywnego reżimu
+            // 2) Klasyfikacja reżimu (bez handlu; RegimeEngine nie dotyka trade’ów)
+            var decision = RegimeEngine.Classify(f, _regimeState, nowUtc, _options.Value, _audit);
+
+            if (isTimeToDecide)
+            {
+                // aktualizujemy aktywny reżim zgodnie z histerezą/dwell
+                _regimeState = decision.State;
+                _lastRegimeDecisionUtc = nowUtc;
+            }
+            // jeśli nie jest czas na decyzję, _regimeState zostaje bez zmian,
+            // ale decision niesie Proposed/Score/Margin do audytu i wskaźników
+
+            // 3) Globalne gate’y (poza RegimeEngine)
+            var (tradable, reason) = GlobalGates.Evaluate(f, nowUtc, _options.Value);
+
+            // 4) Szybka egzekucja kontrolera aktywnego reżimu (co 1m)
+            ModeDecision tradeDecision = ModeDecision.None;
+            if (tradable)
+            {
+                var ctrl = _regimeState.Mode switch
+                {
+                    Regime.MM => _mm,
+                    Regime.MR => _mr,
+                    Regime.BO => _bo,
+                    _ => null
+                };
+                if (ctrl != null) tradeDecision = ctrl.Evaluate(f, nowUtc, cancel);
+            }
+
+            _audit.Add(RegimeAudit.MakeRecord(
+                f, _regimeState, nowUtc, _options.Value,
+                tradable: tradable,            // wynik z GlobalGates
+                reason: reason,              // wynik z GlobalGates
+                decision: decision,            // pełny RegimeDecision
+                lastDecisionUtc: _lastRegimeDecisionUtc
+            ));
+
+            // 5) Telemetria
             indicators.Add(new StrategyIndicator("MM.Score", (decimal)decision.State.Scores.Momentum));
             indicators.Add(new StrategyIndicator("MR.Score", (decimal)decision.State.Scores.MeanReversion));
             indicators.Add(new StrategyIndicator("BO.Score", (decimal)decision.State.Scores.Breakout));
-
-            // 4) Lepkość (harmonogram) + aktualizacja stanu tylko przy realnej zmianie
-            bool timeToDecide = (nowUtc - _lastRegimeDecisionUtc) >= TimeSpan.FromMinutes(_options.Value.RecalcMinutes);
-            if (timeToDecide)
-            {
-                _regimeState = decision.State;     // może być ta sama wartość – OK
-                _lastRegimeDecisionUtc = nowUtc;   // bijemy heartbeat => prawdziwy throttling
-            }
-
             indicators.Add(new StrategyIndicator("Regime.Active", _regimeState.Mode.ToString()));
-            indicators.Add(new StrategyIndicator("Regime.Proposed", decision.State.Mode.ToString()));
+            indicators.Add(new StrategyIndicator("Regime.ActiveSinceUtc", _regimeState.SinceUtc));
+            indicators.Add(new StrategyIndicator("Regime.Proposed", decision.ProposedMode.ToString()));
+            indicators.Add(new StrategyIndicator("Regime.ProposedScore", (decimal)decision.ProposedScore));
+            indicators.Add(new StrategyIndicator("Regime.Margin", (decimal)decision.Margin));
             indicators.Add(new StrategyIndicator("Regime.Tradable", tradable.ToString()));
             indicators.Add(new StrategyIndicator("Regime.Reason", reason));
+            indicators.Add(new StrategyIndicator("Regime.LastDecisionUtc", _lastRegimeDecisionUtc));
 
             Indicators = [.. indicators];
 
             var d = tradeDecision;
-            return new SignalEvaluation(
-                d.HasBuy, d.HasSell, d.HasBuyExtra, d.HasSellExtra, Indicators);
+            return new SignalEvaluation(d.HasBuy, d.HasSell, d.HasBuyExtra, d.HasSellExtra, Indicators);
         }
     }
 }

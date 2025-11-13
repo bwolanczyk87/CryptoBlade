@@ -11,6 +11,7 @@ appsettings.Accounts.json
 /CBClone/
 /CryptoBlade/Data/HistoricalData
 /CryptoBlade/Data/Strategies/*/Backtest/Results/
+/CryptoBlade/Data/Strategies/*/Audit
 
 # User-specific files
 *.rsuser
