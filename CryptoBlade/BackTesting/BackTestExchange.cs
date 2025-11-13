@@ -935,6 +935,11 @@ namespace CryptoBlade.BackTesting
             return m_cbFuturesRestClient.GetOpenInterestAsync(symbol, interval, limit, cancel);
         }
 
+        public Task<PublicTrade[]> GetRecentTradesAsync(string symbol, int limit, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<IUpdateSubscription> SubscribeToAllLiquidationUpdatesAsync(string[] symbols, Action<string, LiquidationEvent> handler, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
@@ -945,12 +950,7 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
-        public Task<IUpdateSubscription> SubscribeToOrderBookUpdatesAsync(string[] symbols, Action<string, decimal, decimal> handler, CancellationToken cancel = default)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<PublicTrade[]> GetRecentTradesAsync(string symbol, int limit, CancellationToken cancel = default)
+        public Task<IUpdateSubscription> SubscribeToOrderBookUpdatesAsync(string[] symbols, Action<string, OrderBook> handler, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

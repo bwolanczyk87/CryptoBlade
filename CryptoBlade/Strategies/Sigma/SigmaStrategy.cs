@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using CryptoBlade.Configuration;
+﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
@@ -64,6 +59,8 @@ namespace CryptoBlade.Strategies.Sigma
         public int FundingFreezeMinutesBefore { get; init; } = 3;   // freeze ±3 min wokół cyklu
         public int FundingFreezeMinutesAfter { get; init; } = 1;
         public decimal CorrOppositeBlock { get; init; } = 0.85m;
+
+
     }
 
     public class SigmaStrategy : TradingStrategyBase
@@ -77,6 +74,9 @@ namespace CryptoBlade.Strategies.Sigma
 
         private DateTime _lastRegimeDecisionUtc = DateTime.MinValue;
         private RegimeState _regimeState = new(Regime.None, DateTime.MinValue, RegimeScores.Zero);
+
+        private readonly RollingSignedQty _cvd5m = new(TimeSpan.FromMinutes(5));
+        private readonly LiquidationBuffer _liq20m = new(TimeSpan.FromMinutes(20));
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -126,15 +126,39 @@ namespace CryptoBlade.Strategies.Sigma
             indicators.Add(new StrategyIndicator(nameof(IndicatorType.MainTimeFrameVolume),
                 TradeSignalHelpers.VolumeInQuoteCurrency(quotes1m[^1])));
 
-            // 1) Features
+            var nowUtc = DateTime.UtcNow;
+            double? spreadLive = null;
+            if (OrderBook != null && OrderBook.BestBid > 0m && OrderBook.BestAsk > 0m)
+            {
+                var mid = (OrderBook.BestAsk + OrderBook.BestBid) / 2m;
+                if (mid > 0m)
+                {
+                    var bps = (double)(((OrderBook.BestAsk - OrderBook.BestBid) / mid) * 10_000m);
+                    if (bps >= 0 && double.IsFinite(bps)) spreadLive = bps;  
+                }
+            }
+
+            double? dCvdLive = null;
+            var d = _cvd5m.Delta(nowUtc);
+            if (d != 0m) dCvdLive = (double)d;
+
+            var liqs = _liq20m.Snapshot(nowUtc);
+
             var f = await FeatureSnapshot.BuildAsync(
-                Symbol, quotes1m, quotes5m, quotes15m, quotes1h,
-                ticker, _data, cancel, sessionStartHourUtc: 0, vwapSlopeWindow: 60);
+                Symbol,
+                quotes1m, quotes5m, quotes15m, quotes1h,
+                Ticker!,
+                spreadLive,
+                dCvdLive,
+                liqs,
+                _data,
+                cancel,
+                sessionStartHourUtc: 0,
+                vwapSlopeWindow: 60);
 
             indicators.Add(new StrategyIndicator("Sigma.Spread.Bps", (decimal)Math.Round(f.SpreadBps, 4)));
             indicators.Add(new StrategyIndicator("Sigma.ATR1h.Pct", (decimal)Math.Round(f.AtrPct1h, 4)));
 
-            var nowUtc = DateTime.UtcNow;
             bool isTimeToDecide = (nowUtc - _lastRegimeDecisionUtc) >= TimeSpan.FromMinutes(_options.Value.RecalcMinutes);
 
             // 2) Klasyfikacja reżimu (bez handlu; RegimeEngine nie dotyka trade’ów)
@@ -189,8 +213,86 @@ namespace CryptoBlade.Strategies.Sigma
 
             Indicators = [.. indicators];
 
-            var d = tradeDecision;
-            return new SignalEvaluation(d.HasBuy, d.HasSell, d.HasBuyExtra, d.HasSellExtra, Indicators);
+            var de = tradeDecision;
+            return new SignalEvaluation(de.HasBuy, de.HasSell, de.HasBuyExtra, de.HasSellExtra, Indicators);
+        }
+
+        public override Task AddPublicTradeAsync(PublicTrade trade, CancellationToken cancel)
+        {
+            var signed = trade.Side == OrderSide.Buy ? trade.Quantity : -trade.Quantity;
+            _cvd5m.Add(trade.Timestamp, signed);
+            return base.AddPublicTradeAsync(trade, cancel);
+        }
+
+        public override Task AddLiquidationAsync(LiquidationEvent liq, CancellationToken cancel)
+        {
+            _liq20m.Add(liq);
+            return base.AddLiquidationAsync(liq, cancel);
+        }
+
+        public override Task UpdateOrderBookAsync(OrderBook orderBook, CancellationToken cancel)
+        {
+            // jeśli chcesz mieć też live spread na poziomie strategii:
+            OrderBook = orderBook;
+            return base.UpdateOrderBookAsync(orderBook, cancel);
+        }
+    }
+
+    public sealed class RollingSignedQty
+    {
+        private readonly LinkedList<(DateTime ts, decimal qty)> _q = new();
+        private decimal _sum;
+        private readonly TimeSpan _window;
+
+        public RollingSignedQty(TimeSpan window) => _window = window;
+
+        public void Add(DateTime ts, decimal signedQty)
+        {
+            _q.AddLast((ts, signedQty));
+            _sum += signedQty;
+            Trim(ts - _window);
+        }
+
+        private void Trim(DateTime threshold)
+        {
+            while (_q.First != null && _q.First.Value.ts < threshold)
+            {
+                var old = _q.First.Value;
+                _q.RemoveFirst();
+                _sum -= old.qty;
+            }
+        }
+
+        public decimal Delta(DateTime nowUtc)
+        {
+            Trim(nowUtc - _window);
+            return _sum;
+        }
+    }
+
+    public sealed class LiquidationBuffer
+    {
+        private readonly LinkedList<LiquidationEvent> _q = new();
+        private readonly TimeSpan _window;
+
+        public LiquidationBuffer(TimeSpan window) => _window = window;
+
+        public void Add(LiquidationEvent liq)
+        {
+            _q.AddLast(liq);
+            Trim(liq.Timestamp - _window);
+        }
+
+        private void Trim(DateTime threshold)
+        {
+            while (_q.First != null && _q.First.Value.Timestamp < threshold)
+                _q.RemoveFirst();
+        }
+
+        public IReadOnlyList<LiquidationEvent> Snapshot(DateTime nowUtc)
+        {
+            Trim(nowUtc - _window);
+            return _q.ToArray();
         }
     }
 }

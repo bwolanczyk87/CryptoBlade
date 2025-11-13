@@ -15,8 +15,8 @@ namespace CryptoBlade.Strategies.Sigma
             var points = await _rest.GetOpenInterestAsync(symbol, TimeFrame.OneHour, limit: 2, cancel: cancel);
             if (points == null || points.Length < 2) return double.NaN;
 
-            var prev = points[^2].OpenInterestUsd;
-            var last = points[^1].OpenInterestUsd;
+            var prev = points[^2].OpenInterest;
+            var last = points[^1].OpenInterest;
             if (prev <= 0) return double.NaN;
 
             var pct = (double)((last - prev) / prev * 100m);
@@ -65,41 +65,6 @@ namespace CryptoBlade.Strategies.Sigma
             var pct = (double)((t.MarkPrice - t.IndexPrice) / t.IndexPrice * 100m);
             return double.IsFinite(pct) ? pct : double.NaN;
         }
-
-        public Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel)
-        {
-            var v = SigmaLiveCache.TryGetDeltaCvd5m(symbol, DateTime.UtcNow);
-            return Task.FromResult(v.ok ? v.dCvd5m : double.NaN);
-        }
-
-        public Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel)
-        {
-            var v = SigmaLiveCache.TryGetDistToLiqPct(symbol, lastPrice, DateTime.UtcNow);
-            return Task.FromResult(v.ok ? v.distPct : double.NaN);
-        }
-
-        public async Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel)
-        {
-            // 1) Spróbuj z live-cache (najlepsza jakość i zero latency)
-            var live = SigmaLiveCache.TryGetSpreadBps(symbol);
-            if (live.ok) return live.spreadBps;
-
-            // 2) Fallback: użyj aktualnego tickera i policz po MID (nie po Last!)
-            var t = await _rest.GetTickerAsync(symbol, cancel);
-            if (t != null && t.BestBidPrice > 0m && t.BestAskPrice > 0m)
-            {
-                var spr = t.BestAskPrice - t.BestBidPrice;
-                var mid = (t.BestAskPrice + t.BestBidPrice) / 2m;
-                if (mid > 0m)
-                {
-                    var bps = (double)((spr / mid) * 10_000m);
-                    return double.IsFinite(bps) ? bps : double.NaN;
-                }
-            }
-
-            return double.NaN;
-        }
-
 
         public async Task<Quote[]> GetKlinesAsync(string symbol, TimeFrame tf, int limit, CancellationToken cancel)
         {
@@ -152,5 +117,13 @@ namespace CryptoBlade.Strategies.Sigma
             var u = s.Replace("-", "").Replace("_", "").ToUpperInvariant();
             return u.StartsWith("BTC"); // obsłuży BTCUSDT, BTCUSD, BTC-PERP itd.
         }
+    }
+
+    public sealed class SigmaLiveInputs
+    {
+        public OrderBook? OrderBook { get; init; }
+        public IReadOnlyCollection<PublicTrade> Trades { get; init; } = Array.Empty<PublicTrade>();
+        public IReadOnlyCollection<LiquidationEvent> Liquidations { get; init; } = Array.Empty<LiquidationEvent>();
+        public DateTime NowUtc { get; init; }
     }
 }

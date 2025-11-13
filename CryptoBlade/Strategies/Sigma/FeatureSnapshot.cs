@@ -1,4 +1,5 @@
-﻿using CryptoBlade.Strategies.Sigma.Helpers;
+﻿using CryptoBlade.Models;
+using CryptoBlade.Strategies.Sigma.Helpers;
 using CryptoExchange.Net.CommonObjects;
 using Skender.Stock.Indicators;
 using System.Security.Cryptography;
@@ -62,6 +63,9 @@ namespace CryptoBlade.Strategies.Sigma
             Quote[] q15m,
             Quote[] q1h,
             Ticker ticker,
+            double? spreadBpsLive,                        // NOWE
+            double? deltaCvd5mLive,                      // NOWE
+            IReadOnlyList<LiquidationEvent>? liqs20m,    // NOWE: okno likwidacji ~20m
             BybitSigmaDataProvider data,
             CancellationToken cancel,
             int sessionStartHourUtc = 0,
@@ -117,14 +121,23 @@ namespace CryptoBlade.Strategies.Sigma
             f.OpeningRangeLow = (orHigh == 0m && orLow == 0m) ? null : orLow;
 
 
-            // 12) Spread (bps) z providera (NaN, gdy brak)
-            f.SpreadBps = await TryGetOrNaN(() => data.GetSpreadBpsAsync(symbol, cancel));
+            // 12) Spread (bps) – najpierw live, fallback do tickera
+            f.SpreadBps = ComputeSpreadBps(spreadBpsLive, ticker);
 
-            // 13) Derywaty/flow (NaN, gdy brak)
+            // 13) Derywaty/flow
             f.OiDelta1hPct = await TryGetOrNaN(() => data.GetOpenInterestDelta1hPctAsync(symbol, cancel));
             f.BasisPct = await TryGetOrNaN(() => data.GetBasisPctAsync(symbol, cancel));
-            f.DeltaCvd5m = await TryGetOrNaN(() => data.GetDeltaCvd5mAsync(symbol, cancel));
-            f.DistToLiqPct = await TryGetOrNaN(() => data.GetDistToNearestLiquidationPctAsync(symbol, (ticker?.LastPrice) ?? 0m, cancel));
+
+            // ΔCVD 5m – jeżeli live przyszło, używamy; inaczej NaN
+            f.DeltaCvd5m = (deltaCvd5mLive.HasValue && double.IsFinite(deltaCvd5mLive.Value))
+                ? deltaCvd5mLive.Value
+                : double.NaN;
+
+            // Dist do klastra likwidacji – liczymy tu, z przekazanego okna
+            f.DistToLiqPct = ComputeDistToLiqPctFromLiqs(
+                liqs20m,
+                ticker?.LastPrice ?? 0m,
+                DateTime.UtcNow);
 
             // 14) Korelacja do BTC + heurystyka biasu
             var ethCloses15m = q15m.Select(q => q.Close).ToArray();
@@ -484,6 +497,126 @@ namespace CryptoBlade.Strategies.Sigma
             }
 
             return (corr, opposite);
+        }
+
+        public static double ComputeSpreadBps(double? spreadBpsLive, Ticker? ticker)
+        {
+            // 1) Jeśli mamy live spread z orderbooka – bierzemy go
+            if (spreadBpsLive.HasValue && double.IsFinite(spreadBpsLive.Value) && spreadBpsLive.Value >= 0.0)
+                return spreadBpsLive.Value;
+
+            // 2) Fallback: policz z tickera (BestBid/BestAsk)
+            if (ticker != null && ticker.BestBidPrice > 0m && ticker.BestAskPrice > 0m)
+            {
+                var spr = ticker.BestAskPrice - ticker.BestBidPrice;
+                var mid = (ticker.BestAskPrice + ticker.BestBidPrice) / 2m;
+                if (mid > 0m)
+                {
+                    var bps = (double)((spr / mid) * 10_000m);
+                    return double.IsFinite(bps) ? bps : double.NaN;
+                }
+            }
+
+            return double.NaN;
+        }
+
+        public static double ComputeDeltaCvd5mFromTrades(
+    IReadOnlyCollection<PublicTrade>? trades,
+    DateTime nowUtc)
+        {
+            if (trades == null || trades.Count == 0)
+                return double.NaN;
+
+            var threshold = nowUtc - TimeSpan.FromMinutes(5);
+            decimal sum = 0m;
+
+            foreach (var t in trades)
+            {
+                if (t.Timestamp < threshold)
+                    continue;
+
+                var signed = t.Side == OrderSide.Buy
+                    ? t.Quantity
+                    : -t.Quantity;
+
+                sum += signed;
+            }
+
+            // 0 jest sensowny – po prostu brak netto przewagi kupujących/sprzedających
+            var v = (double)sum;
+            return double.IsFinite(v) ? v : double.NaN;
+        }
+
+        public static double ComputeDistToLiqPctFromLiqs(
+    IReadOnlyList<LiquidationEvent>? liqs,
+    decimal lastPrice,
+    DateTime nowUtc,
+    double lookbackMinutes = 20.0,
+    double binStepPct = 0.10,   // 0.10%
+    double pctl = 75.0,
+    double minSharePct = 5.0)   // 5% całkowitego wolumenu
+        {
+            if (liqs == null || liqs.Count == 0) return double.NaN;
+            if (lastPrice <= 0m) return double.NaN;
+
+            var thresholdTs = nowUtc - TimeSpan.FromMinutes(lookbackMinutes);
+
+            // przefiltruj okno czasu
+            var window = liqs
+                .Where(e => e.Timestamp >= thresholdTs)
+                .ToArray();
+
+            if (window.Length == 0) return double.NaN;
+
+            decimal step = lastPrice * (decimal)(binStepPct / 100.0); // np. 0.001m dla 0.10%
+
+            if (step <= 0m) return double.NaN;
+
+            var bins = new Dictionary<long, decimal>();
+
+            foreach (var e in window)
+            {
+                // indeks bina względem lastPrice
+                decimal rel = (e.Price - lastPrice) / step;
+                long bin = (long)decimal.Round(rel, 0, MidpointRounding.AwayFromZero);
+
+                bins.TryGetValue(bin, out var v);
+                bins[bin] = v + e.Quantity;
+            }
+
+            if (bins.Count == 0) return double.NaN;
+
+            var vols = bins.Values.Select(v => (double)v).OrderBy(v => v).ToArray();
+            double p75 = Stats.Percentiles(vols, pctl);
+
+            decimal total = bins.Values.Aggregate(0m, (acc, v) => acc + v);
+            decimal minShare = total * (decimal)(minSharePct / 100.0);
+
+            decimal thrDec = (decimal)Math.Max(p75, (double)minShare);
+
+            var strong = bins
+                .Where(kv => kv.Value >= thrDec && kv.Key != 0)
+                .Select(kv => kv.Key)
+                .ToArray();
+
+            if (strong.Length == 0)
+            {
+                var best = bins
+                    .Where(kv => kv.Key != 0)
+                    .OrderByDescending(kv => kv.Value)
+                    .Select(kv => (long?)kv.Key)
+                    .FirstOrDefault();
+
+                if (!best.HasValue) return double.NaN;
+                strong = new[] { best.Value };
+            }
+
+            long nearest = strong.OrderBy(b => Math.Abs(b)).First();
+
+            decimal distAbs = Math.Abs(nearest) * step;
+            double distPct = (double)(distAbs / lastPrice * 100m);
+
+            return (distPct > 0 && double.IsFinite(distPct)) ? distPct : double.NaN;
         }
 
 

@@ -18,9 +18,12 @@ namespace CryptoBlade.Strategies.Common
         private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly Channel<Candle> m_candleBuffer;
         public const int c_defaultCandleBufferSize = 1000;
+        public const int c_publicTradeMaxCount = 5000;
+        public const int c_liquidationMaxCount = 5000;
         protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
         protected readonly ILogger m_logger;
         private readonly Random m_random = new Random();
+
 
         protected TradingStrategyCommonBase(IOptions<TradingStrategyCommonBaseOptions> options,
             IOptions<TradingBotOptions> botOptions,
@@ -92,8 +95,8 @@ namespace CryptoBlade.Strategies.Common
         public DateTime LastTickerUpdate { get; protected set; }
         public DateTime LastCandleUpdate { get; protected set; }
         public OrderBook? OrderBook { get; protected set; }
-        public PublicTrade? LastPublicTrade { get; protected set; }
-        public LiquidationEvent? LastLiquidation { get; protected set; }
+        public LinkedList<PublicTrade> PublicTrades { get; protected set; } = new();
+        public LinkedList<LiquidationEvent> Liquidations { get; protected set; } = new();
         public StrategyIndicator[] Indicators { get; protected set; }
         public TimeFrameWindow[] RequiredTimeFrameWindows { get; set; }
         protected Position? LongPosition { get; set; }
@@ -609,14 +612,39 @@ namespace CryptoBlade.Strategies.Common
 
         public virtual Task AddPublicTradeAsync(PublicTrade trade, CancellationToken cancel)
         {
-            LastPublicTrade = trade;
+            PublicTrades.AddLast(trade);
+            var threshold = trade.Timestamp - TimeSpan.FromMinutes(m_options.Value.PublicTradeWindowMinutes);
+
+            while (PublicTrades.First != null &&
+                   (PublicTrades.First.Value.Timestamp < threshold || 
+                    PublicTrades.Count > c_publicTradeMaxCount))
+            {
+                PublicTrades.RemoveFirst();
+            }
+
             return Task.CompletedTask;
         }
 
         public virtual Task AddLiquidationAsync(LiquidationEvent liq, CancellationToken cancel)
         {
-            LastLiquidation = liq;
+            Liquidations.AddLast(liq);
+
+            var threshold = liq.Timestamp - TimeSpan.FromMinutes(m_options.Value.LiquidationWindowMinutes);
+
+            while (Liquidations.First != null &&
+                   (Liquidations.First.Value.Timestamp < threshold ||
+                    Liquidations.Count > c_liquidationMaxCount))
+            {
+                Liquidations.RemoveFirst();
+            }
+
             return Task.CompletedTask;
+        }
+
+        public async Task<List<OpenInterestPoint>> GetOpenInterestAsync(TimeFrame timeFrame, int limit, CancellationToken cancel)
+        {
+            var openInterests = await m_cbFuturesRestClient.GetOpenInterestAsync(Symbol, timeFrame, limit, cancel);
+            return [.. openInterests];
         }
 
         protected abstract Task CalculateDynamicQtyAsync();

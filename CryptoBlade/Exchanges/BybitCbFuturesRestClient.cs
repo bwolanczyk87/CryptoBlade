@@ -672,7 +672,6 @@ namespace CryptoBlade.Exchanges
             int limit = 2,
             CancellationToken cancel = default)
         {
-            // v5 market/open-interest
             var res = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
                 var r = await m_bybitRestClient.V5Api.ExchangeData.GetOpenInterestAsync(
@@ -686,13 +685,12 @@ namespace CryptoBlade.Exchanges
                 throw new InvalidOperationException(error.Message);
             });
 
-            // Najnowsze -> najstarsze w V5; normalizujemy do rosnącego czasu
             var points = res.List
                 .OrderBy(x => x.Timestamp)
                 .Select(x => new OpenInterestPoint
                 {
-                    Timestamp = x.Timestamp,
-                    OpenInterestUsd = x.OpenInterest
+                    Timestamp = x .Timestamp,
+                    OpenInterest = x.OpenInterest
                 })
                 .ToArray();
 

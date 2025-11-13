@@ -3,6 +3,6 @@
     public sealed class OpenInterestPoint
     {
         public DateTime Timestamp { get; init; }
-        public decimal OpenInterestUsd { get; init; }
+        public decimal OpenInterest { get; init; }
     }
 }
