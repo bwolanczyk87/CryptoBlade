@@ -154,11 +154,13 @@ namespace CryptoBlade.Mapping
             {
                 BestAskPrice = ticker.BestAskPrice ?? 0,
                 LastPrice = ticker.LastPrice,
+                IndexPrice = ticker.IndexPrice,
+                MarkPrice = ticker.MarkPrice,
                 BestBidPrice = ticker.BestBidPrice ?? 0,
                 FundingRate = ticker.FundingRate,
+                NextFundingTime = ticker.NextFundingTime,
                 Timestamp = DateTime.UtcNow,
-                Volume24H = ticker.Volume24h,
-                MarkPrice = ticker.MarkPrice
+                Volume24H = ticker.Volume24h
             };
         }
 

@@ -935,21 +935,6 @@ namespace CryptoBlade.BackTesting
             return m_cbFuturesRestClient.GetOpenInterestAsync(symbol, interval, limit, cancel);
         }
 
-        public Task<MarkIndexPair> GetLatestMarkAndIndexAsync(string symbol, TimeFrame interval = TimeFrame.OneMinute, CancellationToken cancel = default)
-        {
-            return m_cbFuturesRestClient.GetLatestMarkAndIndexAsync(symbol, interval, cancel);
-        }
-
-        public Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel = default)
-        {
-            return m_cbFuturesRestClient.GetSpreadBpsAsync(symbol, cancel);
-        }
-
-        public Task<(DateTime Ts, decimal Value)[]> GetOpenInterestUsdHistoryAsync(string symbol, TimeFrame interval = TimeFrame.OneHour, int limit = 2, CancellationToken cancel = default)
-        {
-            return m_cbFuturesRestClient.GetOpenInterestUsdHistoryAsync(symbol, interval, limit, cancel);
-        }
-
         public Task<IUpdateSubscription> SubscribeToAllLiquidationUpdatesAsync(string[] symbols, Action<string, LiquidationEvent> handler, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
@@ -960,7 +945,7 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
-        public Task<IUpdateSubscription> SubscribeToOrderBookTopUpdatesAsync(string[] symbols, Action<string, decimal, decimal> handler, CancellationToken cancel = default)
+        public Task<IUpdateSubscription> SubscribeToOrderBookUpdatesAsync(string[] symbols, Action<string, decimal, decimal> handler, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

@@ -91,6 +91,9 @@ namespace CryptoBlade.Strategies.Common
         public Ticker? Ticker { get; protected set; }
         public DateTime LastTickerUpdate { get; protected set; }
         public DateTime LastCandleUpdate { get; protected set; }
+        public OrderBook? OrderBook { get; protected set; }
+        public PublicTrade? LastPublicTrade { get; protected set; }
+        public LiquidationEvent? LastLiquidation { get; protected set; }
         public StrategyIndicator[] Indicators { get; protected set; }
         public TimeFrameWindow[] RequiredTimeFrameWindows { get; set; }
         protected Position? LongPosition { get; set; }
@@ -595,6 +598,24 @@ namespace CryptoBlade.Strategies.Common
         {
             Ticker = ticker;
             LastTickerUpdate = ticker.Timestamp;
+            return Task.CompletedTask;
+        }
+
+        public virtual Task UpdateOrderBookAsync(OrderBook orderBook, CancellationToken cancel)
+        {
+            OrderBook = orderBook;
+            return Task.CompletedTask;
+        }
+
+        public virtual Task AddPublicTradeAsync(PublicTrade trade, CancellationToken cancel)
+        {
+            LastPublicTrade = trade;
+            return Task.CompletedTask;
+        }
+
+        public virtual Task AddLiquidationAsync(LiquidationEvent liq, CancellationToken cancel)
+        {
+            LastLiquidation = liq;
             return Task.CompletedTask;
         }
 

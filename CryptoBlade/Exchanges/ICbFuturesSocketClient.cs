@@ -20,8 +20,16 @@ namespace CryptoBlade.Exchanges
             Action<string, Ticker> handler,
             CancellationToken cancel = default);
 
-        Task<IUpdateSubscription> SubscribeToAllLiquidationUpdatesAsync(string[] symbols, Action<string, LiquidationEvent> handler, CancellationToken cancel = default);
-        Task<IUpdateSubscription> SubscribeToPublicTradeUpdatesAsync(string[] symbols, Action<string, PublicTrade> handler, CancellationToken cancel = default);
-        Task<IUpdateSubscription> SubscribeToOrderBookTopUpdatesAsync(string[] symbols, Action<string, decimal /*bestBid*/, decimal /*bestAsk*/> handler, CancellationToken cancel = default);
+        Task<IUpdateSubscription> SubscribeToAllLiquidationUpdatesAsync(string[] symbols, 
+            Action<string, LiquidationEvent> handler, 
+            CancellationToken cancel = default);
+
+        Task<IUpdateSubscription> SubscribeToPublicTradeUpdatesAsync(string[] symbols, 
+            Action<string, PublicTrade> handler, 
+            CancellationToken cancel = default);
+
+        Task<IUpdateSubscription> SubscribeToOrderBookUpdatesAsync(string[] symbols, 
+            Action<string, OrderBook> handler, 
+            CancellationToken cancel = default);
     }
 }

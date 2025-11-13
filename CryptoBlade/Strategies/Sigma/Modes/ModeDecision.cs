@@ -27,17 +27,26 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
     public static class GlobalGates
     {
+        /// <summary>
+        /// Globalne bramki: Spread, Macro freeze, Funding window freeze, opcjonalnie hard-halt przy ekstremalnym fundingu.
+        /// </summary>
         public static (bool ok, string reason) Evaluate(FeatureSnapshot f, DateTime nowUtc, SigmaStrategyOptions o)
         {
+            // Spread (twardy)
             if (!double.IsFinite(f.SpreadBps) || f.SpreadBps > (double)o.MaxSpreadBps)
                 return (false, $"Global gate: Spread {f.SpreadBps:F2} bps > {o.MaxSpreadBps}");
 
+            // Macro freeze (twardy)
             if (IsMacroFreeze(nowUtc, o))
                 return (false, "Global gate: Macro freeze window");
 
-            // (opcjonalnie) Near-funding window ±3 min → blokada nowych wejść
-            // if (f.NextFundingUtc.HasValue && Math.Abs((nowUtc - f.NextFundingUtc.Value).TotalMinutes) <= 3)
-            //     return (false, "Global gate: Funding window");
+            // Funding window freeze (twardy) – wokół najbliższego cyklu
+            if (IsFundingFreeze(f, nowUtc, o))
+                return (false, "Global gate: Funding window");
+
+            // Correlation gate (twardy): wysoka |ρ| z BTC + przeciwny bias BTC ⇒ blokada
+            if (IsCorrOppositeBlocked(f, o))
+                return (false, $"Global gate: Corr {f.CorrToBtc15m:F3} with opposite BTC bias");
 
             return (true, "OK");
         }
@@ -45,14 +54,36 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         internal static bool IsMacroFreeze(DateTime nowUtc, SigmaStrategyOptions o)
         {
             if (o?.MacroEventsUtc == null || o.MacroEventsUtc.Count == 0) return false;
+
             var before = TimeSpan.FromMinutes(o.MacroFreezeMinutesBefore);
             var after = TimeSpan.FromMinutes(o.MacroFreezeMinutesAfter);
+
             foreach (var dt in o.MacroEventsUtc)
             {
                 var t = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-                if (nowUtc >= t - before && nowUtc <= t + after) return true;
+                if (nowUtc >= t - before && nowUtc <= t + after)
+                    return true;
             }
             return false;
+        }
+
+        internal static bool IsFundingFreeze(FeatureSnapshot f, DateTime nowUtc, SigmaStrategyOptions o)
+        {
+            if (!f.NextFundingUtc.HasValue) return false;
+
+            var dt = DateTime.SpecifyKind(f.NextFundingUtc.Value, DateTimeKind.Utc);
+            var from = dt.AddMinutes(-o.FundingFreezeMinutesBefore);
+            var to = dt.AddMinutes(o.FundingFreezeMinutesAfter);
+
+            return nowUtc >= from && nowUtc <= to;
+        }
+
+
+        internal static bool IsCorrOppositeBlocked(FeatureSnapshot f, SigmaStrategyOptions o)
+        {
+            if (!double.IsFinite(f.CorrToBtc15m)) return false;
+            return Math.Abs(f.CorrToBtc15m) >= (double)o.CorrOppositeBlock
+                   && f.BtcBiasOpposite;
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using CryptoBlade.Strategies.Sigma.Helpers;
+using CryptoExchange.Net.CommonObjects;
 using Skender.Stock.Indicators;
+using System.Security.Cryptography;
 using Ticker = CryptoBlade.Models.Ticker;
 
 namespace CryptoBlade.Strategies.Sigma
@@ -29,7 +31,10 @@ namespace CryptoBlade.Strategies.Sigma
 
         // Derywaty / flow
         public double OiDelta1hPct { get; private set; }      // ΔOI$ 1h w %
-        public double Funding8h { get; private set; }         // funding 8h w %
+        public double FundingPredictedPct { get; private set; }   // z tickera, wartość „current” (na następny cykl)
+        public double FundingLastSettledPct { get; private set; } // ostatnio rozliczony funding (z historii)
+        public DateTime? NextFundingUtc { get; private set; }     // czas kolejnego cyklu
+
         public double BasisPct { get; private set; }          // (Mark-Index)/Index * 100
         public double DeltaCvd5m { get; private set; }        // ΔCVD 5m (jeśli dostępne)
         public double DistToLiqPct { get; private set; }      // dystans do najbliższej likwidacji w %
@@ -57,7 +62,7 @@ namespace CryptoBlade.Strategies.Sigma
             Quote[] q15m,
             Quote[] q1h,
             Ticker ticker,
-            IBybitSigmaDataProvider data,
+            BybitSigmaDataProvider data,
             CancellationToken cancel,
             int sessionStartHourUtc = 0,
             int vwapSlopeWindow = 60)
@@ -117,13 +122,21 @@ namespace CryptoBlade.Strategies.Sigma
 
             // 13) Derywaty/flow (NaN, gdy brak)
             f.OiDelta1hPct = await TryGetOrNaN(() => data.GetOpenInterestDelta1hPctAsync(symbol, cancel));
-            f.Funding8h = await TryGetOrNaN(() => data.GetFundingRateAsync(symbol, cancel));
             f.BasisPct = await TryGetOrNaN(() => data.GetBasisPctAsync(symbol, cancel));
             f.DeltaCvd5m = await TryGetOrNaN(() => data.GetDeltaCvd5mAsync(symbol, cancel));
             f.DistToLiqPct = await TryGetOrNaN(() => data.GetDistToNearestLiquidationPctAsync(symbol, (ticker?.LastPrice) ?? 0m, cancel));
 
             // 14) Korelacja do BTC + heurystyka biasu
-            await PopulateCorrToBtcAndBiasAsync(f, data, symbol, corrWindow: 80, cancel);
+            var ethCloses15m = q15m.Select(q => q.Close).ToArray();
+            var (corr15m, btcBiasOpposite) = await PopulateCorrToBtcAndBiasAsync(data, symbol, ethCloses15m, f.ZSlopeDvwap, corrWindow: 60, cancel);
+
+            f.CorrToBtc15m = corr15m;
+            f.BtcBiasOpposite = btcBiasOpposite;
+
+            var snap = await data.GetFundingSnapshotAsync(symbol, cancel);
+            f.FundingPredictedPct = snap.Predicted?.Rate is decimal pr ? (double)pr : double.NaN;
+            f.FundingLastSettledPct = snap.LastSettled?.Rate is decimal lr ? (double)lr : double.NaN;
+            f.NextFundingUtc = snap.Predicted?.Time; // czas kolejnego cyklu (z tickera)
 
             Sanitize(ref f);
             return f;
@@ -328,45 +341,40 @@ namespace CryptoBlade.Strategies.Sigma
             if (Math.Abs(det) < 1e-12) return double.NaN;
             double inv00 = d / det, inv01 = -b / det, inv10 = -c / det, inv11 = a / det;
 
-            // Newey–West bandwidth (Bartlett)
-            int L = Math.Max(1, (int)Math.Floor(4.0 * Math.Pow(n / 100.0, 2.0 / 9.0)));
-            L = Math.Min(L, n - 1);
+            // ---HAC / Newey–West: bandwidth L ~4 * (n / 100) ^ (2 / 9)
+            int L = (int)Math.Floor(4.0 * Math.Pow(n / 100.0, 2.0 / 9.0));
+            if (L < 1) L = 1;
 
-            // S = Gamma0 + sum_{lag=1..L} w_l (Gamma_l + Gamma_l')
-            double S00 = 0, S01 = 0, S11 = 0;
-
-            // Gamma_0
-            for (int t = 0; t < n; t++)
+            // Gamma0 (część bez opóźnień)
+            double S00 = 0.0, S01 = 0.0, S11 = 0.0;
+            for (int i = 0; i < n; i++)
             {
-                double w0 = e[t] * e[t];
-                double x0 = 1.0, x1 = xs[t];
-
-                S00 += w0 * x0 * x0;
-                S01 += w0 * x0 * x1;
-                S11 += w0 * x1 * x1;
+                double ei = e[i];
+                double xi = xs[i];
+                double e2 = ei * ei;           // ← zamiast 'c'
+                S00 += e2;
+                S01 += e2 * xi;
+                S11 += e2 * xi * xi;
             }
 
-            // lags
+            // Lags: (X_t X_{t-ℓ}' + X_{t-ℓ} X_t') z wagą Tricube/Barlett (tu Bartlett)
             for (int lag = 1; lag <= L; lag++)
             {
-                double w = 1.0 - (double)lag / (L + 1.0); // Bartlett
-                double A00 = 0, A01 = 0, A11 = 0;
-
-                for (int t = lag; t < n; t++)
+                double w = 1.0 - (double)lag / (L + 1.0);
+                for (int i = lag; i < n; i++)
                 {
-                    double et = e[t];
-                    double es = e[t - lag];
-                    double x0t = 1.0, x1t = xs[t];
-                    double x0s = 1.0, x1s = xs[t - lag];
+                    int j = i - lag;
 
-                    A00 += es * et * (x0s * x0t);
-                    A01 += es * et * (x0s * x1t);
-                    A11 += es * et * (x1s * x1t);
+                    double ei = e[i], ej = e[j];
+                    double xi = xs[i], xj = xs[j];
+
+                    double cov = w * ei * ej;  // ← zamiast 'c'
+
+                    // Symetria: +lag i -lag — stąd mnożnik 2 dla elementów diagonalnych
+                    S00 += 2.0 * cov;
+                    S01 += cov * (xi + xj);
+                    S11 += 2.0 * cov * (xi * xj);
                 }
-
-                S00 += w * 2.0 * A00;
-                S01 += w * 2.0 * A01;
-                S11 += w * 2.0 * A11;
             }
 
             // Var(beta) ≈ (X'X)^-1 * S * (X'X)^-1; interesuje nas [1,1] (slope)
@@ -417,34 +425,67 @@ namespace CryptoBlade.Strategies.Sigma
             return rho;
         }
 
-        private static async Task PopulateCorrToBtcAndBiasAsync(
-           FeatureSnapshot f,
-           IBybitSigmaDataProvider data,
-           string symbol,
-           int corrWindow,
-           CancellationToken cancel)
+        public static async Task<(double corr15m, bool btcBiasOpposite)> PopulateCorrToBtcAndBiasAsync(
+            BybitSigmaDataProvider data,
+            string symbol,
+            decimal[] ethCloses15m,
+            double zSlopeDvwap,
+            int corrWindow,
+            CancellationToken cancel)
         {
-            f.CorrToBtc15m = double.NaN;
-            f.BtcBiasOpposite = false;
+            // --- stałe (hardcoded) ---
+            const double EPS_RET = 0.0005; // 0.05%: próg na "brak kierunku" dla zwrotów
+            const double Z_MIN = 0.8;    // minimalna istotność |t| DVWAP dla fallbacku
+            const double CORR_THR = 0.85;   // próg "silnej" korelacji
+
+            double corr = double.NaN;
+            bool opposite = false;
 
             try
             {
-                var (corr, lastBtcRet) = await data.GetCorrToBtc15mAsync(symbol, corrWindow, cancel);
-                f.CorrToBtc15m = corr;
+                // 1) Corr i ostatni zwrot BTC (z tego samego okna co korelacja)
+                var (corrVal, lastBtcRet) = await data.GetCorrToBtc15mAsync(symbol, corrWindow, cancel);
+                corr = corrVal;
 
-                if (double.IsFinite(f.CorrToBtc15m) && Math.Abs(f.CorrToBtc15m) >= 0.85 && double.IsFinite(f.ZSlopeDvwap))
+                // 2) Ostatni zwrot ETH z 15m (ten sam horyzont co BTC)
+                double lastEthRet = double.NaN;
+                if (ethCloses15m != null && ethCloses15m.Length >= 2)
                 {
-                    f.BtcBiasOpposite =
-                        (lastBtcRet > 0 && f.ZSlopeDvwap < 0) ||
-                        (lastBtcRet < 0 && f.ZSlopeDvwap > 0);
+                    double a = (double)ethCloses15m[^2];
+                    double b = (double)ethCloses15m[^1];
+                    if (a > 0 && double.IsFinite(a) && double.IsFinite(b))
+                        lastEthRet = (b - a) / a; // ułamek (np. 0.001 = 0.1%)
+                }
+
+                // 3) Wyznacz kierunki z progami (antyszum)
+                if (double.IsFinite(corr))
+                {
+                    int sBtc = (lastBtcRet > EPS_RET) ? 1 : (lastBtcRet < -EPS_RET) ? -1 : 0;
+                    int sEth = (lastEthRet > EPS_RET) ? 1 : (lastEthRet < -EPS_RET) ? -1 : 0;
+
+                    // Fallback: jeśli ETH ≈ 0, użyj znaku nachylenia DVWAP, ale tylko gdy t-stat jest istotny
+                    if (sEth == 0 && double.IsFinite(zSlopeDvwap) && Math.Abs(zSlopeDvwap) >= Z_MIN)
+                        sEth = (zSlopeDvwap > 0) ? 1 : -1;
+
+                    // Jeśli któryś kierunek nieokreślony — nie blokujemy globalnie
+                    if (sBtc != 0 && sEth != 0)
+                    {
+                        // Dodatnia silna korelacja: opposite = różne znaki
+                        if (corr >= CORR_THR) opposite = (sEth != sBtc);
+                        // Ujemna silna korelacja: opposite = te same znaki (niespodziewane współruchy)
+                        else if (corr <= -CORR_THR) opposite = (sEth == sBtc);
+                    }
                 }
             }
             catch
             {
-                f.CorrToBtc15m = double.NaN;
-                f.BtcBiasOpposite = false;
+                corr = double.NaN;
+                opposite = false;
             }
+
+            return (corr, opposite);
         }
+
 
         // ========= Pomocnicze =========
 
@@ -498,23 +539,43 @@ namespace CryptoBlade.Strategies.Sigma
         /// </summary>
         public static void Sanitize(ref FeatureSnapshot f)
         {
+            // --- Trend / value / vol ---
             f.Adx1h = ClampFinite(f.Adx1h, 0, 100, allowNaN: true);
-            f.AtrPct1h = ClampFinite(f.AtrPct1h, -1e6, 1e6, allowNaN: true);
-            f.Atr1hAbs = ClampFinite(f.Atr1hAbs, -1e12, 1e12, allowNaN: true);
+            f.AtrPct1h = ClampFinite(f.AtrPct1h, 0, 100, allowNaN: true);   // ATR% nie ujemny
+            f.Atr1hAbs = ClampFinite(f.Atr1hAbs, 0, 1e12, allowNaN: true);   // ATR abs. nie ujemny
             f.ZDvwap = ClampFinite(f.ZDvwap, -10, 10, allowNaN: true);
-            f.ZSlopeDvwap = ClampFinite(f.ZSlopeDvwap, -100, 100, allowNaN: true);
+            f.ZSlopeDvwap = ClampFinite(f.ZSlopeDvwap, -25, 25, allowNaN: true);   // po fixie HAC nie powinno wyjeżdżać
             f.AutoCorr5m = ClampFinite(f.AutoCorr5m, -1, 1, allowNaN: true);
             f.Bbw15mPct = ClampFinite(f.Bbw15mPct, 0, 100, allowNaN: true);
-            f.Bbw15mRaw = ClampFinite(f.Bbw15mRaw, -1e6, 1e6, allowNaN: true);
-            f.SpreadBps = ClampFinite(f.SpreadBps, 0, 1e6, allowNaN: true);
+            f.Bbw15mRaw = ClampFinite(f.Bbw15mRaw, 0, 1e6, allowNaN: true);   // szerokość zawsze ≥0
 
-            f.OiDelta1hPct = ClampFinite(f.OiDelta1hPct, -1e6, 1e6, allowNaN: true);
-            f.Funding8h = ClampFinite(f.Funding8h, -100, 100, allowNaN: true);
-            f.BasisPct = ClampFinite(f.BasisPct, -1e4, 1e4, allowNaN: true);
-            f.DeltaCvd5m = ClampFinite(f.DeltaCvd5m, -1e15, 1e15, allowNaN: true);
-            f.DistToLiqPct = ClampFinite(f.DistToLiqPct, -1e6, 1e6, allowNaN: true);
+            // --- Mikrostruktura ---
+            // Spread nie może być ujemny: jeśli <0 → NaN; jeśli >=0 → clamp do sensownego sufitu
+            f.SpreadBps = double.IsFinite(f.SpreadBps) && f.SpreadBps >= 0
+                ? ClampFinite(f.SpreadBps, 0, 1e4, allowNaN: true)   // 10 000 bps = 100% (sufit bezpieczeństwa)
+                : double.NaN;
 
+            // --- Derywaty / flow ---
+            f.OiDelta1hPct = ClampFinite(f.OiDelta1hPct, -500, 500, allowNaN: true);  // godzinowo realnie << 100, dajemy bufor
+            f.BasisPct = ClampFinite(f.BasisPct, -100, 100, allowNaN: true);  // Mark-Index w %
+            f.DeltaCvd5m = ClampFinite(f.DeltaCvd5m, -1e12, 1e12, allowNaN: true);
+
+            // Funding w % (zgodnie z providerem)
+            f.FundingPredictedPct = ClampFinite(f.FundingPredictedPct, -5, 5, allowNaN: true);
+            f.FundingLastSettledPct = ClampFinite(f.FundingLastSettledPct, -5, 5, allowNaN: true);
+            // f.NextFundingUtc – bez zmian (DateTime? nie clampujemy tu)
+
+            // Dystans do likwidacji: musi być ≥0; jeśli ujemny/bez sensu → NaN
+            if (!double.IsFinite(f.DistToLiqPct) || f.DistToLiqPct < 0)
+                f.DistToLiqPct = double.NaN;
+            else
+                f.DistToLiqPct = ClampFinite(f.DistToLiqPct, 0, 1e6, allowNaN: true);
+
+            // --- Korelacja BTC ---
             f.CorrToBtc15m = ClampFinite(f.CorrToBtc15m, -1, 1, allowNaN: true);
+
+            // (Flagi typu HasInsideOrNr7, DonchianBreakUp/Down itd. – zostawiamy bez zmian,
+            // bo to bool-e/liczby całkowite ustawiane wcześniej.)
         }
 
         private static double ClampFinite(double v, double lo, double hi, bool allowNaN)

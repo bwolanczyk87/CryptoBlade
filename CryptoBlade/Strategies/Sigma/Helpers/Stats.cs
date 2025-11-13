@@ -133,20 +133,18 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         public static double Z(double x, double mean, double std)
             => (std > 1e-12) ? (x - mean) / std : 0.0;
 
-        public static class Percentiles
+        public static double Percentiles(double[] xs, double p01to99)
         {
-            // upraszczamy: wejście posortowane lub sortujemy; tu wersja z sortowaniem
-            public static double Pctl(double[] xs, double p01to99)
-            {
-                if (xs == null || xs.Length == 0) return double.NaN;
-                var p = Clamp(p01to99, 0, 100) / 100.0;
-                var arr = xs.OrderBy(v => v).ToArray();
-                var idx = (arr.Length - 1) * p;
-                var i = (int)Math.Floor(idx);
-                var frac = idx - i;
-                if (i + 1 < arr.Length) return arr[i] * (1 - frac) + arr[i + 1] * frac;
-                return arr[^1];
-            }
+            if (xs == null || xs.Length == 0) return double.NaN;
+            var p = Clamp(p01to99, 0, 100) / 100.0;
+            var arr = xs.OrderBy(v => v).ToArray();
+            var idx = (arr.Length - 1) * p;
+            var i = (int)Math.Floor(idx);
+            var frac = idx - i;
+            if (i + 1 < arr.Length) return arr[i] * (1 - frac) + arr[i + 1] * frac;
+            return arr[^1];
         }
+
+        public static int SignWithEps(double x, double eps) => x > eps ? 1 : x < -eps ? -1 : 0;
     }
 }

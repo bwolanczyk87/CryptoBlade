@@ -143,11 +143,6 @@ namespace CryptoBlade.Exchanges
             throw new NotImplementedException();
         }
 
-        public Task<MarkIndexPair> GetLatestMarkAndIndexAsync(string symbol, TimeFrame interval = TimeFrame.OneMinute, CancellationToken cancel = default)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<LiquidationEvent[]> GetLiquidationsAsync(string symbol, DateTime start, DateTime end, CancellationToken cancel = default)
         {
             throw new NotImplementedException();

@@ -1,8 +1,4 @@
-﻿using Bybit.Net.Enums;
-using CryptoExchange.Net.Attributes;
-using System;
-
-namespace CryptoBlade.Models
+﻿namespace CryptoBlade.Models
 {
     public class Order
     {

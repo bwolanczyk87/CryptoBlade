@@ -44,19 +44,28 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         {
             double mm = 0, mr = 0, bo = 0;
 
-            // Guardy/normalizacje
-            double adx  = Helpers.Stats.Clamp(f.Adx1h,        0, 100);
-            double zdev = Helpers.Stats.Clamp(f.ZDvwap,     -10,  10);
-            double zslo = Helpers.Stats.Clamp(f.ZSlopeDvwap, -10,  10);
-            double bbwP = Helpers.Stats.Clamp(f.Bbw15mPct,     0, 100);
-            double ac   = Helpers.Stats.Clamp(f.AutoCorr5m,   -1,   1);
-            double oiT  = Helpers.Stats.TanhScaled(f.OiDelta1hPct, 0.8);
+            // --- Guardy / normalizacje ---
+            double adx = Helpers.Stats.Clamp(f.Adx1h, 0, 100);
+            double zdev = Helpers.Stats.Clamp(f.ZDvwap, -10, 10);
+            double zslo = Helpers.Stats.Clamp(f.ZSlopeDvwap, -10, 10);
+            double bbwP = Helpers.Stats.Clamp(f.Bbw15mPct, 0, 100);
+            double ac = Helpers.Stats.Clamp(f.AutoCorr5m, -1, 1);
 
-            double zdevT = Helpers.Stats.TanhScaled(Math.Abs(zdev), 2.0); // [0,1]
-            double zsloT = Helpers.Stats.TanhScaled(zslo,           2.0); // [-1,1]
+            // Tanh – łagodne ścięcie outlierów
+            double zdevT = Helpers.Stats.TanhScaled(Math.Abs(zdev), 2.0); // [0..1]
+            double zsloT = Helpers.Stats.TanhScaled(zslo, 2.0); // [-1..1]
 
-            // Rolling ATR%_1h histogram per symbol (pair-aware progi)
-            var q = _atrHist.GetOrAdd(f.Symbol, _ => new Queue<double>(ATR_CAP));
+            // ΔOI: normalizacja i zgodność kierunku ze slope
+            double oiNorm = Helpers.Stats.TanhScaled(f.OiDelta1hPct, 0.8); // ~[-1..1]
+            double oiAbs = Math.Abs(oiNorm);                               // [0..1]
+            int sSlope = (zslo > 0) ? 1 : (zslo < 0) ? -1 : 0;
+            int sOi = (double.IsFinite(f.OiDelta1hPct) && Math.Abs(f.OiDelta1hPct) > 1e-12)
+                         ? (f.OiDelta1hPct > 0 ? 1 : -1)
+                         : 0;
+            double oiCoh = (sSlope == 0 || sOi == 0) ? 0.5 : (sSlope == sOi ? 1.0 : 0.0); // zgodność znaków
+
+            // --- Pair-aware ATR%_1h: rolling percentyle per symbol ---
+            var q = _atrHist.GetOrAdd(f.Symbol, _ => new System.Collections.Generic.Queue<double>(ATR_CAP));
             var locker = _atrLocks.GetOrAdd(f.Symbol, _ => new object());
             if (double.IsFinite(f.AtrPct1h) && f.AtrPct1h > 0)
             {
@@ -71,23 +80,23 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             double mrMin = (double)o.MrAtrMinPct, mrMax = (double)o.MrAtrMaxPct;
             double boMax = (double)o.BoAtrMaxPct;
 
-            int histCount; double[] xs;
-            lock (locker) { histCount = q.Count; xs = q.ToArray(); }
+            double[] xs; int histCount;
+            lock (locker) { xs = q.ToArray(); histCount = xs.Length; }
 
-            if (histCount >= 120) // dopiero po sensownej historii
+            if (histCount >= 120)
             {
-                double p20 = Helpers.Stats.Percentiles.Pctl(xs, 20);
-                double p50 = Helpers.Stats.Percentiles.Pctl(xs, 50);
-                double p60 = Helpers.Stats.Percentiles.Pctl(xs, 60);
-                double p80 = Helpers.Stats.Percentiles.Pctl(xs, 80);
+                double p20 = Helpers.Stats.Percentiles(xs, 20);
+                double p50 = Helpers.Stats.Percentiles(xs, 50);
+                double p60 = Helpers.Stats.Percentiles(xs, 60);
+                double p80 = Helpers.Stats.Percentiles(xs, 80);
 
                 // Momentum: wyższe percentyle ATR
                 mmMin = p50; mmMax = p80;
 
-                // MR: umiarkowane percentyle
+                // Mean Reversion: umiarkowane percentyle
                 mrMin = p20; mrMax = p60;
 
-                // BO: górny bezpiecznik
+                // Breakout: górny bezpiecznik (nie ciaśniej niż domyślny)
                 boMax = Math.Max(boMax, p80);
             }
 
@@ -97,32 +106,35 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             bool boAtrOk = haveAtr && f.AtrPct1h <= boMax;
 
             // ===== Momentum =====
-            if (adx >= (double)o.AdxEnableMomentum)          mm += 20;
-            if (Math.Abs(zsloT) >= 0.30)                     mm += 10 * (1.0 + Math.Abs(zsloT)); // 10..20
-            if (oiT > 0)                                     mm += 12 * oiT;                      // 0..12
-            if (ac  > 0)                                     mm +=  8 * ac;                       // 0..8
-            if (bbwP >= (double)o.BbWidthBreakoutPct)        mm +=  8;
-            if (!mmAtrOk)                                    mm  =  0;
+            if (adx >= (double)o.AdxEnableMomentum) mm += 20;
+            if (double.IsFinite(zsloT) && Math.Abs(zsloT) >= 0.30)
+                mm += 10 * (1.0 + Math.Abs(zsloT)); // 10..20
+            mm += 12 * oiAbs * oiCoh;                        // 0..12, premiuje zgodność ΔOI ze slope
+            if (ac > 0) mm += 8 * ac;  // 0..8
+            if (bbwP >= (double)o.BbWidthBreakoutPct) mm += 8;       // ekspansja
+            if (!mmAtrOk) mm = 0;
 
             // ===== Mean Reversion =====
-            if (adx <= (double)o.AdxDisableMomentum)         mr += 20;
-            mr += (zdevT >= 0.9 ? 18 : 12);
-            if (bbwP >= 25 && bbwP <= 65)                    mr +=  8;
-            if (Math.Abs(oiT) <= 0.30)                       mr +=  6;
-            if (!mrAtrOk)                                    mr  =  0;
+            if (adx <= (double)o.AdxDisableMomentum) mr += 20;
+            if (double.IsFinite(zdevT)) mr += (zdevT >= 0.9 ? 18 : 12);
+            if (bbwP >= 25 && bbwP <= 65) mr += 8;
+            if (oiAbs <= 0.30) mr += 6;       // niska aktywność OI sprzyja MR
+            if (!mrAtrOk) mr = 0;
 
             // ===== Breakout =====
-            if (bbwP <= (double)o.BbWidthBreakoutPct)        bo += 20; // kompresja
-            bo += 10 * Math.Abs(zsloT);                              // 0..10
-            if (ac > 0)                                      bo +=  6 * ac;
-            if (!boAtrOk)                                    bo  =  0;
+            if (bbwP <= (double)o.BbWidthBreakoutPct) bo += 20;       // kompresja
+            if (double.IsFinite(zsloT)) bo += 10 * Math.Abs(zsloT); // 0..10
+            if (ac > 0) bo += 6 * ac;  // 0..6
+            if (!boAtrOk) bo = 0;
 
+            // --- Clamp i return ---
             mm = Helpers.Stats.Clamp(mm, 0, 100);
             mr = Helpers.Stats.Clamp(mr, 0, 100);
             bo = Helpers.Stats.Clamp(bo, 0, 100);
 
             return new RegimeScores(mm, mr, bo);
         }
+
 
         // ====== klasyfikacja: argmax + histereza/dwell/minScore/minMargin ======
 

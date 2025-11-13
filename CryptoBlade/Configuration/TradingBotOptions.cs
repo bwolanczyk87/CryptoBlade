@@ -36,6 +36,7 @@ namespace CryptoBlade.Configuration
         public StrategySelectPreference StrategySelectPreference { get; set; } = StrategySelectPreference.Volume;
         public int NormalizedAverageTrueRangePeriod { get; set; } = 14;
         public decimal MinNormalizedAverageTrueRangePeriod { get; set; } = 1.0m;
+        public int OrderBookDepth { get; set; } = 1;
         public BackTest BackTest { get; set; } = new BackTest();
         public Unstucking Unstucking { get; set; } = new Unstucking();
         public StrategyOptions Strategies { get; set; } = new StrategyOptions();

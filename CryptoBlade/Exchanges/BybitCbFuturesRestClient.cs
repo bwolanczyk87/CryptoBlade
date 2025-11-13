@@ -471,15 +471,14 @@ namespace CryptoBlade.Exchanges
                         throw new InvalidOperationException(error.Message);
                     var s = data.List
                         .Where(x => string.Equals(m_trading_bot_options.Value.QuoteAsset, x.QuoteAsset))
-                        .Select(async x =>
+                        .Select(x =>
                         {
                             var symbol = x.ToSymbolInfo();
                             //symbol.Volume = await GetSymbolVolumeAsync(symbol.Name, cancel);
                             //symbol.Volatility = await GetSymbolVolatility(symbol.Name, cancel);
                             return symbol;
                         });
-                    var symbolInfoTasks = await Task.WhenAll(s);
-                    symbolInfo.AddRange(symbolInfoTasks);
+                    symbolInfo.AddRange(s);
                     if (string.IsNullOrWhiteSpace(data.NextPageCursor))
                         break;
                     cursor = data.NextPageCursor;
@@ -700,54 +699,6 @@ namespace CryptoBlade.Exchanges
             return points;
         }
 
-        public async Task<MarkIndexPair> GetLatestMarkAndIndexAsync(
-            string symbol,
-            TimeFrame interval = TimeFrame.OneMinute,
-            CancellationToken cancel = default)
-        {
-            // v5 market/mark-price-kline i index-price-kline (limit=1, zamknięta świeca)
-            var mark = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
-            {
-                var r = await m_bybitRestClient.V5Api.ExchangeData.GetMarkPriceKlinesAsync(
-                    category: m_category,
-                    symbol: symbol,
-                    interval: interval.ToKlineInterval(),
-                    startTime: null,
-                    endTime: null,
-                    limit: 1,
-                    ct: cancel);
-                if (r.GetResultOrError(out var data, out var error))
-                    return data.List.FirstOrDefault();
-                throw new InvalidOperationException(error.Message);
-            });
-
-            var index = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
-            {
-                var r = await m_bybitRestClient.V5Api.ExchangeData.GetIndexPriceKlinesAsync(
-                    category: m_category,
-                    symbol: symbol,
-                    interval: interval.ToKlineInterval(),
-                    startTime: null,
-                    endTime: null,
-                    limit: 1,
-                    ct: cancel);
-                if (r.GetResultOrError(out var data, out var error))
-                    return data.List.FirstOrDefault();
-                throw new InvalidOperationException(error.Message);
-            });
-
-            if (mark == null || index == null)
-                return new MarkIndexPair { Timestamp = DateTime.UtcNow, MarkPrice = 0, IndexPrice = 0 };
-
-            // Bierzemy zamknięcia z ostatniej zamkniętej świecy
-            return new MarkIndexPair
-            {
-                Timestamp = mark.StartTime,
-                MarkPrice = mark.ClosePrice,
-                IndexPrice = index.ClosePrice
-            };
-        }
-
         public async Task<PublicTrade[]> GetRecentTradesAsync(
             string symbol,
             int limit = 1000,
@@ -778,50 +729,6 @@ namespace CryptoBlade.Exchanges
             });
 
             return trades.OrderBy(t => t.Timestamp).ToArray();
-        }
-
-        
-
-
-        public async Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel = default)
-        {
-            // Najpewniej i najtaniej z tickera (bid1/ask1)
-            var t = await GetTickerAsync(symbol, cancel);
-            if (t == null || t.LastPrice <= 0 || t.BestAskPrice <= 0 || t.BestBidPrice <= 0)
-                return 0.0;
-
-            var raw = t.BestAskPrice - t.BestBidPrice;
-            var bps = (double)((raw / t.LastPrice) * 10_000m);
-            return bps < 0 ? 0.0 : bps;
-        }
-
-        public async Task<(DateTime Ts, decimal Value)[]> GetOpenInterestUsdHistoryAsync(
-            string symbol,
-            TimeFrame interval,
-            int limit = 2,
-            CancellationToken cancel = default)
-        {
-            // Bybit.Net v5: ExchangeData.GetOpenInterestAsync(...)
-            var data = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
-            {
-                var res = await m_bybitRestClient.V5Api.ExchangeData.GetOpenInterestAsync(
-                    category: m_category,        // linear (USDT-M)
-                    symbol: symbol,
-                    interestInterval: interval.ToOpenInterestInterval(),          // "1h"
-                    limit: limit,
-                    ct: cancel);
-
-                if (!res.GetResultOrError(out var payload, out var error))
-                    throw new InvalidOperationException(error.Message);
-
-                // payload.List: { Timestamp, OpenInterest (USD) ... }
-                return payload.List
-                    .OrderBy(x => x.Timestamp)
-                    .Select(x => (x.Timestamp, x.OpenInterest))
-                    .ToArray();
-            });
-
-            return data;
         }
     }
 }

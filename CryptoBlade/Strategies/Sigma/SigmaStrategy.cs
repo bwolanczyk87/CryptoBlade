@@ -32,7 +32,7 @@ namespace CryptoBlade.Strategies.Sigma
         public decimal BbWidthExitBreakoutPct { get; init; } = 45m;
         public decimal ZVwapEnableMR { get; init; } = 1.8m;
         public decimal ZVwapExitMR { get; init; } = 1.0m;
-        public decimal MinScore { get; init; } = 55m;
+        public decimal MinScore { get; init; } = 45m;
         public decimal MinMargin { get; init; } = 10m;
 
         // Globalne gate’y
@@ -59,12 +59,17 @@ namespace CryptoBlade.Strategies.Sigma
             new DateTime(2025, 12, 10, 19, 00, 00, DateTimeKind.Utc), // FOMC statement
             new DateTime(2025, 12, 18, 13, 15, 00, DateTimeKind.Utc), // ECB
         ];
+
+        // Founding Rate
+        public int FundingFreezeMinutesBefore { get; init; } = 3;   // freeze ±3 min wokół cyklu
+        public int FundingFreezeMinutesAfter { get; init; } = 1;
+        public decimal CorrOppositeBlock { get; init; } = 0.85m;
     }
 
     public class SigmaStrategy : TradingStrategyBase
     {
         private readonly IOptions<SigmaStrategyOptions> _options;
-        private readonly IBybitSigmaDataProvider _data;
+        private readonly BybitSigmaDataProvider _data;
         private readonly IModeController _mm;
         private readonly IModeController _mr;
         private readonly IModeController _bo;

@@ -1,13 +1,14 @@
-﻿using System.Threading.Channels;
-using CryptoBlade.Configuration;
+﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
+using CryptoExchange.Net.OrderBook;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
+using System.Threading.Channels;
 using OrderStatus = CryptoBlade.Models.OrderStatus;
 using PositionSide = CryptoBlade.Models.PositionSide;
 
@@ -17,6 +18,10 @@ namespace CryptoBlade.Services
     {
         protected readonly record struct SymbolCandle(string Symbol, Candle Candle);
         protected readonly record struct SymbolTicker(string Symbol, Ticker Ticker);
+        protected readonly record struct SymbolOrderBook(string Symbol, OrderBook OrderBook);
+        protected readonly record struct SymbolPublicTrade(string Symbol, PublicTrade Trade);
+        protected readonly record struct SymbolLiquidation(string Symbol, LiquidationEvent Liquidation);
+
         private readonly ILogger<TradeStrategyManagerBase> m_logger;
         private readonly Dictionary<string, ITradingStrategy> m_strategies;
         private readonly ITradingSymbolsManager m_symbolsManager;
@@ -52,15 +57,22 @@ namespace CryptoBlade.Services
             m_strategies = new Dictionary<string, ITradingStrategy>();
             m_subscriptions = new List<IUpdateSubscription>();
             m_strategyExecutionChannel = Channel.CreateUnbounded<string>();
+            m_lastExecutionTimestamp = DateTime.UtcNow.Ticks;
+
             CandleChannel = Channel.CreateUnbounded<SymbolCandle>();
             TickerChannel = Channel.CreateUnbounded<SymbolTicker>();
-            m_lastExecutionTimestamp = DateTime.UtcNow.Ticks;
+            OrderBookChannel = Channel.CreateUnbounded<SymbolOrderBook>();
+            PublicTradeChannel = Channel.CreateUnbounded<SymbolPublicTrade>();
+            LiquidationChannel = Channel.CreateUnbounded<SymbolLiquidation>();
         }
 
         protected Dictionary<string, ITradingStrategy> Strategies => m_strategies;
         protected Channel<string> StrategyExecutionChannel => m_strategyExecutionChannel;
         protected Channel<SymbolCandle> CandleChannel { get; }
         protected Channel<SymbolTicker> TickerChannel { get; }
+        protected Channel<SymbolOrderBook> OrderBookChannel { get; }
+        protected Channel<SymbolPublicTrade> PublicTradeChannel { get; }
+        protected Channel<SymbolLiquidation> LiquidationChannel { get; }
 
         protected AsyncLock Lock => m_lock;
 
@@ -133,6 +145,54 @@ namespace CryptoBlade.Services
             }
         }
 
+        protected async Task ProcessOrderBookAsync(CancellationToken cancel)
+        {
+            List<SymbolOrderBook> items = new();
+            while (OrderBookChannel.Reader.TryRead(out var ob))
+                items.Add(ob);
+
+            foreach (var ob in items)
+            {
+                if (m_strategies.TryGetValue(ob.Symbol, out var strategy)
+                    && strategy is TradingStrategyCommonBase common)
+                {
+                    await common.UpdateOrderBookAsync(ob.OrderBook, cancel);
+                }
+            }
+        }
+
+        protected async Task ProcessPublicTradesAsync(CancellationToken cancel)
+        {
+            List<SymbolPublicTrade> items = new();
+            while (PublicTradeChannel.Reader.TryRead(out var pt))
+                items.Add(pt);
+
+            foreach (var pt in items)
+            {
+                if (m_strategies.TryGetValue(pt.Symbol, out var strategy)
+                    && strategy is TradingStrategyCommonBase common)
+                {
+                    await common.AddPublicTradeAsync(pt.Trade, cancel);
+                }
+            }
+        }
+
+        protected async Task ProcessLiquidationsAsync(CancellationToken cancel)
+        {
+            List<SymbolLiquidation> items = new();
+            while (LiquidationChannel.Reader.TryRead(out var liq))
+                items.Add(liq);
+
+            foreach (var liq in items)
+            {
+                if (m_strategies.TryGetValue(liq.Symbol, out var strategy)
+                    && strategy is TradingStrategyCommonBase common)
+                {
+                    await common.AddLiquidationAsync(liq.Liquidation, cancel);
+                }
+            }
+        }
+
         protected async Task EvaluateSignalsAsync(CancellationToken cancel)
         {
             List<Task> evaluateTasks = new List<Task>();
@@ -166,6 +226,9 @@ namespace CryptoBlade.Services
             await StrategyExecutionDataDelayAsync(cancel);
             await ProcessTickersAsync(cancel);
             await ProcessCandlesAsync(cancel);
+            await ProcessOrderBookAsync(cancel);
+            await ProcessPublicTradesAsync(cancel);
+            await ProcessLiquidationsAsync(cancel);
             await EvaluateSignalsAsync(cancel);
             return canContinue;
         }
@@ -257,39 +320,17 @@ namespace CryptoBlade.Services
             tickerSubscription.AutoReconnect(m_logger);
             m_subscriptions.Add(tickerSubscription);
 
-            // NOWE: top-of-book -> spread bps
-            var obTopSub = await m_socketClient.SubscribeToOrderBookTopUpdatesAsync(
-                symbols,
-                (symbol, bestBid, bestAsk) =>
-                {
-                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnOrderBookTop(symbol, bestBid, bestAsk);
-                },
-                cancel);
+            var obTopSub = await m_socketClient.SubscribeToOrderBookUpdatesAsync(symbols, OnOrderBook, cancel);
             obTopSub.AutoReconnect(m_logger);
             m_subscriptions.Add(obTopSub);
 
-            // NOWE: public trades -> CVD 5m
-            var tradesSub = await m_socketClient.SubscribeToPublicTradeUpdatesAsync(
-                symbols,
-                (symbol, trade) =>
-                {
-                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnPublicTrade(symbol, trade);
-                },
-                cancel);
+            var tradesSub = await m_socketClient.SubscribeToPublicTradeUpdatesAsync(symbols, OnPublicTrade, cancel);
             tradesSub.AutoReconnect(m_logger);
             m_subscriptions.Add(tradesSub);
 
-            // NOWE: likwidacje -> heatmapa/klastry
-            var liqSub = await m_socketClient.SubscribeToAllLiquidationUpdatesAsync(
-                symbols,
-                (symbol, liq) =>
-                {
-                    CryptoBlade.Strategies.Sigma.SigmaLiveCache.OnLiquidation(symbol, liq);
-                },
-                cancel);
+            var liqSub = await m_socketClient.SubscribeToAllLiquidationUpdatesAsync(symbols, OnLiquidation, cancel);
             liqSub.AutoReconnect(m_logger);
             m_subscriptions.Add(liqSub);
-
 
             await Task.WhenAll(initTasks);
             m_strategyExecutionTask = Task.Run(async () => await StrategyExecutionAsync(cancel), cancel);
@@ -323,6 +364,33 @@ namespace CryptoBlade.Services
                         $"Strategy {strategy.Name}:{strategy.Symbol} received primary candle. Scheduling trade execution.");
                     await m_strategyExecutionChannel.Writer.WriteAsync(strategy.Symbol, CancellationToken.None);
                 }
+            }
+        }
+
+        private async void OnOrderBook(string symbol, OrderBook orderBook)
+        {
+            if (m_strategies.TryGetValue(symbol, out _))
+            {
+                await OrderBookChannel.Writer.WriteAsync(
+                    new SymbolOrderBook(symbol, orderBook));
+            }
+        }
+
+        private async void OnPublicTrade(string symbol, PublicTrade trade)
+        {
+            if (m_strategies.TryGetValue(symbol, out _))
+            {
+                await PublicTradeChannel.Writer.WriteAsync(
+                    new SymbolPublicTrade(symbol, trade));
+            }
+        }
+
+        private async void OnLiquidation(string symbol, LiquidationEvent liq)
+        {
+            if (m_strategies.TryGetValue(symbol, out _))
+            {
+                await LiquidationChannel.Writer.WriteAsync(
+                    new SymbolLiquidation(symbol, liq));
             }
         }
 

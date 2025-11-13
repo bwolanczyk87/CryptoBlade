@@ -138,7 +138,6 @@ namespace CryptoBlade.Exchanges
                         symbols,
                         evt =>
                         {
-                            // evt.Symbol, evt.Data (lista)
                             var symbol = evt.Symbol ?? string.Empty;
                             foreach (var x in evt.Data)
                             {
@@ -193,29 +192,45 @@ namespace CryptoBlade.Exchanges
             return new BybitUpdateSubscription(sub);
         }
 
-        // Top of book (bid/ask) pod spread bps:
-        public async Task<IUpdateSubscription> SubscribeToOrderBookTopUpdatesAsync(
-            string[] symbols,
-            Action<string, decimal, decimal> handler,
-            CancellationToken cancel = default)
+        public async Task<IUpdateSubscription> SubscribeToOrderBookUpdatesAsync(string[] symbols, Action<string, OrderBook> handler, CancellationToken cancel = default)
         {
             var sub = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
                 var res = await m_bybitSocketLinearClient.V5LinearApi
                     .SubscribeToOrderbookUpdatesAsync(
                         symbols,
-                        depth: 1, // tylko top
+                        depth: m_options.Value.OrderBookDepth,
                         evt =>
                         {
                             var symbol = evt.Symbol ?? string.Empty;
-                            var ob = evt.Data; // <— pojedynczy obiekt
+                            var snapshot = evt.Data;
 
-                            if (ob?.Bids?.Count() > 0 && ob.Asks?.Count() > 0)
+                            if (snapshot?.Bids == null || snapshot.Asks == null)
+                                return;
+                            if (!snapshot.Bids.Any() || !snapshot.Asks.Any())
+                                return;
+
+                            var book = new OrderBook
                             {
-                                var bestBid = ob.Bids.First().Price;
-                                var bestAsk = ob.Asks.First().Price;
-                                handler(symbol, bestBid, bestAsk);
-                            }
+                                Bids = [.. snapshot.Bids
+                                    .Select(l => new OrderBookLevel
+                                    {
+                                        Price = l.Price,
+                                        Quantity = l.Quantity
+                                    })],
+
+                                Asks = [.. snapshot.Asks
+                                    .Select(l => new OrderBookLevel
+                                    {
+                                        Price = l.Price,
+                                        Quantity = l.Quantity
+                                    })]
+                            };
+
+                            if (book.Bids.Count == 0 || book.Asks.Count == 0)
+                                return;
+
+                            handler(symbol, book);
                         },
                         cancel);
 

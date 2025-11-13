@@ -6,21 +6,9 @@ using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies.Sigma
 {
-    public interface IBybitSigmaDataProvider
+    public sealed class BybitSigmaDataProvider(ICbFuturesRestClient rest)
     {
-        Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel);
-        Task<double> GetDeltaCvd5mAsync(string symbol, CancellationToken cancel);
-        Task<double> GetDistToNearestLiquidationPctAsync(string symbol, decimal lastPrice, CancellationToken cancel);
-        Task<double> GetFundingRateAsync(string symbol, CancellationToken cancel);
-        Task<double> GetOpenInterestDelta1hPctAsync(string symbol, CancellationToken cancel);
-        Task<double> GetSpreadBpsAsync(string symbol, CancellationToken cancel);
-        Task<(double Corr, double LastBtcRet)> GetCorrToBtc15mAsync(string symbol, int window, CancellationToken cancel);
-    }
-
-    public sealed class BybitSigmaDataProvider : IBybitSigmaDataProvider
-    {
-        private readonly ICbFuturesRestClient _rest;
-        public BybitSigmaDataProvider(ICbFuturesRestClient rest) => _rest = rest;
+        private readonly ICbFuturesRestClient _rest = rest;
 
         public async Task<double> GetOpenInterestDelta1hPctAsync(string symbol, CancellationToken cancel)
         {
@@ -35,18 +23,44 @@ namespace CryptoBlade.Strategies.Sigma
             return double.IsFinite(pct) ? pct : double.NaN;
         }
 
-        public async Task<double> GetFundingRateAsync(string symbol, CancellationToken cancel)
+        public async Task<(FundingRate? Predicted, FundingRate? LastSettled)> GetFundingSnapshotAsync(string symbol, CancellationToken cancel)
         {
+            FundingRate? predicted = null;
+            FundingRate? lastSettled = null;
+
+            // 1) Predicted (UI „current funding rate”) + czas kolejnego cyklu z tickera
+            var t = await _rest.GetTickerAsync(symbol, cancel);
+            if (t != null && t.FundingRate.HasValue && t.NextFundingTime.HasValue)
+            {
+                // Normalizujemy do % (np. 0.0001 → 0.01)
+                var pct = (t.FundingRate.Value) * 100m;
+                predicted = new FundingRate
+                {
+                    Time = DateTime.SpecifyKind(t.NextFundingTime.Value, DateTimeKind.Utc),
+                    Rate = pct
+                };
+            }
+
+            // 2) Ostatnio rozliczona (historyczna) stawka z ostatnich 24h
             var end = DateTime.UtcNow;
             var start = end.AddHours(-24);
             var rates = await _rest.GetFundingRatesAsync(symbol, start, end, cancel);
-            var last = rates?.OrderBy(x => x.Time).LastOrDefault()?.Rate ?? 0m;
-            return (double)(last * 100m);
+            if (rates != null && rates.Length > 0)
+            {
+                var last = rates.OrderBy(x => x.Time).Last();
+                lastSettled = new FundingRate
+                {
+                    Time = DateTime.SpecifyKind(last.Time, DateTimeKind.Utc),
+                    Rate = (last.Rate) * 100m
+                };
+            }
+
+            return (predicted, lastSettled);
         }
 
         public async Task<double> GetBasisPctAsync(string symbol, CancellationToken cancel)
         {
-            var t = await _rest.GetLatestMarkAndIndexAsync(symbol, TimeFrame.OneMinute, cancel);
+            var t = await _rest.GetTickerAsync(symbol, cancel);
             if (t == null || t.IndexPrice <= 0 || t.MarkPrice <= 0) return double.NaN;
             var pct = (double)((t.MarkPrice - t.IndexPrice) / t.IndexPrice * 100m);
             return double.IsFinite(pct) ? pct : double.NaN;

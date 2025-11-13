@@ -139,48 +139,54 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         public double OiDelta1hPct { get; init; }
 
         [AuditColumn(Order = 28, Decimals = 5)]
-        public double Funding8h { get; init; }
+        public double FundingPredictedPct { get; init; }
 
-        [AuditColumn(Order = 29, Decimals = 4)]
+        [AuditColumn(Order = 29, Decimals = 5)]
+        public double FundingLastSettledPct { get; init; }
+
+        [AuditColumn(Order = 30, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime? NextFundingUtc { get; init; }
+
+        [AuditColumn(Order = 31, Decimals = 4)]
         public double BasisPct { get; init; }
 
-        [AuditColumn(Order = 30, Decimals = 6)]
+        [AuditColumn(Order = 32, Decimals = 6)]
         public double DeltaCvd5m { get; init; }
 
-        [AuditColumn(Order = 31, Decimals = 2)]
+        [AuditColumn(Order = 33, Decimals = 2)]
         public double DistToLiqPct { get; init; }
 
         // Patterny/struktura
-        [AuditColumn(Order = 32, BoolAsInt = true)]
+        [AuditColumn(Order = 34, BoolAsInt = true)]
         public bool HasInsideOrNr7 { get; init; }
 
-        [AuditColumn(Order = 33, BoolAsInt = true)]
+        [AuditColumn(Order = 35, BoolAsInt = true)]
         public bool DonchianBreakUp { get; init; }
 
-        [AuditColumn(Order = 34, BoolAsInt = true)]
+        [AuditColumn(Order = 36, BoolAsInt = true)]
         public bool DonchianBreakDown { get; init; }
 
-        [AuditColumn(Order = 35, BoolAsInt = true)]
+        [AuditColumn(Order = 37, BoolAsInt = true)]
         public bool Bbw15mExpanding { get; init; }
 
-        [AuditColumn(Order = 36, Decimals = 2)]
+        [AuditColumn(Order = 38, Decimals = 2)]
         public decimal? OpeningRangeHigh { get; init; }
 
-        [AuditColumn(Order = 37, Decimals = 2)]
+        [AuditColumn(Order = 39, Decimals = 2)]
         public decimal? OpeningRangeLow { get; init; }
 
         // Supervisor – korelacja do BTC
-        [AuditColumn(Order = 38, Decimals = 4)]
+        [AuditColumn(Order = 40, Decimals = 4)]
         public double CorrToBtc15m { get; init; }
 
-        [AuditColumn(Order = 39, BoolAsInt = true)]
+        [AuditColumn(Order = 41, BoolAsInt = true)]
         public bool BtcBiasOpposite { get; init; }
 
         // Histereza (stan reżimu)
-        [AuditColumn(Order = 40, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        [AuditColumn(Order = 42, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
         public DateTime SinceUtc { get; init; }         // od kiedy aktywny reżim
 
-        [AuditColumn(Order = 41, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        [AuditColumn(Order = 43, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
         public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji reżimu
     }
 
@@ -244,7 +250,10 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
                 SpreadBps = f.SpreadBps,
 
                 OiDelta1hPct = f.OiDelta1hPct,
-                Funding8h = f.Funding8h,
+                FundingLastSettledPct = f.FundingLastSettledPct,
+                FundingPredictedPct = f.FundingPredictedPct,
+                NextFundingUtc = f.NextFundingUtc,
+
                 BasisPct = f.BasisPct,
                 DeltaCvd5m = f.DeltaCvd5m,
                 DistToLiqPct = f.DistToLiqPct,

@@ -7,13 +7,15 @@
         public decimal BestBidPrice { get; set; }
 
         public decimal LastPrice { get; set; }
+        public decimal IndexPrice { get; set; }
+        public decimal MarkPrice { get; set; }
 
         public decimal? FundingRate { get; set; }
+
+        public DateTime? NextFundingTime { get; set; }
 
         public DateTime Timestamp { get; set; }
 
         public decimal Volume24H { get; set; }
-
-        public decimal MarkPrice { get; set; }
     }
 }
