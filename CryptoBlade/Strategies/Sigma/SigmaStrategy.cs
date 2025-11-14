@@ -90,7 +90,7 @@ namespace CryptoBlade.Strategies.Sigma
             _options = options;
             _mm = new MomentumMode(options.Value);
             _mr = new MeanReversionController();
-            _bo = new BreakoutController();
+            _bo = new BreakoutMode();
 
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
@@ -174,7 +174,7 @@ namespace CryptoBlade.Strategies.Sigma
             var (tradable, reason) = GlobalGates.Evaluate(f, nowUtc, _options.Value);
 
             // 4) Szybka egzekucja kontrolera aktywnego reżimu (co 1m)
-            ModeDecision tradeDecision = ModeDecision.None;
+            ModeSignal tradeDecision = ModeSignal.None;
             if (tradable)
             {
                 var ctrl = _regimeState.Mode switch

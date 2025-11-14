@@ -202,7 +202,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             SigmaStrategyOptions o,
             bool tradable,
             string reason,
-            RegimeDecision decision,
+            ModeDecision decision,
             DateTime lastDecisionUtc
         )
         {

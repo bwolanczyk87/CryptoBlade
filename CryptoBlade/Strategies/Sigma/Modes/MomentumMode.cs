@@ -11,9 +11,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         Mode IMode.Kind => throw new NotImplementedException();
 
-        public ModeDecision Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            return new ModeDecision();
+            return new ModeSignal();
         }
     }
 }

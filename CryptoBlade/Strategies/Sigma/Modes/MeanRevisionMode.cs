@@ -7,9 +7,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         private readonly SigmaStrategyOptions _options = options;
         public Mode Kind => Mode.MR;
 
-        public ModeDecision Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            return new ModeDecision();
+            return new ModeSignal();
         }
     }
 }
