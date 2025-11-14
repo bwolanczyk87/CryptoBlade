@@ -528,24 +528,12 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         // =====================================================================
 
         /// <summary>
-        /// Liczy spread w bps:
-        ///  - jeśli podano live spread z orderbooka (spreadBpsLive) i jest poprawny, 
-        ///    zwraca go bez zmian;
-        ///  - w przeciwnym razie liczy spread z tickera (BestBid/BestAsk).
+        /// Liczy spread w bps z tickera (BestBid/BestAsk).
         ///
         /// Zwraca NaN, jeżeli nie da się policzyć sensownej wartości.
         /// </summary>
-        public static double ComputeSpreadBps(double? spreadBpsLive, Ticker? ticker)
+        public static double ComputeSpreadBps(Ticker ticker)
         {
-            // 1) Live spread z orderbooka
-            if (spreadBpsLive.HasValue &&
-                double.IsFinite(spreadBpsLive.Value) &&
-                spreadBpsLive.Value >= 0.0)
-            {
-                return spreadBpsLive.Value;
-            }
-
-            // 2) Fallback: liczony z tickera (BestBid / BestAsk)
             if (ticker != null &&
                 ticker.BestBidPrice > 0m &&
                 ticker.BestAskPrice > 0m)

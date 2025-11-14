@@ -1,12 +1,12 @@
-﻿using CryptoBlade.Strategies.Sigma.Regimes;
-
-namespace CryptoBlade.Strategies.Sigma.Modes
+﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    public class BreakoutMode: IModeController
+    public class BreakoutMode: IMode
     {
-        public ModeSignal Evaluate(SigmaData f, DateTime nowUtc, CancellationToken cancel)
+        public Mode Kind => Mode.BO;
+
+        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            return ModeSignal.None;
+            throw new NotImplementedException();
         }
     }
 }

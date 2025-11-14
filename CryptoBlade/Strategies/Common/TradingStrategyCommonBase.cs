@@ -1,13 +1,14 @@
 ﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
+using CryptoBlade.Mapping;
 using CryptoBlade.Models;
+using CryptoBlade.Strategies.Policies;
+using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
 using System.Threading.Channels;
-using CryptoBlade.Mapping;
-using CryptoBlade.Strategies.Symbols;
 using BybitEnums = Bybit.Net.Enums;
 
 namespace CryptoBlade.Strategies.Common
@@ -724,6 +725,27 @@ namespace CryptoBlade.Strategies.Common
             }
 
             return Task.CompletedTask;
+        }
+
+        public async Task<Quote[]> GetQuotesAsync(string symbol, TimeFrame tf, int limit, CancellationToken cancel)
+        {
+            var klines = await m_cbFuturesRestClient.GetKlinesAsync(symbol, tf, limit, cancel);
+            if (klines == null || klines.Length == 0) return [];
+
+            var quotes = new List<Quote>(klines.Length);
+            for (int i = 0; i < klines.Length; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                quotes.Add(klines[i].ToQuote());
+            }
+
+            quotes.Sort((a, b) => a.Date.CompareTo(b.Date));
+            return [.. quotes];
+        }
+
+        public async Task<FundingRate[]> GetFundingRatesAsync(string symbol, DateTime start, DateTime end, CancellationToken cancel = default)
+        {
+            return await m_cbFuturesRestClient.GetFundingRatesAsync(symbol, start, end, cancel);
         }
 
         private async Task<bool> CancelOrderAsync(string orderId, CancellationToken cancel)

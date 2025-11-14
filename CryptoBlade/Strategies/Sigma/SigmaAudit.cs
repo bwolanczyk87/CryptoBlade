@@ -2,8 +2,9 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using CryptoBlade.Strategies.Sigma.Modes;
 
-namespace CryptoBlade.Strategies.Sigma.Regimes
+namespace CryptoBlade.Strategies.Sigma
 {
     // ======== ATRYBUTY I FORMATOWANIE ========
 
@@ -36,16 +37,33 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
     // ======== MODEL I INTERFEJS ========
 
-    public enum RegimeLabel { None = 0, Momentum = 1, MeanReversion = 2, Breakout = 3 }
-
-    public interface IRegimeAuditSink
+    /// <summary>
+    /// Label trybu w audycie (stabilne kody liczbowe 0..3 dla CSV).
+    /// </summary>
+    public enum ModeLabel
     {
-        void Add(RegimeAuditRecord r);
-        IReadOnlyList<RegimeAuditRecord> Snapshot();
+        None = 0,
+        Momentum = 1,
+        MeanReversion = 2,
+        Breakout = 3
+    }
+
+    public interface ISigmaAuditSink
+    {
+        void Add(SigmaAuditRecord r);
+        IReadOnlyList<SigmaAuditRecord> Snapshot();
         void Clear();
     }
 
-    public sealed class RegimeAuditRecord
+    /// <summary>
+    /// Pojedynczy rekord audytu trybu Sigmy – spłaszczony snapshot:
+    /// - meta (czas, symbol),
+    /// - wybór trybu (Selected/Prev/Proposed),
+    /// - parametry progów (MinScore, MinMargin, hysteresis),
+    /// - pełne score'y (MM/MR/BO),
+    /// - cechy z SigmaData.
+    /// </summary>
+    public sealed class SigmaAuditRecord
     {
         // Meta
         [AuditColumn(Order = 0, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
@@ -54,22 +72,22 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         [AuditColumn(Order = 1)]
         public string Symbol { get; init; } = "";
 
-        // Reżimy: aktywny (Selected) vs poprzedni vs proponowany
+        // Tryby: aktywny (Selected) vs poprzedni vs proponowany
         [AuditColumn(Order = 2, EnumFormat = AuditEnumFormat.Int)]
-        public RegimeLabel Selected { get; init; }      // Active (po histerezie/dwell)
+        public ModeLabel Selected { get; init; }      // Active (po histerezie/dwell)
 
         [AuditColumn(Order = 3, EnumFormat = AuditEnumFormat.Int)]
-        public RegimeLabel Prev { get; init; }          // Poprzedni Active
+        public ModeLabel Prev { get; init; }          // Poprzedni Active
 
         [AuditColumn(Order = 4, EnumFormat = AuditEnumFormat.Int)]
-        public RegimeLabel? Oracle { get; set; }        // Opcjonalny label referencyjny
+        public ModeLabel? Oracle { get; set; }        // Opcjonalny label referencyjny (np. z datsetu)
 
         [AuditColumn(Order = 5, EnumFormat = AuditEnumFormat.Int)]
-        public RegimeLabel Proposed { get; init; }      // Argmax z bieżących score'ów
+        public ModeLabel Proposed { get; init; }      // Argmax z bieżących score'ów
 
         // Wynik decyzji i progów
         [AuditColumn(Order = 6, BoolAsInt = true)]
-        public bool Tradable { get; init; }             // Global gates OK/NOK
+        public bool Tradable { get; init; }           // Global gates OK/NOK
 
         [AuditColumn(Order = 7)]
         public string Reason { get; init; } = "";
@@ -182,29 +200,43 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         [AuditColumn(Order = 41, BoolAsInt = true)]
         public bool BtcBiasOpposite { get; init; }
 
-        // Histereza (stan reżimu)
+        // Histereza (stan trybu)
         [AuditColumn(Order = 42, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime SinceUtc { get; init; }         // od kiedy aktywny reżim
+        public DateTime SinceUtc { get; init; }         // od kiedy aktywny tryb
 
         [AuditColumn(Order = 43, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji reżimu
+        public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji trybu
     }
 
-    // ======== BUDOWANIE REKORDU (z Classify) ========
+    // ======== BUDOWANIE REKORDU (z ModeEngine.Classify) ========
 
-    public static class RegimeAudit
+    public static class SigmaAudit
     {
-        // Preferowany overload – korzysta z pełnego RegimeDecision
-        public static RegimeAuditRecord MakeRecord(
-            SigmaData f,
-            RegimeState prev,
+        private static ModeLabel ToLabel(Mode mode) => mode switch
+        {
+            Mode.MM => ModeLabel.Momentum,
+            Mode.MR => ModeLabel.MeanReversion,
+            Mode.BO => ModeLabel.Breakout,
+            _ => ModeLabel.None
+        };
+
+        /// <summary>
+        /// Buduje rekord audytu na podstawie:
+        /// - SigmaData,
+        /// - poprzedniego stanu ModeState,
+        /// - bieżącej decyzji ModeDecision,
+        /// - flagi tradable (global gates),
+        /// - konfiguracji progów (SigmaStrategyOptions).
+        /// </summary>
+        public static SigmaAuditRecord MakeRecord(
+            SigmaData data,
+            ModeState prev,
             DateTime nowUtc,
-            SigmaStrategyOptions o,
+            SigmaStrategyOptions options,
             bool tradable,
             string reason,
             ModeDecision decision,
-            DateTime lastDecisionUtc
-        )
+            DateTime lastDecisionUtc)
         {
             var active = decision.State.Mode;
             var proposed = decision.ProposedMode;
@@ -214,21 +246,21 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             var bo = decision.State.Scores.Breakout;
             var activeScore = decision.State.Scores[active];
 
-            return new RegimeAuditRecord
+            return new SigmaAuditRecord
             {
                 TimeUtc = nowUtc,
-                Symbol = f.Symbol,
+                Symbol = data.Symbol,
 
-                Selected = (RegimeLabel)active,
-                Prev = (RegimeLabel)prev.Mode,
+                Selected = ToLabel(active),
+                Prev = ToLabel(prev.Mode),
                 Oracle = null,
-                Proposed = (RegimeLabel)proposed,
+                Proposed = ToLabel(proposed),
 
                 Tradable = tradable,
                 Reason = reason ?? string.Empty,
-                MinScore = (double)o.MinScore,
-                MinMargin = (double)o.MinMargin,
-                HysteresisLockMinutes = o.HysteresisLockMinutes,
+                MinScore = (double)options.MinScore,
+                MinMargin = (double)options.MinMargin,
+                HysteresisLockMinutes = options.HysteresisLockMinutes,
 
                 ScoreMM = mm,
                 ScoreMR = mr,
@@ -238,35 +270,35 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
                 Margin = decision.Margin,
                 ActiveScore = activeScore,
 
-                Adx1h = f.Adx1h,
-                AtrPct1h = f.AtrPct1h,
-                Atr1hAbs = f.Atr1hAbs,
-                ZDvwap = f.ZDvwap,
-                ZSlopeDvwap = f.ZSlopeDvwap,
-                AutoCorr5m = f.AutoCorr5m,
-                Bbw15mPct = f.Bbw15mPct,
-                Bbw15mRaw = f.Bbw15mRaw,
+                Adx1h = data.Adx1h,
+                AtrPct1h = data.AtrPct1h,
+                Atr1hAbs = data.Atr1hAbs,
+                ZDvwap = data.ZDvwap,
+                ZSlopeDvwap = data.ZSlopeDvwap,
+                AutoCorr5m = data.AutoCorr5m,
+                Bbw15mPct = data.Bbw15mPct,
+                Bbw15mRaw = data.Bbw15mRaw,
 
-                SpreadBps = f.SpreadBps,
+                SpreadBps = data.SpreadBps,
 
-                OiDelta1hPct = f.OiDelta1hPct,
-                FundingLastSettledPct = f.FundingLastSettledPct,
-                FundingPredictedPct = f.FundingPredictedPct,
-                NextFundingUtc = f.NextFundingUtc,
+                OiDelta1hPct = data.OiDelta1hPct,
+                FundingLastSettledPct = data.FundingLastSettledPct,
+                FundingPredictedPct = data.FundingPredictedPct,
+                NextFundingUtc = data.NextFundingUtc,
 
-                BasisPct = f.BasisPct,
-                DeltaCvd5m = f.DeltaCvd5m,
-                DistToLiqPct = f.DistToLiqPct,
+                BasisPct = data.BasisPct,
+                DeltaCvd5m = data.DeltaCvd5m,
+                DistToLiqPct = data.DistToLiqPct,
 
-                HasInsideOrNr7 = f.HasInsideOrNr7,
-                DonchianBreakUp = f.DonchianBreakUp,
-                DonchianBreakDown = f.DonchianBreakDown,
-                Bbw15mExpanding = f.Bbw15mExpanding,
-                OpeningRangeHigh = f.OpeningRangeHigh,
-                OpeningRangeLow = f.OpeningRangeLow,
+                HasInsideOrNr7 = data.HasInsideOrNr7,
+                DonchianBreakUp = data.DonchianBreakUp,
+                DonchianBreakDown = data.DonchianBreakDown,
+                Bbw15mExpanding = data.Bbw15mExpanding,
+                OpeningRangeHigh = data.OpeningRangeHigh,
+                OpeningRangeLow = data.OpeningRangeLow,
 
-                CorrToBtc15m = f.CorrToBtc15m,
-                BtcBiasOpposite = f.BtcBiasOpposite,
+                CorrToBtc15m = data.CorrToBtc15m,
+                BtcBiasOpposite = data.BtcBiasOpposite,
 
                 SinceUtc = decision.State.SinceUtc,
                 LastDecisionUtc = lastDecisionUtc,
@@ -276,7 +308,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
     // ======== CSV (GENERYCZNE, REFLEKSYJNE, Z CACHINGIEM) ========
 
-    public static class RegimeAuditCsv
+    public static class SigmaAuditCsv
     {
         private sealed record ColMeta(
             PropertyInfo Prop,
@@ -296,7 +328,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
         private static ColMeta[] BuildColumns()
         {
-            var t = typeof(RegimeAuditRecord);
+            var t = typeof(SigmaAuditRecord);
             var props = t.GetProperties(BindingFlags.Instance | BindingFlags.Public);
 
             var list = new List<ColMeta>(props.Length);
@@ -327,7 +359,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
         public static string Header() => string.Join(",", _cols.Select(c => c.Name));
 
-        public static string Row(RegimeAuditRecord r)
+        public static string Row(SigmaAuditRecord r)
         {
             var values = new string[_cols.Length];
             for (int i = 0; i < _cols.Length; i++)
@@ -336,13 +368,14 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
                 var v = c.Prop.GetValue(r);
                 values[i] = FormatValue(v, c);
             }
-            // twardy sanity-check
+
             if (values.Length != _cols.Length)
                 throw new InvalidOperationException($"Audit CSV column mismatch: {values.Length} vs {_cols.Length}");
+
             return string.Join(",", values);
         }
 
-        public static string Export(IEnumerable<RegimeAuditRecord> rows)
+        public static string Export(IEnumerable<SigmaAuditRecord> rows)
         {
             var sb = new StringBuilder(1 << 16);
             sb.AppendLine(Header());
@@ -376,7 +409,6 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             if (ut == typeof(DateTime))
             {
                 var dt = (DateTime)value;
-                // wymuś UTC → 'Z' jeśli to UTC
                 var dtu = dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
                 return dtu.ToString(c.DateFormat ?? DEFAULT_DATE_FMT, Inv);
             }
@@ -384,7 +416,9 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             if (ut == typeof(double))
             {
                 var d = (double)value;
-                if (double.IsNaN(d) || double.IsInfinity(d)) return c.SkipIfNaN ? "" : d.ToString(Inv);
+                if (double.IsNaN(d) || double.IsInfinity(d))
+                    return c.SkipIfNaN ? "" : d.ToString(Inv);
+
                 var dec = c.Decimals >= 0 ? c.Decimals : DEFAULT_DOUBLE_DECIMALS;
                 return Math.Round(d, dec).ToString(Inv);
             }
@@ -409,7 +443,6 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         private static string CsvEscape(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
-            // jeżeli zawiera przecinek, cudzysłów lub znak nowej linii → cytuj i zdubluj cudzysłowy
             bool needQuotes = s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0;
             if (!needQuotes) return s;
             var inner = s.Replace("\"", "\"\"");
@@ -419,27 +452,27 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
     // ======== SINK (zapis do pliku) ========
 
-    public sealed class RegimeAuditSink : IRegimeAuditSink
+    public sealed class SigmaAuditSink : ISigmaAuditSink
     {
         private readonly string _path;
-        private readonly ConcurrentQueue<RegimeAuditRecord> _q = new();
+        private readonly ConcurrentQueue<SigmaAuditRecord> _q = new();
         private static readonly object _fileLock = new();
 
-        public RegimeAuditSink(string path)
+        public SigmaAuditSink(string path)
         {
             _path = path;
             EnsureHeader();
         }
 
-        public void Add(RegimeAuditRecord r)
+        public void Add(SigmaAuditRecord r)
         {
             _q.Enqueue(r);
             AppendRow(r);
         }
 
-        public IReadOnlyList<RegimeAuditRecord> Snapshot()
+        public IReadOnlyList<SigmaAuditRecord> Snapshot()
         {
-            var list = new List<RegimeAuditRecord>(_q.Count);
+            var list = new List<SigmaAuditRecord>(_q.Count);
             foreach (var r in _q) list.Add(r);
             return list;
         }
@@ -447,7 +480,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         public void Clear()
         {
             while (_q.TryDequeue(out _)) { }
-            // Pliku nie czyścimy (to log historyczny). Jeśli chcesz rotację — daj znać.
+            // Pliku nie czyścimy (to log historyczny). Jeśli chcesz rotację — dorobimy osobno.
         }
 
         private void EnsureHeader()
@@ -460,17 +493,21 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
 
                 if (!File.Exists(_path) || new FileInfo(_path).Length == 0)
                 {
-                    File.AppendAllText(_path, RegimeAuditCsv.Header() + Environment.NewLine,
+                    File.AppendAllText(
+                        _path,
+                        SigmaAuditCsv.Header() + Environment.NewLine,
                         new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 }
             }
         }
 
-        private void AppendRow(RegimeAuditRecord r)
+        private void AppendRow(SigmaAuditRecord r)
         {
             lock (_fileLock)
             {
-                File.AppendAllText(_path, RegimeAuditCsv.Row(r) + Environment.NewLine,
+                File.AppendAllText(
+                    _path,
+                    SigmaAuditCsv.Row(r) + Environment.NewLine,
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
         }

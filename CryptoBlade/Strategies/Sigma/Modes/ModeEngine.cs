@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using CryptoBlade.Strategies.Sigma.Regimes;
-
-namespace CryptoBlade.Strategies.Sigma.Modes
+﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
     public interface IMode
     {
@@ -58,7 +54,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
     public sealed class ModeEngine
     {
         private readonly SigmaStrategyOptions _options;
-        private readonly IRegimeAuditSink? _audit;
+        private readonly ISigmaAuditSink? _audit;
 
         // Tryby zarejestrowane przez strategię.
         private readonly IReadOnlyDictionary<Mode, IMode> _modes;
@@ -71,7 +67,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             IMode momentumMode,
             IMode meanReversionMode,
             IMode breakoutMode,
-            IRegimeAuditSink? audit = null)
+            ISigmaAuditSink? audit = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _audit = audit;

@@ -102,10 +102,6 @@ namespace CryptoBlade.Strategies.Sigma
         /// Aktualny ticker symbolu (BestBid/BestAsk, LastPrice, MarkPrice, IndexPrice,
         /// FundingRate, NextFundingTime, itp.).
         /// </param>
-        /// <param name="spreadBpsLive">
-        /// Live spread z orderbooka (bps), jeśli dostępny; w przeciwnym razie null
-        /// i zostanie użyty fallback z tickera.
-        /// </param>
         /// <param name="publicTrades">
         /// Public trades dla symbolu, wykorzystywane do wyliczenia ΔCVD 5m.
         /// Jeśli null lub puste, ΔCVD będzie NaN.
@@ -132,10 +128,9 @@ namespace CryptoBlade.Strategies.Sigma
         /// symbolu z BTC na TF=15m.
         /// </param>
         public void Build(
-            IReadOnlyDictionary<TimeFrame, Quote[]> quotesByTimeFrame,
+            Dictionary<TimeFrame, QuoteQueue> quotesByTimeFrame,
             Quote[] btcQuotes15m,
             Ticker ticker,
-            double? spreadBpsLive,
             IReadOnlyCollection<PublicTrade>? publicTrades,
             IReadOnlyList<LiquidationEvent>? liqs20m,
             IReadOnlyList<OpenInterestPoint>? openInterestPoints1h,
@@ -144,26 +139,27 @@ namespace CryptoBlade.Strategies.Sigma
             int vwapSlopeWindow = 60,
             int corrWindow = 60)
         {
-            if (quotesByTimeFrame == null) throw new ArgumentNullException(nameof(quotesByTimeFrame));
-            if (btcQuotes15m == null) throw new ArgumentNullException(nameof(btcQuotes15m));
-            if (ticker == null) throw new ArgumentNullException(nameof(ticker));
+            ArgumentNullException.ThrowIfNull(quotesByTimeFrame);
+            ArgumentNullException.ThrowIfNull(btcQuotes15m);
+            ArgumentNullException.ThrowIfNull(ticker);
 
             // Wyciągamy świece per TF (jeśli brak – pusta tablica).
+
             Quote[] q1m = quotesByTimeFrame.TryGetValue(TimeFrame.OneMinute, out var q1)
-                ? q1 ?? Array.Empty<Quote>()
-                : Array.Empty<Quote>();
+                ? q1.GetQuotes() ?? []
+                : [];
 
             Quote[] q5m = quotesByTimeFrame.TryGetValue(TimeFrame.FiveMinutes, out var q5)
-                ? q5 ?? Array.Empty<Quote>()
-                : Array.Empty<Quote>();
+                ? q5.GetQuotes() ?? []
+                : [];
 
             Quote[] q15m = quotesByTimeFrame.TryGetValue(TimeFrame.FifteenMinutes, out var q15)
-                ? q15 ?? Array.Empty<Quote>()
-                : Array.Empty<Quote>();
+                ? q15.GetQuotes() ?? []
+                : [];
 
             Quote[] q1h = quotesByTimeFrame.TryGetValue(TimeFrame.OneHour, out var qh)
-                ? qh ?? Array.Empty<Quote>()
-                : Array.Empty<Quote>();
+                ? qh.GetQuotes() ?? []
+                : [];
 
             // 0) Porządkowanie danych (chronologicznie rosnąco)
             SessionHelpers.EnsureSortedByDate(q1m);
@@ -253,8 +249,8 @@ namespace CryptoBlade.Strategies.Sigma
             // 4. Mikrostruktura (spread, ΔCVD, likwidacje)
             // =====================================================================
 
-            // Spread w bps – preferujemy live z orderbooka, fallback z tickera
-            SpreadBps = MarketMetrics.ComputeSpreadBps(spreadBpsLive, ticker);
+            // Spread w bps z tickera
+            SpreadBps = MarketMetrics.ComputeSpreadBps(ticker);
 
             // ΔCVD 5m – z publicTrades, używając generycznego helpera
             DeltaCvd5m = MarketMetrics.ComputeSignedVolumeDelta(

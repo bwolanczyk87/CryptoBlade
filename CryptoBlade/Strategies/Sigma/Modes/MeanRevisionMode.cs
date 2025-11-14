@@ -1,6 +1,4 @@
-﻿using CryptoBlade.Strategies.Sigma.Regimes;
-
-namespace CryptoBlade.Strategies.Sigma.Modes
+﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
     public sealed class MeanReversionMode(SigmaStrategyOptions options) : IMode
     {
