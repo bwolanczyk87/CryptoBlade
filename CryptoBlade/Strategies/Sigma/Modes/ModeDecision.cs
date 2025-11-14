@@ -2,58 +2,68 @@
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    public interface IModeController
+    /// <summary>
+    /// Pojedynczy tryb (Momentum / MeanReversion / Breakout).
+    /// Nie zna scoringu ani tego, czy jest „aktywny”.
+    /// SigmaModeEngine wybiera tryb i tylko jego wywołuje.
+    /// </summary>
+    public interface IMode
     {
         /// <summary>
-        /// Zwraca decyzję wejścia/zarządzania pozycją dla danego reżimu.
+        /// Identyfikator trybu – mapuje się 1:1 na Regime.MM / MR / BO.
         /// </summary>
-        ModeDecision Evaluate(FeatureSnapshot f, DateTime nowUtc, CancellationToken cancel);
-    }
-    public readonly struct ModeDecision(bool buy, bool sell, bool buyExtra, bool sellExtra)
-    {
-        public readonly bool HasBuy = buy, HasSell = sell, HasBuyExtra = buyExtra, HasSellExtra = sellExtra;
-        public static ModeDecision None => new(false, false, false, false);
+        Mode Kind { get; }
+
+        /// <summary>
+        /// Logika wejścia/zarządzania pozycją dla danego trybu.
+        /// Implementacja:
+        /// - jeśli Engine wybrał ten tryb, Execute zostanie wywołane
+        ///   w bieżącym cyklu i może wygenerować sygnał.
+        /// - jeśli Engine wybrał inny tryb, ten Mode nie jest wywoływany.
+        /// </summary>
+        ModeDecision Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel);
     }
 
-    public sealed class EntryPlan
-    {
-        public decimal? EntryPrice { get; init; }           // limit na 50% świecy triggera / retest
-        public decimal? StopLoss { get; init; }             // za ekstremum + 0.5–0.6*ATR5m (min floor)
-        public decimal? TakeProfit1 { get; init; }          // 1R
-        public decimal? TakeProfit2 { get; init; }          // 1.6–2.2R (MM/BO); dla MR opcjonalny
-        public decimal? SizeQuote { get; init; }            // kwota w USDT
-        public string? Reason { get; init; }
-    }
+    /// <summary>
+    /// Decyzja trybu: flaga wejścia/wyjścia i „extra” (silniejszy setup).
+    /// </summary>
 
-    public static class GlobalGates
+
+    /// <summary>
+    /// Globalne bramki (Spread / Macro / Funding / CorrOpposite).
+    /// Używane przez SigmaModeEngine przed scoringiem reżimów.
+    /// </summary>
+    public static class ModeGlobalGates
     {
         /// <summary>
-        /// Globalne bramki: Spread, Macro freeze, Funding window freeze, opcjonalnie hard-halt przy ekstremalnym fundingu.
+        /// Zwraca (ok, reason). ok=false oznacza twardy no-trade na nowe wejścia
+        /// w bieżącym cyklu (można nadal zarządzać istniejącą pozycją).
         /// </summary>
-        public static (bool ok, string reason) Evaluate(FeatureSnapshot f, DateTime nowUtc, SigmaStrategyOptions o)
+        public static (bool ok, string reason) Evaluate(SigmaData d, DateTime nowUtc, SigmaStrategyOptions o)
         {
-            // Spread (twardy)
-            if (!double.IsFinite(f.SpreadBps) || f.SpreadBps > (double)o.MaxSpreadBps)
-                return (false, $"Global gate: Spread {f.SpreadBps:F2} bps > {o.MaxSpreadBps}");
+            // 1) Spread gate (twardy)
+            if (!double.IsFinite(d.SpreadBps) || d.SpreadBps > (double)o.MaxSpreadBps)
+                return (false, $"Global gate: Spread {d.SpreadBps:F2} bps > {o.MaxSpreadBps}");
 
-            // Macro freeze (twardy)
+            // 2) Macro freeze (twardy)
             if (IsMacroFreeze(nowUtc, o))
                 return (false, "Global gate: Macro freeze window");
 
-            // Funding window freeze (twardy) – wokół najbliższego cyklu
-            if (IsFundingFreeze(f, nowUtc, o))
+            // 3) Funding window freeze (twardy) – wokół najbliższego cyklu funding
+            if (IsFundingFreeze(d, nowUtc, o))
                 return (false, "Global gate: Funding window");
 
-            // Correlation gate (twardy): wysoka |ρ| z BTC + przeciwny bias BTC ⇒ blokada
-            if (IsCorrOppositeBlocked(f, o))
-                return (false, $"Global gate: Corr {f.CorrToBtc15m:F3} with opposite BTC bias");
+            // 4) Correlation gate (twardy): wysoka |ρ| z BTC + przeciwny bias BTC ⇒ blokada
+            if (IsCorrOppositeBlocked(d, o))
+                return (false, $"Global gate: Corr {d.CorrToBtc15m:F3} with opposite BTC bias");
 
             return (true, "OK");
         }
 
         internal static bool IsMacroFreeze(DateTime nowUtc, SigmaStrategyOptions o)
         {
-            if (o?.MacroEventsUtc == null || o.MacroEventsUtc.Count == 0) return false;
+            if (o?.MacroEventsUtc == null || o.MacroEventsUtc.Count == 0)
+                return false;
 
             var before = TimeSpan.FromMinutes(o.MacroFreezeMinutesBefore);
             var after = TimeSpan.FromMinutes(o.MacroFreezeMinutesAfter);
@@ -64,26 +74,30 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 if (nowUtc >= t - before && nowUtc <= t + after)
                     return true;
             }
+
             return false;
         }
 
-        internal static bool IsFundingFreeze(FeatureSnapshot f, DateTime nowUtc, SigmaStrategyOptions o)
+        internal static bool IsFundingFreeze(SigmaData d, DateTime nowUtc, SigmaStrategyOptions o)
         {
-            if (!f.NextFundingUtc.HasValue) return false;
+            if (!d.NextFundingUtc.HasValue)
+                return false;
 
-            var dt = DateTime.SpecifyKind(f.NextFundingUtc.Value, DateTimeKind.Utc);
+            var dt = DateTime.SpecifyKind(d.NextFundingUtc.Value, DateTimeKind.Utc);
+
             var from = dt.AddMinutes(-o.FundingFreezeMinutesBefore);
             var to = dt.AddMinutes(o.FundingFreezeMinutesAfter);
 
             return nowUtc >= from && nowUtc <= to;
         }
 
-
-        internal static bool IsCorrOppositeBlocked(FeatureSnapshot f, SigmaStrategyOptions o)
+        internal static bool IsCorrOppositeBlocked(SigmaData d, SigmaStrategyOptions o)
         {
-            if (!double.IsFinite(f.CorrToBtc15m)) return false;
-            return Math.Abs(f.CorrToBtc15m) >= (double)o.CorrOppositeBlock
-                   && f.BtcBiasOpposite;
+            if (!double.IsFinite(d.CorrToBtc15m))
+                return false;
+
+            return Math.Abs(d.CorrToBtc15m) >= (double)o.CorrOppositeBlock
+                && d.BtcBiasOpposite;
         }
     }
 }

@@ -8,26 +8,26 @@ using System.Linq;
 
 namespace CryptoBlade.Strategies.Sigma.Regimes
 {
-    public enum Regime { None, MM, MR, BO }
+
 
     public readonly record struct RegimeScores(double Momentum, double MeanReversion, double Breakout)
     {
         public static readonly RegimeScores Zero = new(0,0,0);
-        public double this[Regime r] => r switch
+        public double this[Mode r] => r switch
         {
-            Regime.MM => Momentum,
-            Regime.MR => MeanReversion,
-            Regime.BO => Breakout,
+            Mode.MM => Momentum,
+            Mode.MR => MeanReversion,
+            Mode.BO => Breakout,
             _ => 0
         };
     }
 
-    public readonly record struct RegimeState(Regime Mode, DateTime SinceUtc, RegimeScores Scores);
+    public readonly record struct RegimeState(Mode Mode, DateTime SinceUtc, RegimeScores Scores);
 
     public readonly record struct RegimeDecision(
         bool Changed,
         RegimeState State,
-        Regime ProposedMode,
+        Mode ProposedMode,
         double ProposedScore,
         double SecondBestScore,
         double Margin);
@@ -40,7 +40,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         static readonly ConcurrentDictionary<string, Queue<double>> _atrHist = new();
         static readonly ConcurrentDictionary<string, object> _atrLocks = new();
 
-        public static RegimeScores Score(FeatureSnapshot f, SigmaStrategyOptions o)
+        public static RegimeScores Score(SigmaData f, SigmaStrategyOptions o)
         {
             double mm = 0, mr = 0, bo = 0;
 
@@ -139,7 +139,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
         // ====== klasyfikacja: argmax + histereza/dwell/minScore/minMargin ======
 
         public static RegimeDecision Classify(
-            FeatureSnapshot f,
+            SigmaData f,
             RegimeState prev,
             DateTime nowUtc,
             SigmaStrategyOptions o,
@@ -148,16 +148,16 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             double minSwitchGain = 8.0)    // dodatkowy warunek gdy dwell minął
         {
             var scores = Score(f, o);
-            var dict = new Dictionary<Regime, double>
+            var dict = new Dictionary<Mode, double>
             {
-                { Regime.MM, scores.Momentum },
-                { Regime.MR, scores.MeanReversion },
-                { Regime.BO, scores.Breakout }
+                { Mode.MM, scores.Momentum },
+                { Mode.MR, scores.MeanReversion },
+                { Mode.BO, scores.Breakout }
             };
 
             // Sticky boost w okresie histerezy
             var dwell = TimeSpan.FromMinutes(o.HysteresisLockMinutes);
-            if (prev.Mode != Regime.None && (nowUtc - prev.SinceUtc) < dwell)
+            if (prev.Mode != Mode.None && (nowUtc - prev.SinceUtc) < dwell)
                 dict[prev.Mode] += stickyBoost;
 
             // argmax
@@ -171,7 +171,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
             bool passMinScore  = proposedScore >= (double)o.MinScore;
             bool passMinMargin = margin        >= (double)o.MinMargin;
 
-            Regime next = prev.Mode;
+            Mode next = prev.Mode;
             DateTime since = prev.SinceUtc;
 
             // pozwól na przełączenie:

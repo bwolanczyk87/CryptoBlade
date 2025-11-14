@@ -66,14 +66,13 @@ namespace CryptoBlade.Strategies.Sigma
     public class SigmaStrategy : TradingStrategyBase
     {
         private readonly IOptions<SigmaStrategyOptions> _options;
-        private readonly BybitSigmaDataProvider _data;
         private readonly IModeController _mm;
         private readonly IModeController _mr;
         private readonly IModeController _bo;
         private readonly IRegimeAuditSink _audit;
 
         private DateTime _lastRegimeDecisionUtc = DateTime.MinValue;
-        private RegimeState _regimeState = new(Regime.None, DateTime.MinValue, RegimeScores.Zero);
+        private RegimeState _regimeState = new(Mode.None, DateTime.MinValue, RegimeScores.Zero);
 
         private readonly RollingSignedQty _cvd5m = new(TimeSpan.FromMinutes(5));
         private readonly LiquidationBuffer _liq20m = new(TimeSpan.FromMinutes(20));
@@ -89,8 +88,7 @@ namespace CryptoBlade.Strategies.Sigma
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
             _options = options;
-            _data = new BybitSigmaDataProvider(restClient);
-            _mm = new MomentumController(options.Value);
+            _mm = new MomentumMode(options.Value);
             _mr = new MeanReversionController();
             _bo = new BreakoutController();
 
@@ -144,14 +142,13 @@ namespace CryptoBlade.Strategies.Sigma
 
             var liqs = _liq20m.Snapshot(nowUtc);
 
-            var f = await FeatureSnapshot.BuildAsync(
+            var f = await SigmaData.BuildAsync(
                 Symbol,
                 quotes1m, quotes5m, quotes15m, quotes1h,
                 Ticker!,
                 spreadLive,
                 dCvdLive,
                 liqs,
-                _data,
                 cancel,
                 sessionStartHourUtc: 0,
                 vwapSlopeWindow: 60);
@@ -182,9 +179,9 @@ namespace CryptoBlade.Strategies.Sigma
             {
                 var ctrl = _regimeState.Mode switch
                 {
-                    Regime.MM => _mm,
-                    Regime.MR => _mr,
-                    Regime.BO => _bo,
+                    Mode.MM => _mm,
+                    Mode.MR => _mr,
+                    Mode.BO => _bo,
                     _ => null
                 };
                 if (ctrl != null) tradeDecision = ctrl.Evaluate(f, nowUtc, cancel);

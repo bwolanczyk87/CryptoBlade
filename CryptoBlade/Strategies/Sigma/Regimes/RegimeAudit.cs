@@ -196,7 +196,7 @@ namespace CryptoBlade.Strategies.Sigma.Regimes
     {
         // Preferowany overload – korzysta z pełnego RegimeDecision
         public static RegimeAuditRecord MakeRecord(
-            FeatureSnapshot f,
+            SigmaData f,
             RegimeState prev,
             DateTime nowUtc,
             SigmaStrategyOptions o,

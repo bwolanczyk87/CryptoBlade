@@ -273,5 +273,15 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             if (x < -eps) return -1;
             return 0;
         }
+
+        public static double ClampFinite(double v, double lo, double hi, bool allowNaN)
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v))
+                return allowNaN ? double.NaN : 0.0;
+
+            if (v < lo) return lo;
+            if (v > hi) return hi;
+            return v;
+        }
     }
 }
