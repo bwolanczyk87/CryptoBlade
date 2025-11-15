@@ -56,10 +56,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
     public sealed class ModeEngine
     {
         private readonly SigmaStrategyOptions _options;
-        private readonly ISigmaAuditSink? _audit;
 
         // Tryby zarejestrowane przez strategię.
-        private readonly IReadOnlyDictionary<Mode, IMode> _modes;
+        private readonly Dictionary<Mode, IMode> _modes;
 
         // Bieżący stan (Mode + Since + Scores)
         private ModeState _state;
@@ -83,7 +82,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             ISigmaAuditSink? audit = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
-            _audit = audit;
 
             _modes = new Dictionary<Mode, IMode>
             {

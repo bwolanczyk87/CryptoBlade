@@ -37,7 +37,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             _mm = new MomentumMode(options.Value);
             _mr = new MeanReversionMode(options.Value);
-            _bo = new BreakoutMode();
+            _bo = new BreakoutMode(options.Value);
 
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
@@ -87,6 +87,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             // Build SigmaData – wszystkie obliczenia lecą w środku
             sigmaData.Build(
+                nowUtc,
                 QuoteQueues,
                 btcQuotes15m,
                 Ticker,

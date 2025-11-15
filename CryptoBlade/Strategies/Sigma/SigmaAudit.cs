@@ -61,7 +61,7 @@ namespace CryptoBlade.Strategies.Sigma
     /// - wybór trybu (Selected/Prev/Proposed),
     /// - parametry progów (MinScore, MinMargin, hysteresis),
     /// - pełne score'y (MM/MR/BO),
-    /// - cechy z SigmaData.
+    /// - cechy z SigmaData + surowy snapshot rynku.
     /// </summary>
     public sealed class SigmaAuditRecord
     {
@@ -206,6 +206,77 @@ namespace CryptoBlade.Strategies.Sigma
 
         [AuditColumn(Order = 43, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
         public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji trybu
+
+        // Surowy snapshot tickera
+        [AuditColumn(Order = 50, Decimals = 2)]
+        public decimal? LastPrice { get; init; }
+
+        [AuditColumn(Order = 51, Decimals = 2)]
+        public decimal? BestBidPrice { get; init; }
+
+        [AuditColumn(Order = 52, Decimals = 2)]
+        public decimal? BestAskPrice { get; init; }
+
+        [AuditColumn(Order = 53, Decimals = 2)]
+        public decimal? MarkPrice { get; init; }
+
+        [AuditColumn(Order = 54, Decimals = 2)]
+        public decimal? IndexPrice { get; init; }
+
+        // Ostatni bar 1m
+        [AuditColumn(Order = 55, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime? Last1mTimeUtc { get; init; }
+
+        [AuditColumn(Order = 56, Decimals = 2)]
+        public decimal? Last1mOpen { get; init; }
+
+        [AuditColumn(Order = 57, Decimals = 2)]
+        public decimal? Last1mHigh { get; init; }
+
+        [AuditColumn(Order = 58, Decimals = 2)]
+        public decimal? Last1mLow { get; init; }
+
+        [AuditColumn(Order = 59, Decimals = 2)]
+        public decimal? Last1mClose { get; init; }
+
+        [AuditColumn(Order = 60, Decimals = 4)]
+        public decimal? Last1mVolume { get; init; }
+
+        [AuditColumn(Order = 61, BoolAsInt = true)]
+        public bool SweepReclaimUp5m { get; init; }
+
+        [AuditColumn(Order = 62, BoolAsInt = true)]
+        public bool SweepReclaimDown5m { get; init; }
+
+        [AuditColumn(Order = 63, Decimals = 2)]
+        public double SweepUpOvershootBps5m { get; init; }
+
+        [AuditColumn(Order = 64, Decimals = 2)]
+        public double SweepDownOvershootBps5m { get; init; }
+
+        [AuditColumn(Order = 65, Decimals = 6)]
+        public double DeltaCvdPrev5m { get; init; }
+
+        [AuditColumn(Order = 66, BoolAsInt = true)]
+        public bool CvdFlipUp5m { get; init; }
+
+        [AuditColumn(Order = 67, BoolAsInt = true)]
+        public bool CvdFlipDown5m { get; init; }
+
+        [AuditColumn(Order = 68, Decimals = 3)]
+        public double ZDvwapPrev { get; init; }
+
+        [AuditColumn(Order = 69, BoolAsInt = true)]
+        public bool OrBreakoutRetestUp5m { get; init; }
+
+        [AuditColumn(Order = 70, BoolAsInt = true)]
+        public bool OrBreakoutRetestDown5m { get; init; }
+
+        [AuditColumn(Order = 71, Decimals = 2)]
+        public double OrRetestDepthBpsUp5m { get; init; }
+
+        [AuditColumn(Order = 72, Decimals = 2)]
+        public double OrRetestDepthBpsDown5m { get; init; }
     }
 
     // ======== BUDOWANIE REKORDU (z ModeEngine.Classify) ========
@@ -275,6 +346,7 @@ namespace CryptoBlade.Strategies.Sigma
                 Atr1hAbs = data.Atr1hAbs,
                 ZDvwap = data.ZDvwap,
                 ZSlopeDvwap = data.ZSlopeDvwap,
+                ZDvwapPrev = data.ZDvwapPrev,
                 AutoCorr5m = data.AutoCorr5m,
                 Bbw15mPct = data.Bbw15mPct,
                 Bbw15mRaw = data.Bbw15mRaw,
@@ -302,6 +374,32 @@ namespace CryptoBlade.Strategies.Sigma
 
                 SinceUtc = decision.State.SinceUtc,
                 LastDecisionUtc = lastDecisionUtc,
+
+                LastPrice = data.LastPrice,
+                BestBidPrice = data.BestBidPrice,
+                BestAskPrice = data.BestAskPrice,
+                MarkPrice = data.MarkPrice,
+                IndexPrice = data.IndexPrice,
+
+                Last1mTimeUtc = data.Last1mTimeUtc,
+                Last1mOpen = data.Last1mOpen,
+                Last1mHigh = data.Last1mHigh,
+                Last1mLow = data.Last1mLow,
+                Last1mClose = data.Last1mClose,
+                Last1mVolume = data.Last1mVolume,
+
+                SweepReclaimUp5m = data.SweepReclaimUp5m,
+                SweepReclaimDown5m = data.SweepReclaimDown5m,
+                SweepUpOvershootBps5m = data.SweepUpOvershootBps5m,
+                SweepDownOvershootBps5m = data.SweepDownOvershootBps5m,
+                DeltaCvdPrev5m = data.DeltaCvdPrev5m,
+                CvdFlipUp5m = data.CvdFlipUp5m,
+                CvdFlipDown5m = data.CvdFlipDown5m,
+
+                OrBreakoutRetestUp5m = data.OrBreakoutRetestUp5m,
+                OrBreakoutRetestDown5m = data.OrBreakoutRetestDown5m,
+                OrRetestDepthBpsUp5m = data.OrRetestDepthBpsUp5m,
+                OrRetestDepthBpsDown5m = data.OrRetestDepthBpsDown5m,
             };
         }
     }

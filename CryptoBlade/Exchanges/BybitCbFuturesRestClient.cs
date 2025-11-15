@@ -1,5 +1,6 @@
 ﻿using Bybit.Net.Enums;
 using Bybit.Net.Interfaces.Clients;
+using Bybit.Net.Objects.Models.V5;
 using CryptoBlade.Configuration;
 using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
@@ -95,6 +96,124 @@ namespace CryptoBlade.Exchanges
                 return true;
             m_logger.LogError($"{symbol}: Error canceling order: {error}");
 
+            return false;
+        }
+
+        public async Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(
+            string symbol,
+            OrderSide side,
+            decimal quantity,
+            decimal price,
+            decimal takeProfitTriggerPrice,
+            decimal takeProfitLimitPrice,
+            decimal stopLossTriggerPrice,
+            decimal stopLossLimitPrice,
+            CancellationToken cancel = default)
+        {
+            var positionIdx = side == OrderSide.Buy
+                ? PositionIdx.BuyHedgeMode
+                : PositionIdx.SellHedgeMode;
+
+            for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
+            {
+                m_logger.LogInformation(
+                    $"{symbol} Placing {side} limit order qty '{quantity}' @ '{price}' " +
+                    $"with TP(trig/limit): '{takeProfitTriggerPrice}' / '{takeProfitLimitPrice}', " +
+                    $"SL(trig/limit): '{stopLossTriggerPrice}' / '{stopLossLimitPrice}', attempt: {attempt}");
+
+                var orderRes =
+                    await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>
+                        .RetryTooManyVisits
+                        .ExecuteAsync(async () =>
+                            await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
+                                category: m_category,
+                                symbol: symbol,
+                                side: side,
+                                type: NewOrderType.Limit,
+                                quantity: quantity,
+                                price: price,
+                                positionIdx: positionIdx,
+                                reduceOnly: false,
+                                timeInForce: TimeInForce.PostOnly,
+                                stopLossTakeProfitMode: StopLossTakeProfitMode.Partial,
+                                takeProfit: takeProfitTriggerPrice,
+                                stopLoss: stopLossTriggerPrice,
+                                takeProfitTriggerBy: TriggerType.MarkPrice,
+                                stopLossTriggerBy: TriggerType.MarkPrice,
+                                takeProfitOrderType: OrderType.Limit,
+                                stopLossOrderType: OrderType.Limit,
+                                takeProfitLimitPrice: takeProfitLimitPrice,
+                                stopLossLimitPrice: stopLossLimitPrice,
+
+                                ct: cancel
+                            ));
+
+                if (!orderRes.GetResultOrError(out var orderIdResult, out _))
+                    continue;
+
+                var orderStatusRes =
+                    await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
+                        .RetryTooManyVisitsBybitResponse
+                        .ExecuteAsync(async () =>
+                            await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
+                                category: m_category,
+                                symbol: symbol,
+                                orderId: orderIdResult.OrderId,
+                                ct: cancel));
+
+                if (orderStatusRes.GetResultOrError(out var orderStatus, out _))
+                {
+                    var order = orderStatus.List
+                        .FirstOrDefault(x => string.Equals(x.OrderId, orderIdResult.OrderId, StringComparison.Ordinal));
+
+                    if (order != null && order.Status == OrderStatus.Cancelled)
+                    {
+                        m_logger.LogDebug($"{symbol}: {side} order was cancelled. Adjusting price.");
+
+                        var orderBook =
+                            await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderbook>
+                                .RetryTooManyVisits
+                                .ExecuteAsync(async () =>
+                                    await m_bybitRestClient.V5Api.ExchangeData.GetOrderbookAsync(
+                                        m_category,
+                                        symbol,
+                                        limit: 1,
+                                        cancel));
+
+                        if (orderBook.GetResultOrError(out var orderBookData, out _))
+                        {
+                            if (side == OrderSide.Buy)
+                            {
+                                var bestBid = orderBookData.Bids.FirstOrDefault();
+                                if (bestBid != null)
+                                    price = bestBid.Price;
+                            }
+                            else
+                            {
+                                var bestAsk = orderBookData.Asks.FirstOrDefault();
+                                if (bestAsk != null)
+                                    price = bestAsk.Price;
+                            }
+                        }
+
+                        // pętla: jeszcze raz spróbuj z nową ceną
+                        continue;
+                    }
+
+                    m_logger.LogInformation(
+                        $"{symbol} {side} limit order placed qty '{quantity}' @ '{price}' " +
+                        $"with attached TP/SL (LIMIT). OrderId={orderIdResult.OrderId}");
+
+                    return true;
+                }
+
+                m_logger.LogInformation(
+                    $"{symbol} Error getting order status for {side} order: {orderStatusRes.Error}");
+
+                return false;
+            }
+
+            m_logger.LogInformation($"{symbol} could not place {side} limit order with TP/SL.");
             return false;
         }
 

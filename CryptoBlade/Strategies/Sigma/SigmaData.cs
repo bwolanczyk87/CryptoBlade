@@ -20,15 +20,10 @@ namespace CryptoBlade.Strategies.Sigma
     /// Wszystkie dane wejściowe pochodzą z SigmaStrategy (która pobiera je z giełdy
     /// i innych źródeł), a SigmaData zajmuje się wyłącznie obliczeniami i agregacją.
     /// </summary>
-    public sealed class SigmaData
+    public sealed class SigmaData(string symbol)
     {
         // ====== Identyfikacja ======
-        public string Symbol { get; }
-
-        public SigmaData(string symbol)
-        {
-            Symbol = symbol ?? throw new ArgumentNullException(nameof(symbol));
-        }
+        public string Symbol { get; } = symbol ?? throw new ArgumentNullException(nameof(symbol));
 
         // ====== Cechy surowe (NaN oznacza "brak/niepoliczalne") ======
 
@@ -38,7 +33,9 @@ namespace CryptoBlade.Strategies.Sigma
         public double Atr1hAbs { get; private set; }          // ATR_1h w punktach
         public double ZDvwap { get; private set; }            // z-score od D-VWAP (kotwica = start sesji)
         public VwapSource VwapKindUsed { get; private set; } = VwapSource.None;
+        public double ZDvwapPrev { get; private set; }        // z-score z poprzedniego 1m bara intraday
         public double ZSlopeDvwap { get; private set; }       // t-stat nachylenia D-VWAP (HAC/Newey-West)
+
         public double AutoCorr5m { get; private set; }        // autokorelacja lag-1 (shrunk) na 5m
         public double Bbw15mPct { get; private set; }         // percentyl BBWidth (mid-rank, 0..100) na 15m
         public double Bbw15mRaw { get; private set; }         // surowa szerokość BB (Upper-Lower)/SMA * 100 na 15m
@@ -54,14 +51,30 @@ namespace CryptoBlade.Strategies.Sigma
         public DateTime? NextFundingUtc { get; private set; }     // czas kolejnego cyklu
 
         public double BasisPct { get; private set; }          // (Mark-Index)/Index * 100
-        public double DeltaCvd5m { get; private set; }        // ΔCVD 5m
+        public double DeltaCvd5m { get; private set; }        // ΔCVD 5m (ostatnie 5 minut)
+        public double DeltaCvdPrev5m { get; private set; }    // ΔCVD z poprzedniego 5-minutowego okna
+        public bool CvdFlipUp5m { get; private set; }         // flip CVD: poprzednie 5m < 0, bieżące > 0
+        public bool CvdFlipDown5m { get; private set; }       // flip CVD: poprzednie 5m > 0, bieżące < 0
         public double DistToLiqPct { get; private set; }      // dystans do najbliższego dużego klastra likwidacji w %
 
         // Struktura/patterny (liczone przez PatternDetectors)
         public bool HasInsideOrNr7 { get; private set; }
+
+        // Sweep -> reclaim na 5m (lokalne polowanie na płynność)
+        public bool SweepReclaimUp5m { get; private set; }          // sweep wcześniejszego high + reclaim (knot powyżej, close poniżej)
+        public bool SweepReclaimDown5m { get; private set; }        // sweep wcześniejszego low + reclaim (knot poniżej, close powyżej)
+        public double SweepUpOvershootBps5m { get; private set; }   // ile bps powyżej "swing high" poszedł knot
+        public double SweepDownOvershootBps5m { get; private set; } // ile bps poniżej "swing low" poszedł knot
+
         public bool DonchianBreakUp { get; private set; }
         public bool DonchianBreakDown { get; private set; }
         public bool DonchianBreak => DonchianBreakUp || DonchianBreakDown;
+
+        // Breakout OR + retest na 5m (dla BreakoutMode)
+        public bool OrBreakoutRetestUp5m { get; private set; }
+        public bool OrBreakoutRetestDown5m { get; private set; }
+        public double OrRetestDepthBpsUp5m { get; private set; }
+        public double OrRetestDepthBpsDown5m { get; private set; }
 
         // Sygnały pomocnicze
         public bool Bbw15mExpanding { get; private set; }     // ekspansja BBW vs kilka barów wstecz
@@ -71,6 +84,23 @@ namespace CryptoBlade.Strategies.Sigma
         // Korelacja z BTC (NaN = brak)
         public double CorrToBtc15m { get; private set; }      // Pearson r z BTC na 15m
         public bool BtcBiasOpposite { get; private set; }     // heurystyka pod Supervisor/gate
+
+        // ====== Surowy snapshot rynku (przydatny do audytu / triggerów) ======
+
+        // Ticker (ostatnia znana wartość w momencie budowy SigmaData)
+        public decimal? LastPrice { get; private set; }
+        public decimal? BestBidPrice { get; private set; }
+        public decimal? BestAskPrice { get; private set; }
+        public decimal? MarkPrice { get; private set; }
+        public decimal? IndexPrice { get; private set; }
+
+        // Ostatni bar 1m (po sortowaniu po Date)
+        public DateTime? Last1mTimeUtc { get; private set; }
+        public decimal? Last1mOpen { get; private set; }
+        public decimal? Last1mHigh { get; private set; }
+        public decimal? Last1mLow { get; private set; }
+        public decimal? Last1mClose { get; private set; }
+        public decimal? Last1mVolume { get; private set; }
 
         // =====================================================================
         // BUILD – wypełnia bieżącą instancję SigmaData
@@ -128,6 +158,7 @@ namespace CryptoBlade.Strategies.Sigma
         /// symbolu z BTC na TF=15m.
         /// </param>
         public void Build(
+            DateTime nowUtc,
             Dictionary<TimeFrame, QuoteQueue> quotesByTimeFrame,
             Quote[] btcQuotes15m,
             Ticker? ticker,
@@ -168,6 +199,30 @@ namespace CryptoBlade.Strategies.Sigma
             SessionHelpers.EnsureSortedByDate(q1h);
             SessionHelpers.EnsureSortedByDate(btcQuotes15m);
 
+            // 0.1) Snapshot tickera
+            LastPrice = ticker.LastPrice;
+            BestBidPrice = ticker.BestBidPrice;
+            BestAskPrice = ticker.BestAskPrice;
+            MarkPrice = ticker.MarkPrice;
+            IndexPrice = ticker.IndexPrice;
+
+            // 0.2) Snapshot ostatniej świecy 1m (po sortowaniu)
+            if (q1m.Length > 0)
+            {
+                var lastBar = q1m[^1];
+                Last1mTimeUtc = lastBar.Date;
+                Last1mOpen = lastBar.Open;
+                Last1mHigh = lastBar.High;
+                Last1mLow = lastBar.Low;
+                Last1mClose = lastBar.Close;
+                Last1mVolume = lastBar.Volume;
+            }
+            else
+            {
+                Last1mTimeUtc = null;
+                Last1mOpen = Last1mHigh = Last1mLow = Last1mClose = Last1mVolume = null;
+            }
+
             // =====================================================================
             // 1. Trend / value / zmienność (TF: 1H / 5m / 15m)
             // =====================================================================
@@ -196,13 +251,32 @@ namespace CryptoBlade.Strategies.Sigma
 
             VwapKindUsed = vwapSrc;
 
-            // Z-score do VWAP (clamp |z|<=10)
+            // Z-score do VWAP (clamp |z|<=10) dla bieżącej ceny
             ZDvwap = VwapHelpers.ComputeZDvwap(ticker?.LastPrice, lastVwap, tpStdDay);
+
+            // Poprzedni z-score względem DVWAP – z poprzedniego 1m bara intraday
+            ZDvwapPrev = double.NaN;
+
+            if (vwapSeries.Length >= 2
+                && q1m.Length > 0
+                && double.IsFinite(tpStdDay)
+                && tpStdDay > 0.0)
+            {
+                var intraday = q1m.Where(q => q.Date >= anchor).ToArray();
+                if (intraday.Length >= 2)
+                {
+                    var prevClose = intraday[^2].Close;
+                    var prevVwap = vwapSeries[^2];
+
+                    ZDvwapPrev = VwapHelpers.ComputeZDvwap(prevClose, prevVwap, tpStdDay);
+                }
+            }
 
             // t-stat nachylenia DVWAP (HAC/Newey–West)
             ZSlopeDvwap = VwapHelpers.ComputeSlopeTstatHAC(
                 vwapSeries,
                 Math.Max(10, vwapSlopeWindow));
+
 
             // =====================================================================
             // 3. Struktura zmienności / patterny (5m / 15m / 1m)
@@ -226,13 +300,6 @@ namespace CryptoBlade.Strategies.Sigma
                 stdDevMultiplier: 2.0,
                 back: 2);
 
-            // Inside / NR7 na 5m – lokalna kompresja
-            HasInsideOrNr7 = PatternDetectors.HasInsideBarOrNr7Pattern(q5m);
-
-            // Donchian breakout na 15m – pod reżim BO
-            (DonchianBreakUp, DonchianBreakDown) =
-                PatternDetectors.DetectDonchianBreakout(q15m, period: 20);
-
             // Opening Range (np. ORB) z pierwszych 30 minut sesji (na 1m)
             var intraday1m = q1m
                 .Where(b => b.Date >= anchor)
@@ -245,9 +312,41 @@ namespace CryptoBlade.Strategies.Sigma
             OpeningRangeHigh = (orHigh == 0m && orLow == 0m) ? null : orHigh;
             OpeningRangeLow = (orHigh == 0m && orLow == 0m) ? null : orLow;
 
+            // Inside / NR7 na 5m – lokalna kompresja
+            HasInsideOrNr7 = PatternDetectors.HasInsideBarOrNr7Pattern(q5m);
+
+            // Sweep -> reclaim na 5m: lokalne polowanie na płynność (Momentum)
+            (SweepReclaimUp5m,
+             SweepReclaimDown5m,
+             SweepUpOvershootBps5m,
+             SweepDownOvershootBps5m) =
+                PatternDetectors.DetectSweepReclaimOnLastBar(
+                    q5m,
+                    lookbackBars: 12,
+                    minOvershootBps: 1.0);
+
+            // Donchian breakout na 15m – pod reżim BO
+            (DonchianBreakUp, DonchianBreakDown) =
+                PatternDetectors.DetectDonchianBreakout(q15m, period: 20);
+
+            // OR breakout + retest na 5m – kluczowy pattern dla BreakoutMode
+            (OrBreakoutRetestUp5m,
+             OrBreakoutRetestDown5m,
+             OrRetestDepthBpsUp5m,
+             OrRetestDepthBpsDown5m) =
+                PatternDetectors.DetectOpeningRangeBreakoutWithRetestOnLastBars(
+                    q5m,
+                    OpeningRangeHigh,
+                    OpeningRangeLow,
+                    breakoutEpsPct: 0.05,
+                    retestDepthPct: 0.15);
+
             // =====================================================================
             // 4. Mikrostruktura (spread, ΔCVD, likwidacje)
             // =====================================================================
+
+            // Używamy jednego "now" dla wszystkich metryk czasowych w tym bloku.
+            var now = DateTime.UtcNow;
 
             // Spread w bps z tickera
             SpreadBps = MarketMetrics.ComputeSpreadBps(ticker);
@@ -255,14 +354,32 @@ namespace CryptoBlade.Strategies.Sigma
             // ΔCVD 5m – z publicTrades, używając generycznego helpera
             DeltaCvd5m = MarketMetrics.ComputeSignedVolumeDelta(
                 publicTrades,
-                DateTime.UtcNow,
+                now,
                 TimeSpan.FromMinutes(5));
+
+            // Poprzednie 5m – do detekcji flipu CVD (zmiana znaku)
+            DeltaCvdPrev5m = MarketMetrics.ComputeSignedVolumeDelta(
+                publicTrades,
+                now - TimeSpan.FromMinutes(5),
+                TimeSpan.FromMinutes(5));
+
+            // Flipy CVD – tylko jeśli obie wartości są sensowne
+            if (double.IsNaN(DeltaCvd5m) || double.IsNaN(DeltaCvdPrev5m))
+            {
+                CvdFlipUp5m = false;
+                CvdFlipDown5m = false;
+            }
+            else
+            {
+                CvdFlipUp5m = DeltaCvdPrev5m < 0 && DeltaCvd5m > 0;
+                CvdFlipDown5m = DeltaCvdPrev5m > 0 && DeltaCvd5m < 0;
+            }
 
             // Dystans do najbliższego "silnego" klastra likwidacji (w %)
             DistToLiqPct = MarketMetrics.ComputeDistanceToLiqClusterPct(
                 liguidations,
                 ticker?.LastPrice ?? 0m,
-                DateTime.UtcNow,
+                now,
                 lookbackMinutes: 20.0,
                 binStepPct: 0.10,
                 pctl: 75.0,
@@ -349,6 +466,7 @@ namespace CryptoBlade.Strategies.Sigma
             AtrPct1h = StatisticsHelpers.ClampFinite(AtrPct1h, 0, 100, allowNaN: true);
             Atr1hAbs = StatisticsHelpers.ClampFinite(Atr1hAbs, 0, 1e12, allowNaN: true);
             ZDvwap = StatisticsHelpers.ClampFinite(ZDvwap, -10, 10, allowNaN: true);
+            ZDvwapPrev = StatisticsHelpers.ClampFinite(ZDvwapPrev, -10, 10, allowNaN: true);
             ZSlopeDvwap = StatisticsHelpers.ClampFinite(ZSlopeDvwap, -25, 25, allowNaN: true);
             AutoCorr5m = StatisticsHelpers.ClampFinite(AutoCorr5m, -1, 1, allowNaN: true);
             Bbw15mPct = StatisticsHelpers.ClampFinite(Bbw15mPct, 0, 100, allowNaN: true);
@@ -376,6 +494,9 @@ namespace CryptoBlade.Strategies.Sigma
 
             // --- Korelacja BTC ---
             CorrToBtc15m = StatisticsHelpers.ClampFinite(CorrToBtc15m, -1, 1, allowNaN: true);
+
+            OrRetestDepthBpsUp5m = StatisticsHelpers.ClampFinite(OrRetestDepthBpsUp5m, 0, 1e4, allowNaN: true);
+            OrRetestDepthBpsDown5m = StatisticsHelpers.ClampFinite(OrRetestDepthBpsDown5m, 0, 1e4, allowNaN: true);
         }
     }
 }

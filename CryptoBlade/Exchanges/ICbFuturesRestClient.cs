@@ -20,6 +20,17 @@ namespace CryptoBlade.Exchanges
             string orderId,
             CancellationToken cancel = default);
 
+        Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(
+            string symbol,
+            Bybit.Net.Enums.OrderSide side,
+            decimal quantity,
+            decimal price,
+            decimal takeProfitTriggerPrice,
+            decimal takeProfitLimitPrice,
+            decimal stopLossTriggerPrice,
+            decimal stopLossLimitPrice,
+            CancellationToken cancel = default);
+
         Task<bool> PlaceLimitBuyOrderAsync(
             string symbol,
             decimal quantity,
