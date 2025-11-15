@@ -283,5 +283,43 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             if (v > hi) return hi;
             return v;
         }
+
+        public static double Safe(double v, double min = double.NegativeInfinity, double max = double.PositiveInfinity)
+        {
+            if (!double.IsFinite(v))
+                return 0.0;
+
+            if (v < min) return min;
+            if (v > max) return max;
+            return v;
+        }
+
+        public static double Normalize01(double x, double min, double max)
+        {
+            if (!double.IsFinite(x) || max <= min)
+                return 0.0;
+
+            var t = (x - min) / (max - min);
+            return t;
+        }
+
+        public static double Clamp01(double x)
+        {
+            if (x < 0.0) return 0.0;
+            if (x > 1.0) return 1.0;
+            return x;
+        }
+
+        /// <summary>
+        /// Znak z martwą strefą eps:
+        /// 1 gdy x &gt; eps, -1 gdy x &lt; -eps, 0 gdy |x| ≤ eps.
+        /// </summary>
+        public static int Sign(double x, double eps)
+        {
+            if (eps < 0) eps = -eps;
+            if (x > eps) return 1;
+            if (x < -eps) return -1;
+            return 0;
+        }
     }
 }

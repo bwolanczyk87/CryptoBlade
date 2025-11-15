@@ -106,7 +106,7 @@ namespace CryptoBlade.Strategies.Sigma
         /// Public trades dla symbolu, wykorzystywane do wyliczenia ΔCVD 5m.
         /// Jeśli null lub puste, ΔCVD będzie NaN.
         /// </param>
-        /// <param name="liqs20m">
+        /// <param name="liguidations">
         /// Likwidacje z ~20 minut dla symbolu, do oszacowania dystansu do klastra liq.
         /// </param>
         /// <param name="openInterestPoints1h">
@@ -130,9 +130,9 @@ namespace CryptoBlade.Strategies.Sigma
         public void Build(
             Dictionary<TimeFrame, QuoteQueue> quotesByTimeFrame,
             Quote[] btcQuotes15m,
-            Ticker ticker,
+            Ticker? ticker,
             IReadOnlyCollection<PublicTrade>? publicTrades,
-            IReadOnlyList<LiquidationEvent>? liqs20m,
+            IReadOnlyCollection<LiquidationEvent>? liguidations,
             IReadOnlyList<OpenInterestPoint>? openInterestPoints1h,
             IEnumerable<FundingRate>? recentFundingRatesUtc,
             int sessionStartHourUtc = 0,
@@ -260,7 +260,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             // Dystans do najbliższego "silnego" klastra likwidacji (w %)
             DistToLiqPct = MarketMetrics.ComputeDistanceToLiqClusterPct(
-                liqs20m,
+                liguidations,
                 ticker?.LastPrice ?? 0m,
                 DateTime.UtcNow,
                 lookbackMinutes: 20.0,

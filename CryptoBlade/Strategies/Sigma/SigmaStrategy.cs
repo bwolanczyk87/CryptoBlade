@@ -12,16 +12,16 @@ namespace CryptoBlade.Strategies.Sigma
     public class SigmaStrategy : TradingStrategyBase
     {
         private readonly IOptions<SigmaStrategyOptions> _options;
+
         private readonly IMode _mm;
         private readonly IMode _mr;
         private readonly IMode _bo;
+
         private readonly ISigmaAuditSink _audit;
+        private readonly ModeEngine _modeEngine;
 
-        // Stan trybu (MM/MR/BO/None) + score'y – utrzymywany przez strategię
+        // Stan trybu (MM/MR/BO/None) + score'y – utrzymywany przez strategię na potrzeby audytu
         private ModeState _modeState = new(Mode.None, DateTime.MinValue, ModeScores.Zero);
-
-        private readonly RollingSignedQty _cvd5m = new(TimeSpan.FromMinutes(5));
-        private readonly LiquidationBuffer _liq20m = new(TimeSpan.FromMinutes(20));
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -33,7 +33,7 @@ namespace CryptoBlade.Strategies.Sigma
             ICbFuturesRestClient restClient)
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
-            _options = options;
+            _options = options ?? throw new ArgumentNullException(nameof(options));
 
             _mm = new MomentumMode(options.Value);
             _mr = new MeanReversionMode(options.Value);
@@ -42,6 +42,9 @@ namespace CryptoBlade.Strategies.Sigma
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
             _audit = new SigmaAuditSink(relFile);
+
+            // ModeEngine jest stanowy – tworzymy go raz
+            _modeEngine = new ModeEngine(options.Value, _mm, _mr, _bo, _audit);
         }
 
         private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o)
@@ -58,9 +61,6 @@ namespace CryptoBlade.Strategies.Sigma
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
             var nowUtc = DateTime.UtcNow;
-
-            // Snapshot likwidacji (20m rolling)
-            var liqs = _liq20m.Snapshot(nowUtc);
 
             // SigmaData agreguje wszystkie cechy z helperów
             var sigmaData = new SigmaData(Symbol);
@@ -79,7 +79,7 @@ namespace CryptoBlade.Strategies.Sigma
                 cancel);
 
             // Funding rates – ostatnie parę minut (czas okna możesz potem doprecyzować)
-            var fundingRates = await GetFundingRatesAsync(
+            var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(
                 Symbol,
                 nowUtc - TimeSpan.FromMinutes(5),
                 nowUtc,
@@ -91,44 +91,45 @@ namespace CryptoBlade.Strategies.Sigma
                 btcQuotes15m,
                 Ticker,
                 PublicTrades,
-                liqs,
+                Liquidations,
                 oiPoints,
                 fundingRates);
 
-            var modeEngine = new ModeEngine(_options.Value, _mm, _mr, _bo, _audit);
-            var decision = modeEngine.Evaluate(
+            // Zachowujemy poprzedni stan trybu do audytu
+            var prevState = _modeState;
+
+            // 1) Globalne bramki + klasyfikacja reżimu
+            var (mode, modeDecision, gateReason) = _modeEngine.Evaluate(
                 sigmaData,
                 nowUtc,
                 cancel);
 
-            var signal = decision.Mode.Execute(sigmaData, nowUtc, cancel);
+            // Aktualizujemy stan trybu zgodnie z decyzją ModeEngine
+            _modeState = modeDecision.State;
 
-            // 4) Audyt – pełny snapshot cech + scores + wybór trybu + gating
+            // 2) Sygnał z aktywnego trybu (jeśli globalne bramki pozwalają i istnieje aktywny tryb)
+            var modeSignal = mode?.Execute(sigmaData, nowUtc, cancel) ?? ModeSignal.None;
+
+            // 3) Audyt – pełny snapshot cech + scores + wybór trybu + gating
+            var tradable = mode is not null;
+
             _audit.Add(SigmaAudit.MakeRecord(
                 sigmaData,
-                _modeState,
+                prevState,
                 nowUtc,
                 _options.Value,
-                tradable: true,
-                reason: "OK",
-                decision: decision.ModeDecision,
+                tradable: tradable,
+                reason: gateReason,
+                decision: modeDecision,
                 lastDecisionUtc: nowUtc));
 
-            // 5) Zwracamy sygnał bez wskaźników (pusta tablica)
-            return new SignalEvaluation(signal.HasBuy, signal.HasSell, signal.HasBuyExtra, signal.HasSellExtra, []);
-        }
-
-        public override Task AddPublicTradeAsync(PublicTrade trade, CancellationToken cancel)
-        {
-            var signed = trade.Side == OrderSide.Buy ? trade.Quantity : -trade.Quantity;
-            _cvd5m.Add(trade.Timestamp, signed);
-            return Task.CompletedTask;
-        }
-
-        public override Task AddLiquidationAsync(LiquidationEvent liq, CancellationToken cancel)
-        {
-            _liq20m.Add(liq);
-            return Task.CompletedTask;
+            // 4) Zwracamy sygnał bez wskaźników (pusta tablica)
+            return new SignalEvaluation(
+                modeSignal.HasBuy,
+                modeSignal.HasSell,
+                modeSignal.HasBuyExtra,
+                modeSignal.HasSellExtra,
+                []);
         }
     }
 }

@@ -532,7 +532,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         ///
         /// Zwraca NaN, jeżeli nie da się policzyć sensownej wartości.
         /// </summary>
-        public static double ComputeSpreadBps(Ticker ticker)
+        public static double ComputeSpreadBps(Ticker? ticker)
         {
             if (ticker != null &&
                 ticker.BestBidPrice > 0m &&
@@ -610,7 +610,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         ///   lub NaN, jeśli nie udało się policzyć.
         /// </summary>
         public static double ComputeDistanceToLiqClusterPct(
-            IReadOnlyList<LiquidationEvent>? liqs,
+            IReadOnlyCollection<LiquidationEvent>? liqs,
             decimal lastPrice,
             DateTime nowUtc,
             double lookbackMinutes = 20.0,

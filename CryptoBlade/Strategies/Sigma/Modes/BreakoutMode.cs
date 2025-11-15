@@ -1,12 +1,14 @@
 ﻿namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    public class BreakoutMode: IMode
+    public sealed class BreakoutMode : IMode
     {
         public Mode Kind => Mode.BO;
 
         public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            throw new NotImplementedException();
+            // TODO: w kolejnym etapie:
+            // wybicie OR/inside/NR7 + retest, konfirmacja ΔOI$↑ itd.
+            return ModeSignal.None;
         }
     }
 }

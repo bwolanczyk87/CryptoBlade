@@ -1,4 +1,6 @@
-﻿namespace CryptoBlade.Strategies.Sigma.Modes
+﻿using CryptoBlade.Strategies.Sigma.Helpers;
+
+namespace CryptoBlade.Strategies.Sigma.Modes
 {
     public interface IMode
     {
@@ -61,6 +63,17 @@
 
         // Bieżący stan (Mode + Since + Scores)
         private ModeState _state;
+
+        // Wspólne cechy wejściowe dla scoringu trybów
+        private readonly record struct RegimeFeatures(
+            double AtrPct1h,
+            double Adx1h,
+            double ZDvwap,
+            double ZSlopeDvwap,
+            double Bbw15mPct,
+            double AutoCorr5m,
+            double OiDelta1hPct,
+            double BasisPct);
 
         public ModeEngine(
             SigmaStrategyOptions options,
@@ -147,18 +160,10 @@
         /// </summary>
         private static ModeScores Score(SigmaData d, SigmaStrategyOptions o)
         {
-            double mm = 0, mr = 0, bo = 0;
+            var f = ExtractFeatures(d);
 
-            double atr = d.AtrPct1h;
-            double adx = Safe(d.Adx1h);
-            double zdev = Safe(d.ZDvwap, -10, 10);
-            double zslope = Safe(d.ZSlopeDvwap, -25, 25);
-            double bbwP = Safe(d.Bbw15mPct, 0, 100);
-            double ac = Safe(d.AutoCorr5m, -1, 1);
-            double oi = Safe(d.OiDelta1hPct, -500, 500);
-            double basis = Safe(d.BasisPct, -100, 100);
-
-            bool haveAtr = double.IsFinite(atr) && atr > 0;
+            double atr = f.AtrPct1h;
+            bool haveAtr = double.IsFinite(atr) && atr > 0.0;
 
             // ATR-maski per-tryb
             bool mmAtrOk = haveAtr &&
@@ -172,111 +177,170 @@
             bool boAtrOk = haveAtr &&
                            atr <= (double)o.BoAtrMaxPct;
 
-            // ===== Momentum (MM) =====
-            if (mmAtrOk)
-            {
-                // 1) Trend wg ADX – rośnie między AdxDisableMomentum a AdxEnableMomentum
-                double adxNorm = Normalize01(adx,
-                    (double)o.AdxDisableMomentum,
-                    (double)o.AdxEnableMomentum);
-                mm += 40.0 * Clamp01(adxNorm); // 0..40
+            double mm = mmAtrOk
+                ? ScoreMomentum(f, o)
+                : 0.0;
 
-                // 2) Slope DVWAP – dodatni/ujemny trend (tylko dodatnia część jako "siła")
-                double slopeScore = Math.Tanh(zslope / 2.0); // ~[-1..1]
-                mm += 20.0 * Math.Max(0.0, slopeScore);      // 0..20
+            double mr = mrAtrOk
+                ? ScoreMeanReversion(f, o)
+                : 0.0;
 
-                // 3) Oddalenie od DVWAP – większe |z| = po korekcie / daleko od value
-                double zAbs = Math.Abs(zdev);
-                double zScore = Normalize01(zAbs, 0.5, 3.0);
-                mm += 20.0 * Clamp01(zScore);                // 0..20
+            double bo = boAtrOk
+                ? ScoreBreakout(f, o, d)
+                : 0.0;
 
-                // 4) ΔOI zgodny z kierunkiem nachylenia DVWAP
-                int trendSign = Sign(zslope, 0.1);
-                double oiAligned = 0.0;
-                if (trendSign != 0)
-                {
-                    int oiSign = Sign(oi, 0.2);
-                    if (oiSign == trendSign)
-                    {
-                        // saturacja przy ok. 10% zmiany OI
-                        double oiMag = Math.Min(Math.Abs(oi) / 10.0, 1.0);
-                        oiAligned = oiMag;
-                    }
-                }
-                mm += 20.0 * oiAligned;                      // 0..20
-
-                // 5) Lekka premia za dodatnią autokorelację (kontynuacja)
-                if (ac > 0)
-                    mm += 10.0 * ac;                         // max +10
-            }
-
-            // ===== Mean Reversion (MR) =====
-            if (mrAtrOk)
-            {
-                // 1) Niski ADX – im niższy tym lepiej dla MR
-                double adxLow = 1.0 - Normalize01(adx,
-                    (double)o.AdxDisableMomentum,
-                    (double)o.AdxEnableMomentum);
-                adxLow = Clamp01(adxLow);
-                mr += 30.0 * adxLow;                         // 0..30
-
-                // 2) Duże oddalenie od DVWAP – sygnał "przesterowania"
-                double zAbs = Math.Abs(zdev);
-                double zScore = Normalize01(zAbs,
-                    (double)o.ZVwapEnableMR,
-                    3.0);
-                mr += 40.0 * Clamp01(zScore);                // 0..40
-
-                // 3) Ujemna autokorelacja sprzyja MR; blisko zera też OK
-                if (ac < 0)
-                    mr += 20.0 * (-ac);                      // max +20 przy ac=-1
-                else
-                    mr += 10.0 * (1.0 - ac);                 // flattish rynek dostaje lekką premię
-
-                // 4) MR lubi relatywnie wąskie BB – kompresja
-                double bbwNorm = Normalize01(bbwP, 0.0, (double)o.BbWidthExitBreakoutPct);
-                mr += 10.0 * (1.0 - Clamp01(bbwNorm));       // 0..10, im mniejsze bbw tym więcej
-            }
-
-            // ===== Breakout (BO) =====
-            if (boAtrOk)
-            {
-                // 1) Szerokie pasma BB – breakout z kompresji w kierunku ekspansji
-                double bbwNorm = Normalize01(bbwP,
-                    (double)o.BbWidthBreakoutPct,
-                    (double)o.BbWidthExitBreakoutPct);
-                bbwNorm = Clamp01(bbwNorm);
-                bo += 40.0 * bbwNorm;                        // 0..40
-
-                // 2) Ekspansja BB – gwałtowna zmiana zmienności
-                if (d.Bbw15mExpanding)
-                    bo += 10.0;
-
-                // 3) Strukturalne wybicia (Donchian, inside/NR7)
-                if (d.DonchianBreakUp || d.DonchianBreakDown)
-                    bo += 20.0;
-
-                if (d.HasInsideOrNr7)
-                    bo += 10.0;
-
-                // 4) ΔOI>0 – napływ kapitału na wybiciu
-                if (oi > 0)
-                {
-                    double oiMag = Math.Min(oi / 10.0, 1.0);
-                    bo += 20.0 * oiMag;
-                }
-
-                // 5) Dodatnia autokorelacja – kontynuacja ruchu po wybiciu
-                if (ac > 0)
-                    bo += 10.0 * ac;
-            }
-
-            // Clamp do [0..100]
+            // Clamp do [0..100] – zachowujemy dotychczasową semantykę
             mm = Math.Min(Math.Max(mm, 0.0), 100.0);
             mr = Math.Min(Math.Max(mr, 0.0), 100.0);
             bo = Math.Min(Math.Max(bo, 0.0), 100.0);
 
             return new ModeScores(mm, mr, bo);
+        }
+
+        private static RegimeFeatures ExtractFeatures(SigmaData d)
+        {
+            return new RegimeFeatures(
+                AtrPct1h: d.AtrPct1h,
+                Adx1h: StatisticsHelpers.Safe(d.Adx1h),
+                ZDvwap: StatisticsHelpers.Safe(d.ZDvwap, -10, 10),
+                ZSlopeDvwap: StatisticsHelpers.Safe(d.ZSlopeDvwap, -25, 25),
+                Bbw15mPct: StatisticsHelpers.Safe(d.Bbw15mPct, 0, 100),
+                AutoCorr5m: StatisticsHelpers.Safe(d.AutoCorr5m, -1, 1),
+                OiDelta1hPct: StatisticsHelpers.Safe(d.OiDelta1hPct, -500, 500),
+                BasisPct: StatisticsHelpers.Safe(d.BasisPct, -100, 100));
+        }
+
+        // --- per-mode scoring ---
+
+        private static double ScoreMomentum(RegimeFeatures f, SigmaStrategyOptions o)
+        {
+            double mm = 0.0;
+
+            double adx = f.Adx1h;
+            double zslope = f.ZSlopeDvwap;
+            double zdev = f.ZDvwap;
+            double ac = f.AutoCorr5m;
+            double oi = f.OiDelta1hPct;
+
+            // 1) Trend wg ADX – rośnie między AdxDisableMomentum a AdxEnableMomentum
+            double adxNorm = StatisticsHelpers.Normalize01(
+                adx,
+                (double)o.AdxDisableMomentum,
+                (double)o.AdxEnableMomentum);
+
+            mm += 40.0 * StatisticsHelpers.Clamp01(adxNorm); // 0..40
+
+            // 2) Slope DVWAP – dodatni/ujemny trend (tylko dodatnia część jako "siła")
+            double slopeScore = Math.Tanh(zslope / 2.0); // ~[-1..1]
+            mm += 20.0 * Math.Max(0.0, slopeScore);      // 0..20
+
+            // 3) Oddalenie od DVWAP – większe |z| = po korekcie / daleko od value
+            double zAbs = Math.Abs(zdev);
+            double zScore = StatisticsHelpers.Normalize01(zAbs, 0.5, 3.0);
+            mm += 20.0 * StatisticsHelpers.Clamp01(zScore);                // 0..20
+
+            // 4) ΔOI zgodny z kierunkiem nachylenia DVWAP
+            int trendSign = StatisticsHelpers.Sign(zslope, 0.1);
+            double oiAligned = 0.0;
+            if (trendSign != 0)
+            {
+                int oiSign = StatisticsHelpers.Sign(oi, 0.2);
+                if (oiSign == trendSign)
+                {
+                    // saturacja przy ok. 10% zmiany OI
+                    double oiMag = Math.Min(Math.Abs(oi) / 10.0, 1.0);
+                    oiAligned = oiMag;
+                }
+            }
+            mm += 20.0 * oiAligned;                      // 0..20
+
+            // 5) Lekka premia za dodatnią autokorelację (kontynuacja)
+            if (ac > 0)
+                mm += 10.0 * ac;                         // max +10
+
+            return mm;
+        }
+
+        private static double ScoreMeanReversion(RegimeFeatures f, SigmaStrategyOptions o)
+        {
+            double mr = 0.0;
+
+            double adx = f.Adx1h;
+            double zdev = f.ZDvwap;
+            double ac = f.AutoCorr5m;
+            double bbwP = f.Bbw15mPct;
+
+            // 1) Niski ADX – im niższy tym lepiej dla MR
+            double adxLow = 1.0 - StatisticsHelpers.Normalize01(
+                adx,
+                (double)o.AdxDisableMomentum,
+                (double)o.AdxEnableMomentum);
+
+            adxLow = StatisticsHelpers.Clamp01(adxLow);
+            mr += 30.0 * adxLow;                         // 0..30
+
+            // 2) Duże oddalenie od DVWAP – sygnał "przesterowania"
+            double zAbs = Math.Abs(zdev);
+            double zScore = StatisticsHelpers.Normalize01(
+                zAbs,
+                (double)o.ZVwapEnableMR,
+                3.0);
+
+            mr += 40.0 * StatisticsHelpers.Clamp01(zScore);                // 0..40
+
+            // 3) Ujemna autokorelacja sprzyja MR; blisko zera też OK
+            if (ac < 0)
+                mr += 20.0 * (-ac);                      // max +20 przy ac=-1
+            else
+                mr += 10.0 * (1.0 - ac);                 // flattish rynek dostaje lekką premię
+
+            // 4) MR lubi relatywnie wąskie BB – kompresja
+            double bbwNorm = StatisticsHelpers.Normalize01(bbwP, 0.0, (double)o.BbWidthExitBreakoutPct);
+            mr += 10.0 * (1.0 - StatisticsHelpers.Clamp01(bbwNorm));       // 0..10, im mniejsze bbw tym więcej
+
+            return mr;
+        }
+
+        private static double ScoreBreakout(RegimeFeatures f, SigmaStrategyOptions o, SigmaData d)
+        {
+            double bo = 0.0;
+
+            double bbwP = f.Bbw15mPct;
+            double ac = f.AutoCorr5m;
+            double oi = f.OiDelta1hPct;
+
+            // 1) Szerokie pasma BB – breakout z kompresji w kierunku ekspansji
+            double bbwNorm = StatisticsHelpers.Normalize01(
+                bbwP,
+                (double)o.BbWidthBreakoutPct,
+                (double)o.BbWidthExitBreakoutPct);
+
+            bbwNorm = StatisticsHelpers.Clamp01(bbwNorm);
+            bo += 40.0 * bbwNorm;                        // 0..40
+
+            // 2) Ekspansja BB – gwałtowna zmiana zmienności
+            if (d.Bbw15mExpanding)
+                bo += 10.0;
+
+            // 3) Strukturalne wybicia (Donchian, inside/NR7)
+            if (d.DonchianBreakUp || d.DonchianBreakDown)
+                bo += 20.0;
+
+            if (d.HasInsideOrNr7)
+                bo += 10.0;
+
+            // 4) ΔOI>0 – napływ kapitału na wybiciu
+            if (oi > 0)
+            {
+                double oiMag = Math.Min(oi / 10.0, 1.0);
+                bo += 20.0 * oiMag;
+            }
+
+            // 5) Dodatnia autokorelacja – kontynuacja ruchu po wybiciu
+            if (ac > 0)
+                bo += 10.0 * ac;
+
+            return bo;
         }
 
         // =====================================================================
@@ -466,48 +530,6 @@
 
             return Math.Abs(d.CorrToBtc15m) >= (double)o.CorrOppositeBlock
                 && d.BtcBiasOpposite;
-        }
-
-        // =====================================================================
-        //  POMOCNICZE
-        // =====================================================================
-
-        private static double Safe(double v, double min = double.NegativeInfinity, double max = double.PositiveInfinity)
-        {
-            if (!double.IsFinite(v))
-                return 0.0;
-
-            if (v < min) return min;
-            if (v > max) return max;
-            return v;
-        }
-
-        private static double Normalize01(double x, double min, double max)
-        {
-            if (!double.IsFinite(x) || max <= min)
-                return 0.0;
-
-            var t = (x - min) / (max - min);
-            return t;
-        }
-
-        private static double Clamp01(double x)
-        {
-            if (x < 0.0) return 0.0;
-            if (x > 1.0) return 1.0;
-            return x;
-        }
-
-        /// <summary>
-        /// Znak z martwą strefą eps:
-        /// 1 gdy x &gt; eps, -1 gdy x &lt; -eps, 0 gdy |x| ≤ eps.
-        /// </summary>
-        private static int Sign(double x, double eps)
-        {
-            if (eps < 0) eps = -eps;
-            if (x > eps) return 1;
-            if (x < -eps) return -1;
-            return 0;
         }
     }
 }
