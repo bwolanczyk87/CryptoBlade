@@ -955,6 +955,11 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
+        public Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(string symbol, BybtiEnums.OrderSide side, decimal quantity, decimal price, decimal takeProfitTriggerPrice, decimal takeProfitLimitPrice, decimal stopLossTriggerPrice, decimal stopLossLimitPrice, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
         #region Subscriptions
         private class CandleUpdateSubscription : IUpdateSubscription
         {

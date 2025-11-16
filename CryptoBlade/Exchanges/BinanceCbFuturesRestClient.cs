@@ -162,5 +162,10 @@ namespace CryptoBlade.Exchanges
         {
             throw new NotImplementedException();
         }
+
+        public Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(string symbol, Bybit.Net.Enums.OrderSide side, decimal quantity, decimal price, decimal takeProfitTriggerPrice, decimal takeProfitLimitPrice, decimal stopLossTriggerPrice, decimal stopLossLimitPrice, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

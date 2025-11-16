@@ -23,7 +23,7 @@ namespace CryptoBlade.Strategies.Common
         public const int c_liquidationMaxCount = 5000;
         protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
         protected readonly ILogger m_logger;
-        private readonly Random m_random = new Random();
+        private readonly Random m_random = new();
 
 
         protected TradingStrategyCommonBase(IOptions<TradingStrategyCommonBaseOptions> options,
@@ -598,7 +598,11 @@ namespace CryptoBlade.Strategies.Common
             }
         }
 
-        public Task UpdatePriceDataSync(Ticker ticker, CancellationToken cancel)
+        public virtual Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
+        {
+            return Task.CompletedTask;
+        }
+        public Task UpdatePriceDataAsync(Ticker ticker, CancellationToken cancel)
         {
             Ticker = ticker;
             LastTickerUpdate = ticker.Timestamp;

@@ -5,7 +5,6 @@ using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
-using CryptoExchange.Net.OrderBook;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 using System.Threading.Channels;
@@ -35,8 +34,10 @@ namespace CryptoBlade.Services
         private readonly AsyncLock m_lock;
         private Task? m_initTask;
         private Task? m_strategyExecutionTask;
+        private Task? m_orderUpdateTask;
         private readonly IWalletManager m_walletManager;
         protected long m_lastExecutionTimestamp;
+
 
         protected TradeStrategyManagerBase(IOptions<TradingBotOptions> options,
             ILogger<TradeStrategyManagerBase> logger,
@@ -59,6 +60,7 @@ namespace CryptoBlade.Services
             m_strategyExecutionChannel = Channel.CreateUnbounded<string>();
             m_lastExecutionTimestamp = DateTime.UtcNow.Ticks;
 
+            OrderUpdateChannel = Channel.CreateUnbounded<OrderUpdate>();
             CandleChannel = Channel.CreateUnbounded<SymbolCandle>();
             TickerChannel = Channel.CreateUnbounded<SymbolTicker>();
             OrderBookChannel = Channel.CreateUnbounded<SymbolOrderBook>();
@@ -68,6 +70,7 @@ namespace CryptoBlade.Services
 
         protected Dictionary<string, ITradingStrategy> Strategies => m_strategies;
         protected Channel<string> StrategyExecutionChannel => m_strategyExecutionChannel;
+        protected Channel<OrderUpdate> OrderUpdateChannel { get; }
         protected Channel<SymbolCandle> CandleChannel { get; }
         protected Channel<SymbolTicker> TickerChannel { get; }
         protected Channel<SymbolOrderBook> OrderBookChannel { get; }
@@ -94,7 +97,10 @@ namespace CryptoBlade.Services
         {
             m_cancelSource = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             CancellationToken ctsCancel = m_cancelSource.Token;
-            m_initTask = Task.Run(async () => await InitStrategiesAsync(ctsCancel), ctsCancel);
+
+            m_orderUpdateTask = ProcessOrderUpdatesAsync(ctsCancel);
+
+            m_initTask = InitStrategiesAsync(ctsCancel);
             await m_initTask;
         }
 
@@ -141,7 +147,7 @@ namespace CryptoBlade.Services
             foreach (SymbolTicker symbolTicker in tickers)
             {
                 if (m_strategies.TryGetValue(symbolTicker.Symbol, out var strategy))
-                    await strategy.UpdatePriceDataSync(symbolTicker.Ticker, cancel);
+                    await strategy.UpdatePriceDataAsync(symbolTicker.Ticker, cancel);
             }
         }
 
@@ -278,10 +284,6 @@ namespace CryptoBlade.Services
             var symbols = m_strategies.Values.Select(x => x.Symbol).ToArray();
             await UpdateTradingStatesAsync(cancel);
 
-            var orderUpdateSubscription = await m_socketClient.SubscribeToOrderUpdatesAsync(OnOrderUpdate, cancel);
-            orderUpdateSubscription.AutoReconnect(m_logger);
-            m_subscriptions.Add(orderUpdateSubscription);
-
             var timeFrames = m_strategies.Values
                 .SelectMany(x => x.RequiredTimeFrameWindows.Select(tfw => tfw.TimeFrame))
                 .Distinct()
@@ -316,6 +318,10 @@ namespace CryptoBlade.Services
                 }
             }
 
+            var orderUpdateSubscription = await m_socketClient.SubscribeToOrderUpdatesAsync(OnOrderUpdate, cancel);
+            orderUpdateSubscription.AutoReconnect(m_logger);
+            m_subscriptions.Add(orderUpdateSubscription);
+
             var tickerSubscription = await m_socketClient.SubscribeToTickerUpdatesAsync(symbols, OnTicker, cancel);
             tickerSubscription.AutoReconnect(m_logger);
             m_subscriptions.Add(tickerSubscription);
@@ -336,8 +342,28 @@ namespace CryptoBlade.Services
             m_strategyExecutionTask = Task.Run(async () => await StrategyExecutionAsync(cancel), cancel);
         }
 
-        private void OnOrderUpdate(OrderUpdate orderUpdate)
+        private async Task ProcessOrderUpdatesAsync(CancellationToken ct)
         {
+            await foreach (var update in OrderUpdateChannel.Reader.ReadAllAsync(ct))
+            {
+                try
+                {
+                    if (m_strategies.TryGetValue(update.Symbol, out var strategy))
+                    {
+                        await strategy.OrderUpdatedAsync(update, ct);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    m_logger.LogError(ex, "Error while handling order update for {Symbol}", update.Symbol);
+                }
+            }
+        }
+
+        private async void OnOrderUpdate(OrderUpdate orderUpdate)
+        {
+            await OrderUpdateChannel.Writer.WriteAsync(orderUpdate);
+
             if (orderUpdate.Status == OrderStatus.Filled)
             {
                 // we want to schedule the strategy execution for the symbol after the order is filled

@@ -357,7 +357,17 @@ namespace CryptoBlade.Mapping
             {
                 Symbol = value.Symbol,
                 OrderId = value.OrderId,
+                ClientOrderId = value.ClientOrderId,
                 Status = value.Status.ToOrderStatus(),
+                Side = value.Side.ToOrderSide(),
+                Type = value.OrderType,
+                Price = value.Price,
+                AvgPrice = value.AveragePrice,
+                Quantity = value.Quantity,
+                FilledQuantity = value.QuantityFilled,
+                PositionIdx = value.PositionIdx,
+                ReduceOnly = value.ReduceOnly,
+                UpdateTime = value.UpdateTime
             };
         }
 

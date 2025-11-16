@@ -63,7 +63,9 @@ namespace CryptoBlade.Strategies.Common
 
         Task AddCandleDataAsync(Candle candle, CancellationToken cancel);
 
-        Task UpdatePriceDataSync(Ticker ticker, CancellationToken cancel);
+        Task UpdatePriceDataAsync(Ticker ticker, CancellationToken cancel);
+
+        Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel);
 
         Task EvaluateSignalsAsync(CancellationToken cancel);
     }
