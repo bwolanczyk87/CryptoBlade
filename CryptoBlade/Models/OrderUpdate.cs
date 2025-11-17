@@ -21,7 +21,7 @@ namespace CryptoBlade.Models
         public OrderType Type { get; init; }
 
         public decimal? Price { get; init; }
-        public decimal? AvgPrice { get; init; }
+        public decimal? AverageFillPrice { get; init; }
         public decimal? Quantity { get; init; }
         public decimal? FilledQuantity { get; init; }
 

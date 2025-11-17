@@ -1,4 +1,5 @@
 ﻿using Binance.Net.Interfaces.Clients;
+using Bybit.Net.Objects.Models.V5;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
@@ -163,7 +164,7 @@ namespace CryptoBlade.Exchanges
             throw new NotImplementedException();
         }
 
-        public Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(string symbol, Bybit.Net.Enums.OrderSide side, decimal quantity, decimal price, decimal takeProfitTriggerPrice, decimal takeProfitLimitPrice, decimal stopLossTriggerPrice, decimal stopLossLimitPrice, CancellationToken cancel = default)
+        public Task<BybitOrderId?> PlaceOrderAsync(BybitCbFuturesRestClient.CbOrderRequest request, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

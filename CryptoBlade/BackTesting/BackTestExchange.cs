@@ -6,6 +6,7 @@ using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
+using Bybit.Net.Objects.Models.V5;
 
 namespace CryptoBlade.BackTesting
 {
@@ -955,7 +956,7 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
-        public Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(string symbol, BybtiEnums.OrderSide side, decimal quantity, decimal price, decimal takeProfitTriggerPrice, decimal takeProfitLimitPrice, decimal stopLossTriggerPrice, decimal stopLossLimitPrice, CancellationToken cancel = default)
+        public Task<BybitOrderId?> PlaceOrderAsync(BybitCbFuturesRestClient.CbOrderRequest request, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

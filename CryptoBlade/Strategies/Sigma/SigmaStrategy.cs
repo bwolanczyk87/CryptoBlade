@@ -17,11 +17,12 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly IMode _mr;
         private readonly IMode _bo;
 
-        private readonly ISigmaAuditSink _audit;
+        private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
 
         // Stan trybu (MM/MR/BO/None) + score'y – utrzymywany przez strategię na potrzeby audytu
         private ModeState _modeState = new(Mode.None, DateTime.MinValue, ModeScores.Zero);
+        private readonly SigmaPositionManager _positionManager = new();
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -124,6 +125,17 @@ namespace CryptoBlade.Strategies.Sigma
                 decision: modeDecision,
                 lastDecisionUtc: nowUtc));
 
+            await _positionManager.OnSignalAsync(
+                symbol: Symbol,
+                symbolInfo: SymbolInfo,
+                sigmaData: sigmaData,
+                activeMode: modeDecision.ProposedMode,
+                modeSignal: modeSignal,
+                tradable: tradable,
+                nowUtc: nowUtc,
+                restClient: m_cbFuturesRestClient,
+                cancel: cancel);
+
             // 4) Zwracamy sygnał bez wskaźników (pusta tablica)
             return new SignalEvaluation(
                 modeSignal.HasBuy,
@@ -138,6 +150,16 @@ namespace CryptoBlade.Strategies.Sigma
             // Sigma nie korzysta z domyślnego engine’u wejść/wyjść.
             // Wszystkie decyzje o orderach idą przez SigmaPositionManager.
             return Task.CompletedTask;
+        }
+
+        public override async Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
+        {
+            // Reagujemy tylko kiedy mamy rest client (powinien być zawsze)
+            await _positionManager.OnOrderUpdateAsync(
+                symbol: Symbol,
+                update: orderUpdate,
+                restClient: m_cbFuturesRestClient,
+                cancel: cancel);
         }
     }
 }

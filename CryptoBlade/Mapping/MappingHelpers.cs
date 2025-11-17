@@ -362,7 +362,9 @@ namespace CryptoBlade.Mapping
                 Side = value.Side.ToOrderSide(),
                 Type = value.OrderType,
                 Price = value.Price,
-                AvgPrice = value.AveragePrice,
+                AverageFillPrice = (value.AveragePrice.HasValue && value.AveragePrice.Value > 0m)
+                    ? value.AveragePrice.Value
+                    : (value.Price ?? 0m),
                 Quantity = value.Quantity,
                 FilledQuantity = value.QuantityFilled,
                 PositionIdx = value.PositionIdx,

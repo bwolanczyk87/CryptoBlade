@@ -31,6 +31,8 @@ namespace CryptoBlade.Strategies.Sigma
         public double Adx1h { get; private set; }             // [0..100] lub NaN
         public double AtrPct1h { get; private set; }          // ATR_1h / Price * 100 (%)
         public double Atr1hAbs { get; private set; }          // ATR_1h w punktach
+        public double AtrPct5m { get; private set; }          // ATR_5m / Price * 100 (%)
+        public double Atr5mAbs { get; private set; }          // ATR_5m w punktach
         public double ZDvwap { get; private set; }            // z-score od D-VWAP (kotwica = start sesji)
         public VwapSource VwapKindUsed { get; private set; } = VwapSource.None;
         public double ZDvwapPrev { get; private set; }        // z-score z poprzedniego 1m bara intraday
@@ -101,6 +103,16 @@ namespace CryptoBlade.Strategies.Sigma
         public decimal? Last1mLow { get; private set; }
         public decimal? Last1mClose { get; private set; }
         public decimal? Last1mVolume { get; private set; }
+
+        // Ostatnia świeca 5m (po sortowaniu po Date)
+        public DateTime? Last5mTimeUtc { get; private set; }
+        public decimal? Last5mOpen { get; private set; }
+        public decimal? Last5mHigh { get; private set; }
+        public decimal? Last5mLow { get; private set; }
+        public decimal? Last5mClose { get; private set; }
+
+        // DVWAP – ostatnia wartość
+        public decimal? LastDvwap { get; private set; }
 
         // =====================================================================
         // BUILD – wypełnia bieżącą instancję SigmaData
@@ -223,6 +235,21 @@ namespace CryptoBlade.Strategies.Sigma
                 Last1mOpen = Last1mHigh = Last1mLow = Last1mClose = Last1mVolume = null;
             }
 
+            if (q5m.Length > 0)
+            {
+                var last5 = q5m[^1];
+                Last5mTimeUtc = last5.Date;
+                Last5mOpen = last5.Open;
+                Last5mHigh = last5.High;
+                Last5mLow = last5.Low;
+                Last5mClose = last5.Close;
+            }
+            else
+            {
+                Last5mTimeUtc = null;
+                Last5mOpen = Last5mHigh = Last5mLow = Last5mClose = null;
+            }
+
             // =====================================================================
             // 1. Trend / value / zmienność (TF: 1H / 5m / 15m)
             // =====================================================================
@@ -233,6 +260,9 @@ namespace CryptoBlade.Strategies.Sigma
             // ATR% 1H + ATR abs (zmienność relatywna/absolutna)
             double refPrice = SessionHelpers.SelectReferencePrice(ticker, q1h);
             (AtrPct1h, Atr1hAbs) = MarketMetrics.ComputeAtrPercentAndAbs(q1h, refPrice, lookback: 14);
+
+            // ATR% 5m + ATR abs – do trailingu i krótkoterminowego ryzyka
+            (AtrPct5m, Atr5mAbs) = MarketMetrics.ComputeAtrPercentAndAbs(q5m, refPrice, lookback: 14);
 
             // =====================================================================
             // 2. DVWAP / value (TF: 1m, anchored + fallback rolling)
@@ -277,6 +307,10 @@ namespace CryptoBlade.Strategies.Sigma
                 vwapSeries,
                 Math.Max(10, vwapSlopeWindow));
 
+            if (double.IsFinite(lastVwap) && lastVwap > 0.0)
+                LastDvwap = (decimal)lastVwap;
+            else
+                LastDvwap = null;
 
             // =====================================================================
             // 3. Struktura zmienności / patterny (5m / 15m / 1m)

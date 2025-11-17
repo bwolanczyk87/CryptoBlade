@@ -6,7 +6,6 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
-using CryptoExchange.Net.CommonObjects;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
@@ -24,6 +23,21 @@ namespace CryptoBlade.Exchanges
         private readonly ILogger<BybitCbFuturesRestClient> m_logger;
         private readonly IOptions<BybitCbFuturesRestClientOptions> m_options;
         private readonly IOptions<TradingBotOptions> m_trading_bot_options;
+        public readonly record struct CbOrderRequest(
+            string Symbol,
+            Category Category,
+            OrderSide Side,
+            NewOrderType Type,
+            decimal Quantity,
+            decimal? Price = null,
+            decimal? TriggerPrice = null,
+            TriggerType? TriggerBy = null,
+            bool ReduceOnly = false,
+            bool CloseOnTrigger = false,
+            TimeInForce? TimeInForce = null,
+            PositionIdx? PositionIdx = null,
+            string? ClientOrderId = null
+        );
 
         public BybitCbFuturesRestClient(IOptions<BybitCbFuturesRestClientOptions> options,
             IOptions<TradingBotOptions> tradingBotOptions,
@@ -89,7 +103,7 @@ namespace CryptoBlade.Exchanges
 
         public async Task<bool> CancelOrderAsync(string symbol, string orderId, CancellationToken cancel = default)
         {
-            var cancelOrder = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
+            var cancelOrder = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading
                     .CancelOrderAsync(m_category, symbol, orderId, null, null, cancel));
             if (cancelOrder.GetResultOrError(out _, out var error))
@@ -99,135 +113,68 @@ namespace CryptoBlade.Exchanges
             return false;
         }
 
-        public async Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(
-            string symbol,
-            OrderSide side,
-            decimal quantity,
-            decimal price,
-            decimal takeProfitTriggerPrice,
-            decimal takeProfitLimitPrice,
-            decimal stopLossTriggerPrice,
-            decimal stopLossLimitPrice,
-            string? clientOrderId = null,
+        /// <summary>
+        /// Uniwersalne składanie zleceń dla Sigmy i innych zaawansowanych strategii.
+        /// Nie ustawia TP/SL "magicznie" – to robimy osobnymi orderami.
+        /// </summary>
+        public async Task<BybitOrderId?> PlaceOrderAsync(
+            CbOrderRequest request,
             CancellationToken cancel = default)
         {
-            var positionIdx = side == OrderSide.Buy
-                ? PositionIdx.BuyHedgeMode
-                : PositionIdx.SellHedgeMode;
-
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
-                m_logger.LogInformation(
-                    $"{symbol} Placing {side} limit order qty '{quantity}' @ '{price}' " +
-                    $"with TP(trig/limit): '{takeProfitTriggerPrice}' / '{takeProfitLimitPrice}', " +
-                    $"SL(trig/limit): '{stopLossTriggerPrice}' / '{stopLossLimitPrice}', attempt: {attempt}");
-
-                var orderRes =
-                    await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>
-                        .RetryTooManyVisits
-                        .ExecuteAsync(async () =>
-                            await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
-                                clientOrderId: clientOrderId,
-                                category: m_category,
-                                symbol: symbol,
-                                side: side,
-                                type: NewOrderType.Limit,
-                                quantity: quantity,
-                                price: price,
-                                positionIdx: positionIdx,
-                                reduceOnly: false,
-                                timeInForce: TimeInForce.PostOnly,
-                                stopLossTakeProfitMode: StopLossTakeProfitMode.Partial,
-                                takeProfit: takeProfitTriggerPrice,
-                                stopLoss: stopLossTriggerPrice,
-                                takeProfitTriggerBy: TriggerType.MarkPrice,
-                                stopLossTriggerBy: TriggerType.MarkPrice,
-                                takeProfitOrderType: OrderType.Limit,
-                                stopLossOrderType: OrderType.Limit,
-                                takeProfitLimitPrice: takeProfitLimitPrice,
-                                stopLossLimitPrice: stopLossLimitPrice,
-
-                                ct: cancel
-                            ));
-
-                if (!orderRes.GetResultOrError(out var orderIdResult, out _))
-                    continue;
-
-                var orderStatusRes =
-                    await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
-                        .RetryTooManyVisitsBybitResponse
-                        .ExecuteAsync(async () =>
-                            await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
-                                category: m_category,
-                                symbol: symbol,
-                                orderId: orderIdResult.OrderId,
-                                ct: cancel));
-
-                if (orderStatusRes.GetResultOrError(out var orderStatus, out _))
+                try
                 {
-                    var order = orderStatus.List
-                        .FirstOrDefault(x => string.Equals(x.OrderId, orderIdResult.OrderId, StringComparison.Ordinal));
+                    m_logger.LogDebug(
+                        $"{request.Symbol}: Placing order " +
+                        $"Side={request.Side}, Type={request.Type}, Qty={request.Quantity}, " +
+                        $"Price={request.Price}, TriggerPrice={request.TriggerPrice}, " +
+                        $"ReduceOnly={request.ReduceOnly}, CloseOnTrigger={request.CloseOnTrigger}, " +
+                        $"ClientOrderId={request.ClientOrderId}");
 
-                    if (order != null && order.Status == OrderStatus.Cancelled)
-                    {
-                        m_logger.LogDebug($"{symbol}: {side} order was cancelled. Adjusting price.");
+                    var res = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
+                        .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
+                            category: request.Category,
+                            symbol: request.Symbol,
+                            side: request.Side,
+                            type: request.Type,
+                            quantity: request.Quantity,
+                            price: request.Price,
+                            triggerPrice: request.TriggerPrice,
+                            triggerBy: request.TriggerBy,
+                            reduceOnly: request.ReduceOnly,
+                            closeOnTrigger: request.CloseOnTrigger,
+                            timeInForce: request.TimeInForce,
+                            positionIdx: request.PositionIdx,
+                            clientOrderId: request.ClientOrderId,
+                            ct: cancel));
 
-                        var orderBook =
-                            await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderbook>
-                                .RetryTooManyVisits
-                                .ExecuteAsync(async () =>
-                                    await m_bybitRestClient.V5Api.ExchangeData.GetOrderbookAsync(
-                                        m_category,
-                                        symbol,
-                                        limit: 1,
-                                        cancel));
+                    if (res.GetResultOrError(out var data, out var error))
+                        return data;
 
-                        if (orderBook.GetResultOrError(out var orderBookData, out _))
-                        {
-                            if (side == OrderSide.Buy)
-                            {
-                                var bestBid = orderBookData.Bids.FirstOrDefault();
-                                if (bestBid != null)
-                                    price = bestBid.Price;
-                            }
-                            else
-                            {
-                                var bestAsk = orderBookData.Asks.FirstOrDefault();
-                                if (bestAsk != null)
-                                    price = bestAsk.Price;
-                            }
-                        }
-
-                        // pętla: jeszcze raz spróbuj z nową ceną
-                        continue;
-                    }
-
-                    m_logger.LogInformation(
-                        $"{symbol} {side} limit order placed qty '{quantity}' @ '{price}' " +
-                        $"with attached TP/SL (LIMIT). OrderId={orderIdResult.OrderId}");
-
-                    return true;
+                    m_logger.LogWarning(
+                        $"{request.Symbol}: PlaceOrderAsync failed on attempt {attempt + 1}. " +
+                        $"Error: {error?.Message}");
                 }
-
-                m_logger.LogInformation(
-                    $"{symbol} Error getting order status for {side} order: {orderStatusRes.Error}");
-
-                return false;
+                catch (Exception ex) when (!cancel.IsCancellationRequested)
+                {
+                    m_logger.LogError(ex,
+                        $"{request.Symbol}: Exception while placing order on attempt {attempt + 1}");
+                }
             }
 
-            m_logger.LogInformation($"{symbol} could not place {side} limit order with TP/SL.");
-            return false;
+            m_logger.LogError($"{request.Symbol}: PlaceOrderAsync exhausted all attempts.");
+            return null;
         }
 
-        public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price, string? clientOrderId = null,
+        public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogDebug($"{symbol} Placing limit buy order for '{quantity}' @ '{price}'");
-                var buyOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
+                var buyOrderRes = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
-                        clientOrderId: clientOrderId,
                         category: m_category,
                         symbol: symbol,
                         side: OrderSide.Buy,
@@ -240,7 +187,7 @@ namespace CryptoBlade.Exchanges
                         ct: cancel));
                 if (!buyOrderRes.GetResultOrError(out var buyOrder, out _))
                     continue;
-                var orderStatusRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
+                var orderStatusRes = await ExchangePolicies<BybitOrder>
                     .RetryTooManyVisitsBybitResponse
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                         category: m_category,
@@ -254,7 +201,7 @@ namespace CryptoBlade.Exchanges
                     if (order != null && order.Status == OrderStatus.Cancelled)
                     {
                         m_logger.LogDebug($"{symbol}: Buy order was cancelled. Adjusting price.");
-                        var orderBook = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderbook>
+                        var orderBook = await ExchangePolicies<BybitOrderbook>
                             .RetryTooManyVisits
                             .ExecuteAsync(async () =>
                                 await m_bybitRestClient.V5Api.ExchangeData.GetOrderbookAsync(m_category,
@@ -285,16 +232,15 @@ namespace CryptoBlade.Exchanges
             return false;
         }
 
-        public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price, string? clientOrderId = null,
+        public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 m_logger.LogInformation(
                     $"{symbol} Placing limit sell order for '{quantity}' @ '{price}' attempt: {attempt}");
-                var sellOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
+                var sellOrderRes = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
-                        clientOrderId: clientOrderId,
                         category: m_category,
                         symbol: symbol,
                         side: OrderSide.Sell,
@@ -307,7 +253,7 @@ namespace CryptoBlade.Exchanges
                         ct: cancel));
                 if (!sellOrderRes.GetResultOrError(out var sellOrder, out _))
                     continue;
-                var orderStatusRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
+                var orderStatusRes = await ExchangePolicies<BybitOrder>
                     .RetryTooManyVisitsBybitResponse
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                         category: m_category,
@@ -321,7 +267,7 @@ namespace CryptoBlade.Exchanges
                     if (order != null && order.Status == OrderStatus.Cancelled)
                     {
                         m_logger.LogDebug($"{symbol} Sell order was cancelled. Adjusting price.");
-                        var orderBook = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderbook>
+                        var orderBook = await ExchangePolicies<BybitOrderbook>
                             .RetryTooManyVisits
                             .ExecuteAsync(async () =>
                                 await m_bybitRestClient.V5Api.ExchangeData.GetOrderbookAsync(m_category,
@@ -354,7 +300,7 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceMarketBuyOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
-            var buyOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
+            var buyOrderRes = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
                     category: m_category,
                     symbol: symbol,
@@ -380,7 +326,7 @@ namespace CryptoBlade.Exchanges
         public async Task<bool> PlaceMarketSellOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)
         {
-            var sellOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
+            var sellOrderRes = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
                     category: m_category,
                     symbol: symbol,
@@ -409,7 +355,7 @@ namespace CryptoBlade.Exchanges
             CancellationToken cancel = default)
         {
             var sellOrderRes =
-                await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits.ExecuteAsync(
+                await ExchangePolicies<BybitOrderId>.RetryTooManyVisits.ExecuteAsync(
                     async () =>
                         await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
                             category: m_category,
@@ -428,7 +374,7 @@ namespace CryptoBlade.Exchanges
                 return false;
             }
 
-            var orderStatusRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
+            var orderStatusRes = await ExchangePolicies<BybitOrder>
                 .RetryTooManyVisitsBybitResponse
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                     category: m_category,
@@ -453,7 +399,7 @@ namespace CryptoBlade.Exchanges
             CancellationToken cancel = default)
         {
             var buyOrderRes =
-                await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits.ExecuteAsync(
+                await ExchangePolicies<BybitOrderId>.RetryTooManyVisits.ExecuteAsync(
                     async () =>
                         await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
                             category: m_category,
@@ -472,7 +418,7 @@ namespace CryptoBlade.Exchanges
                 return false;
             }
 
-            var orderStatusRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrder>
+            var orderStatusRes = await ExchangePolicies<BybitOrder>
                 .RetryTooManyVisitsBybitResponse
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.GetOrdersAsync(
                     category: m_category,

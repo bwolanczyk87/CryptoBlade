@@ -1,6 +1,8 @@
 ﻿using Bybit.Net.Enums;
+using Bybit.Net.Objects.Models.V5;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
+using static CryptoBlade.Exchanges.BybitCbFuturesRestClient;
 
 namespace CryptoBlade.Exchanges
 {
@@ -20,15 +22,8 @@ namespace CryptoBlade.Exchanges
             string orderId,
             CancellationToken cancel = default);
 
-        Task<bool> PlaceLimitOrderWithAttachedTpSlAsync(
-            string symbol,
-            Bybit.Net.Enums.OrderSide side,
-            decimal quantity,
-            decimal price,
-            decimal takeProfitTriggerPrice,
-            decimal takeProfitLimitPrice,
-            decimal stopLossTriggerPrice,
-            decimal stopLossLimitPrice,
+        Task<BybitOrderId?> PlaceOrderAsync(
+            CbOrderRequest request,
             CancellationToken cancel = default);
 
         Task<bool> PlaceLimitBuyOrderAsync(
