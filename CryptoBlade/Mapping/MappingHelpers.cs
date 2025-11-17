@@ -236,6 +236,7 @@ namespace CryptoBlade.Mapping
                 Price = value.Price,
                 AveragePrice = value.AveragePrice,
                 OrderId = value.OrderId,
+                ClientOrderId = value.ClientOrderId,
                 PositionMode = value.PositionIdx.ToPositionMode(),
                 Quantity = value.Quantity,
                 Side = value.Side.ToOrderSide(),
@@ -255,6 +256,16 @@ namespace CryptoBlade.Mapping
             {
                 Bybit.Net.Enums.OrderSide.Buy => OrderSide.Buy,
                 Bybit.Net.Enums.OrderSide.Sell => OrderSide.Sell,
+                _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+            };
+        }
+
+        public static Bybit.Net.Enums.OrderSide ToOrderSide(this OrderSide value)
+        {
+            return value switch
+            {
+                OrderSide.Buy => Bybit.Net.Enums.OrderSide.Buy,
+                OrderSide.Sell => Bybit.Net.Enums.OrderSide.Sell,
                 _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
             };
         }

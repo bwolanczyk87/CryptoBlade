@@ -161,5 +161,18 @@ namespace CryptoBlade.Strategies.Sigma
                 restClient: m_cbFuturesRestClient,
                 cancel: cancel);
         }
+
+        public async Task RecoverSigmaStateAsync(CancellationToken cancel)
+        {
+            var nowUtc = DateTime.UtcNow;
+
+            await _positionManager.RecoverFromOpenOrdersAsync(
+                openOrders: [.. BuyOrders, .. SellOrders],
+                symbol: Symbol,
+                symbolInfo: SymbolInfo,
+                restClient: m_cbFuturesRestClient,
+                nowUtc: nowUtc,
+                cancel: cancel);
+        }
     }
 }

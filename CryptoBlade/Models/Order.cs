@@ -4,6 +4,8 @@
     {
         public string OrderId { get; set; } = string.Empty;
 
+        public string? ClientOrderId { get; set; } = string.Empty;
+
         public string Symbol { get; set; } = string.Empty;
 
         public decimal? Price { get; set; }
@@ -35,6 +37,7 @@
             return new Order
             {
                 OrderId = OrderId,
+                ClientOrderId = ClientOrderId,
                 Symbol = Symbol,
                 Price = Price,
                 Quantity = Quantity,
