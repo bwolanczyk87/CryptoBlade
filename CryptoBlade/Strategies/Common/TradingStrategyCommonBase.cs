@@ -217,7 +217,7 @@ namespace CryptoBlade.Strategies.Common
             ConsistentData = consistent;
         }
 
-        public async Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel)
+        public virtual async Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel)
         {
             bool isLive = m_options.Value.TradingMode == TradingMode.Normal
                           || m_options.Value.TradingMode == TradingMode.Dynamic

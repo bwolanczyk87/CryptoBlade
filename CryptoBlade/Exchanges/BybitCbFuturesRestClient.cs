@@ -108,6 +108,7 @@ namespace CryptoBlade.Exchanges
             decimal takeProfitLimitPrice,
             decimal stopLossTriggerPrice,
             decimal stopLossLimitPrice,
+            string? clientOrderId = null,
             CancellationToken cancel = default)
         {
             var positionIdx = side == OrderSide.Buy
@@ -126,6 +127,7 @@ namespace CryptoBlade.Exchanges
                         .RetryTooManyVisits
                         .ExecuteAsync(async () =>
                             await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
+                                clientOrderId: clientOrderId,
                                 category: m_category,
                                 symbol: symbol,
                                 side: side,
@@ -217,7 +219,7 @@ namespace CryptoBlade.Exchanges
             return false;
         }
 
-        public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price,
+        public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price, string? clientOrderId = null,
             CancellationToken cancel = default)
         {
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
@@ -225,6 +227,7 @@ namespace CryptoBlade.Exchanges
                 m_logger.LogDebug($"{symbol} Placing limit buy order for '{quantity}' @ '{price}'");
                 var buyOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
+                        clientOrderId: clientOrderId,
                         category: m_category,
                         symbol: symbol,
                         side: OrderSide.Buy,
@@ -282,7 +285,7 @@ namespace CryptoBlade.Exchanges
             return false;
         }
 
-        public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price,
+        public async Task<bool> PlaceLimitSellOrderAsync(string symbol, decimal quantity, decimal price, string? clientOrderId = null,
             CancellationToken cancel = default)
         {
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
@@ -291,6 +294,7 @@ namespace CryptoBlade.Exchanges
                     $"{symbol} Placing limit sell order for '{quantity}' @ '{price}' attempt: {attempt}");
                 var sellOrderRes = await ExchangePolicies<Bybit.Net.Objects.Models.V5.BybitOrderId>.RetryTooManyVisits
                     .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
+                        clientOrderId: clientOrderId,
                         category: m_category,
                         symbol: symbol,
                         side: OrderSide.Sell,

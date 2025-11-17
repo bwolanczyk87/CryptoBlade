@@ -132,5 +132,12 @@ namespace CryptoBlade.Strategies.Sigma
                 modeSignal.HasSellExtra,
                 []);
         }
+
+        public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel)
+        {
+            // Sigma nie korzysta z domyślnego engine’u wejść/wyjść.
+            // Wszystkie decyzje o orderach idą przez SigmaPositionManager.
+            return Task.CompletedTask;
+        }
     }
 }
