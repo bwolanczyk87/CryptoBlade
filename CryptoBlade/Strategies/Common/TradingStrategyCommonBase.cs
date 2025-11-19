@@ -19,8 +19,8 @@ namespace CryptoBlade.Strategies.Common
         private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly Channel<Candle> m_candleBuffer;
         public const int c_defaultCandleBufferSize = 1000;
-        public const int c_publicTradeMaxCount = 5000;
-        public const int c_liquidationMaxCount = 5000;
+        public const int c_publicTradeMaxCount = 50000;
+        public const int c_liquidationMaxCount = 50000;
         protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
         protected readonly ILogger m_logger;
         private readonly Random m_random = new();
@@ -618,14 +618,14 @@ namespace CryptoBlade.Strategies.Common
         public virtual Task AddPublicTradeAsync(PublicTrade trade, CancellationToken cancel)
         {
             PublicTrades.AddLast(trade);
-            var threshold = trade.Timestamp - TimeSpan.FromMinutes(m_options.Value.PublicTradeWindowMinutes);
 
-            while (PublicTrades.First != null &&
-                   (PublicTrades.First.Value.Timestamp < threshold || 
-                    PublicTrades.Count > c_publicTradeMaxCount))
-            {
+            var cutoff = trade.Timestamp - TimeSpan.FromMinutes(m_options.Value.PublicTradeWindowMinutes);
+
+            while (PublicTrades.First is { } node && node.Value.Timestamp < cutoff)
                 PublicTrades.RemoveFirst();
-            }
+
+            while (PublicTrades.Count > c_publicTradeMaxCount && PublicTrades.First is not null)
+                PublicTrades.RemoveFirst();
 
             return Task.CompletedTask;
         }
@@ -633,15 +633,15 @@ namespace CryptoBlade.Strategies.Common
         public virtual Task AddLiquidationAsync(LiquidationEvent liq, CancellationToken cancel)
         {
             Liquidations.AddLast(liq);
+            var cutoff = liq.Timestamp - TimeSpan.FromMinutes(m_options.Value.LiquidationWindowMinutes);
 
-            var threshold = liq.Timestamp - TimeSpan.FromMinutes(m_options.Value.LiquidationWindowMinutes);
-
-            while (Liquidations.First != null &&
-                   (Liquidations.First.Value.Timestamp < threshold ||
-                    Liquidations.Count > c_liquidationMaxCount))
-            {
+            while (Liquidations.First is { } node && node.Value.Timestamp < cutoff)
                 Liquidations.RemoveFirst();
-            }
+
+            const int hardCapPerSymbol = c_liquidationMaxCount;
+
+            while (Liquidations.Count > hardCapPerSymbol && Liquidations.First is not null)
+                Liquidations.RemoveFirst();
 
             return Task.CompletedTask;
         }

@@ -61,11 +61,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             bool pullbackShort = zDev > 0.5 && zDev < 3.5;
 
             // Autokorelacja dodatnia – preferujemy kontynuację, nie mean reversion.
-            bool acSupportsTrend = ac > 0.05;
+            bool acSupportsTrend = ac >= 0.00;
 
             // ΔOI w stronę trendu – nie wymagamy bardzo dużej zmiany, ale niech będzie > 0.
-            bool oiSupportsUp = oi > 0.2;
-            bool oiSupportsDown = oi < -0.2;
+            bool oiSupportsUp = oi > 0.0;
+            bool oiSupportsDown = oi < 0.0;
 
             // ADX – docelowo ModeEngine już wymusił sensowny poziom, ale dajmy miękki próg.
             bool strongAdx = adx >= (double)_options.AdxEnableMomentum;

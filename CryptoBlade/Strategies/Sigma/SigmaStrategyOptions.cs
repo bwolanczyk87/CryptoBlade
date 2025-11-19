@@ -4,7 +4,7 @@
     {
         // Okna buforów
         public int RecalcMinutes { get; init; } = 5;
-        public int HysteresisLockMinutes { get; init; } = 10;
+        public int HysteresisLockMinutes { get; init; } = 2;
         public int OneMinuteWindow { get; init; } = 500;
         public int FiveMinuteWindow { get; init; } = 200;
         public int FifteenMinuteWindow { get; init; } = 200;
@@ -19,7 +19,7 @@
         public decimal ZVwapExitMR { get; init; } = 1.0m;
         public decimal MinScore { get; init; } = 30m;
         public decimal MinScoreStay { get; init; } = 15m;
-        public decimal MinMargin { get; init; } = 5m;
+        public decimal MinMargin { get; init; } = 3m;
 
         // Globalne gate’y
         public decimal MaxSpreadBps { get; init; } = 2m;
