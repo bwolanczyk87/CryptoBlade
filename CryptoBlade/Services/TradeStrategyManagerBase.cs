@@ -146,8 +146,8 @@ namespace CryptoBlade.Services
                 tickers.Add(ticker);
             foreach (SymbolTicker symbolTicker in tickers)
             {
-                if (m_strategies.TryGetValue(symbolTicker.Symbol, out var strategy))
-                    await strategy.UpdatePriceDataAsync(symbolTicker.Ticker, cancel);
+                var ticker = await m_restClient.GetTickerAsync(strategy.Symbol, cancel);
+                await strategy.UpdatePriceDataAsync(ticker, cancel);
             }
         }
 
