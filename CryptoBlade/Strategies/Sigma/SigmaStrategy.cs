@@ -1,6 +1,5 @@
 ﻿using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
-using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Sigma.Modes;
@@ -41,7 +40,7 @@ namespace CryptoBlade.Strategies.Sigma
             _bo = new BreakoutMode(options.Value);
 
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
-            var relFile = Path.Combine(relDir, $"regime_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
+            var relFile = Path.Combine(relDir, $"sigma_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
             _audit = new SigmaAuditSink(relFile);
 
             // ModeEngine jest stanowy – tworzymy go raz
@@ -75,14 +74,14 @@ namespace CryptoBlade.Strategies.Sigma
 
             // Open Interest – 1h history (limit=100, ale SigmaData użyje ile trzeba)
             var oiPoints = await GetOpenInterestAsync(
-                TimeFrame.OneHour,
-                100,
+                TimeFrame.FiveMinutes,
+                60,
                 cancel);
 
             // Funding rates – ostatnie parę minut (czas okna możesz potem doprecyzować)
             var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(
                 Symbol,
-                nowUtc - TimeSpan.FromMinutes(5),
+                nowUtc - TimeSpan.FromDays(1),
                 nowUtc,
                 cancel);
 

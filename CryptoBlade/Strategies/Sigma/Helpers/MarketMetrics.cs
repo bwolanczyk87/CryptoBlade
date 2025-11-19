@@ -36,6 +36,56 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             return double.IsFinite(pct) ? pct : double.NaN;
         }
 
+        public static double ComputeOpenInterestDeltaPctFromSeries<T>(
+            IReadOnlyList<T> points,
+            TimeSpan horizon,
+            Func<T, DateTime> getTime,
+            Func<T, decimal> getOi)
+        {
+            if (points == null || points.Count < 2)
+                return double.NaN;
+
+            // zakładam, że już są posortowane rosnąco po czasie;
+            // jeśli nie, możesz tu dodać OrderBy.
+            var last = points[^1];
+            var lastTime = getTime(last);
+            var lastOi = getOi(last);
+
+            if (lastOi <= 0)
+                return double.NaN;
+
+            var targetTime = lastTime - horizon;
+
+            // szukamy punktu jak najbliżej targetTime, ale <= targetTime
+            T? prev = default;
+            for (int i = points.Count - 2; i >= 0; i--)
+            {
+                var pt = points[i];
+                var t = getTime(pt);
+
+                if (t <= targetTime)
+                {
+                    prev = pt;
+                    break;
+                }
+            }
+
+            // jeśli nie znaleźliśmy punktu sprzed 1h, to weź najstarszy,
+            // żeby nie robić głupich delta z jakiegoś śmiesznego kawałka
+            if (prev is null)
+                prev = points[0];
+
+            var prevOi = getOi(prev);
+
+            if (prevOi <= 0)
+                return double.NaN;
+
+            var delta = (double)((lastOi - prevOi) / prevOi * 100m);
+
+            return double.IsFinite(delta) ? delta : double.NaN;
+        }
+
+
         /// <summary>
         /// Liczy ΔOI% z serii wartości (np. 1h open interest),
         /// używając dwóch ostatnich próbek.
@@ -567,18 +617,17 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         /// </summary>
         public static double ComputeSignedVolumeDelta(
             IReadOnlyCollection<PublicTrade>? trades,
-            DateTime nowUtc,
-            TimeSpan lookback)
+            DateTime fromUtc,
+            DateTime toUtc)
         {
-            if (trades == null || trades.Count == 0)
+            if (trades == null || trades.Count == 0 || fromUtc >= toUtc)
                 return double.NaN;
 
-            var threshold = nowUtc - lookback;
             decimal sum = 0m;
 
             foreach (var t in trades)
             {
-                if (t.Timestamp < threshold)
+                if (t.Timestamp < fromUtc || t.Timestamp > toUtc)
                     continue;
 
                 var signed = t.Side == OrderSide.Buy
@@ -588,10 +637,10 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                 sum += signed;
             }
 
-            // 0 jest sensowny: brak netto przewagi którejkolwiek strony.
             var v = (double)sum;
             return double.IsFinite(v) ? v : double.NaN;
         }
+
 
         /// <summary>
         /// Heurystyczna odległość (w %) do najbliższego "silnego" klastra likwidacji

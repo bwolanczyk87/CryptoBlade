@@ -141,14 +141,20 @@ namespace CryptoBlade.Services
 
         protected async Task ProcessTickersAsync(CancellationToken cancel)
         {
-            List<SymbolTicker> tickers = new List<SymbolTicker>();
-            while (TickerChannel.Reader.TryRead(out var ticker))
-                tickers.Add(ticker);
-            foreach (SymbolTicker symbolTicker in tickers)
+            foreach(var strategy in m_strategies.Values)
             {
                 var ticker = await m_restClient.GetTickerAsync(strategy.Symbol, cancel);
                 await strategy.UpdatePriceDataAsync(ticker, cancel);
             }
+            
+            //List<SymbolTicker> tickers = new List<SymbolTicker>();
+            //while (TickerChannel.Reader.TryRead(out var ticker))
+            //    tickers.Add(ticker);
+            //foreach (SymbolTicker symbolTicker in tickers)
+            //{
+            //    if (m_strategies.TryGetValue(symbolTicker.Symbol, out var strategy))
+            //        await strategy.UpdatePriceDataAsync(symbolTicker.Ticker, cancel);
+            //}
         }
 
         protected async Task ProcessOrderBookAsync(CancellationToken cancel)
@@ -169,7 +175,7 @@ namespace CryptoBlade.Services
 
         protected async Task ProcessPublicTradesAsync(CancellationToken cancel)
         {
-            List<SymbolPublicTrade> items = new();
+            List<SymbolPublicTrade> items = [];
             while (PublicTradeChannel.Reader.TryRead(out var pt))
                 items.Add(pt);
 
@@ -322,9 +328,9 @@ namespace CryptoBlade.Services
             orderUpdateSubscription.AutoReconnect(m_logger);
             m_subscriptions.Add(orderUpdateSubscription);
 
-            var tickerSubscription = await m_socketClient.SubscribeToTickerUpdatesAsync(symbols, OnTicker, cancel);
-            tickerSubscription.AutoReconnect(m_logger);
-            m_subscriptions.Add(tickerSubscription);
+            //var tickerSubscription = await m_socketClient.SubscribeToTickerUpdatesAsync(symbols, OnTicker, cancel);
+            //tickerSubscription.AutoReconnect(m_logger);
+            //m_subscriptions.Add(tickerSubscription);
 
             var obTopSub = await m_socketClient.SubscribeToOrderBookUpdatesAsync(symbols, OnOrderBook, cancel);
             obTopSub.AutoReconnect(m_logger);

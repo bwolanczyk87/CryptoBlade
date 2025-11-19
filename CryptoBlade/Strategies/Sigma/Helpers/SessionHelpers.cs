@@ -5,6 +5,14 @@ using Skender.Stock.Indicators;
 
 namespace CryptoBlade.Strategies.Sigma.Helpers
 {
+    public static class SessionState
+    {
+        public static DateTime SessionAnchorUtc { get; set; }
+        public static decimal? OpeningRangeHigh { get; set; }
+        public static decimal? OpeningRangeLow { get; set; }
+        public static DateTime OpeningRangeSessionDate { get; set; }
+    }
+
     /// <summary>
     /// Helpery sesyjne i narzędziowe dla Sigmy:
     /// - sortowanie świec po czasie,

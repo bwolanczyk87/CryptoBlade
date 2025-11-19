@@ -403,6 +403,10 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double minScore = (double)o.MinScore;
             double minMargin = (double)o.MinMargin;
 
+            double minScoreStay = o.MinScoreStay > 0
+                ? (double)o.MinScoreStay
+                : minScore * 0.5;   // np. połowa progu wejścia
+
             bool passMinScore = proposedScore >= minScore;
             bool passMinMargin = margin >= minMargin;
 
@@ -410,29 +414,56 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             DateTime since = prev.SinceUtc;
             var dwell = TimeSpan.FromMinutes(o.HysteresisLockMinutes);
 
-            // Jeśli kandydat nie spełnia progów – natychmiast None (bez dwell).
-            if (!passMinScore || !passMinMargin)
+            // 1) Jeśli w ogóle nie ma sensownego kandydata:
+            if (proposed == Mode.None || proposedScore <= 0.0)
             {
+                // tu możesz nadal natychmiast zrzucić do None:
                 next = Mode.None;
                 since = nowUtc;
             }
-            else
+            else if (prev.Mode == Mode.None)
             {
-                if (prev.Mode == Mode.None)
+                // 2) Byliśmy w None → wejście tylko, gdy kandydat spełnia progi
+                if (passMinScore && passMinMargin)
                 {
-                    // Brak aktywnego trybu → wybierz kandydata
                     next = proposed;
                     since = nowUtc;
                 }
+                else
+                {
+                    next = Mode.None;
+                    since = nowUtc;
+                }
+            }
+            else
+            {
+                // 3) Już jesteśmy w jakimś trybie (MM/MR/BO)
+
+                double prevScore = dict[prev.Mode];
+
+                // 3a) Kill-condition: aktualny tryb całkiem umiera
+                bool kill = prevScore < minScoreStay;
+
+                if (kill)
+                {
+                    next = Mode.None;
+                    since = nowUtc;
+                }
+                else if (!passMinScore || !passMinMargin)
+                {
+                    // 3b) Kandydat nie jest wystarczająco dobry → zostajemy w starym trybie
+                    next = prev.Mode;
+                    since = prev.SinceUtc == DateTime.MinValue ? nowUtc : prev.SinceUtc;
+                }
                 else if (proposed == prev.Mode)
                 {
-                    // Ten sam tryb – zostajemy, reset since tylko gdy było puste
+                    // 3c) Ten sam tryb wygrywa → zostajemy
                     next = prev.Mode;
                     since = prev.SinceUtc == DateTime.MinValue ? nowUtc : prev.SinceUtc;
                 }
                 else
                 {
-                    // Inny tryb niż poprzedni – sprawdzamy dwell
+                    // 3d) Inny tryb jest wyraźnym kandydatem → działa dwell
                     bool dwellOver = (nowUtc - prev.SinceUtc) >= dwell;
 
                     if (dwellOver)
@@ -442,7 +473,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                     }
                     else
                     {
-                        // Lepkość: dwell jeszcze trwa → trzymamy stary tryb
                         next = prev.Mode;
                         since = prev.SinceUtc;
                     }

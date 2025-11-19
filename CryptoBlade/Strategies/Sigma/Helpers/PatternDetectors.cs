@@ -75,29 +75,30 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         /// <summary>
         /// Detekcja wybicia Donchian Channel na ostatnim barze.
         /// Zwraca:
+        /// - DonchanResult (ostatni punkt) lub null przy braku danych,
         /// - up:  close &gt; UpperBand,
         /// - down: close &lt; LowerBand.
         /// </summary>
-        public static (bool up, bool down) DetectDonchianBreakout(
+        public static (DonchianResult? donchian, bool up, bool down) DetectDonchianBreakout(
             IReadOnlyList<Quote> bars,
             int period)
         {
             if (bars == null || bars.Count < period + 1)
-                return (false, false);
+                return (null, false, false);
 
             var dcList = bars.GetDonchian(period).ToList();
             if (dcList.Count == 0)
-                return (false, false);
+                return (null, false, false);
 
             var dc = dcList[^1];
             if (!dc.UpperBand.HasValue || !dc.LowerBand.HasValue)
-                return (false, false);
+                return (null, false, false);
 
             decimal close = bars[^1].Close;
             bool up = close > dc.UpperBand.Value;
             bool down = close < dc.LowerBand.Value;
 
-            return (up, down);
+            return (dc, up, down);
         }
 
         /// <summary>
@@ -120,6 +121,49 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
 
             return (high, low);
         }
+
+        public static void EnsureOpeningRangeComputed(
+            IReadOnlyList<Quote> q1m,
+            DateTime nowUtc,
+            DateTime anchorUtc,
+            int orMinutes)
+        {
+            var sessionDate = anchorUtc.Date;
+
+            // jeśli OR już policzone dla tej sesji → nic nie rób
+            if (SessionState.OpeningRangeHigh.HasValue &&
+                SessionState.OpeningRangeLow.HasValue &&
+                SessionState.OpeningRangeSessionDate == sessionDate)
+            {
+                return;
+            }
+
+            var orEnd = anchorUtc.AddMinutes(orMinutes);
+
+            // Nie licz OR dopóki nie minęło pełne orMinutes od anchor.
+            if (nowUtc < orEnd)
+                return;
+
+            // Bierz tylko świece z okna [anchor, anchor+30min)
+            var intraday1m = q1m
+                .Where(b => b.Date >= anchorUtc && b.Date < orEnd)
+                .ToArray();
+
+            if (intraday1m.Length == 0)
+                return;
+
+            var (orHigh, orLow) = PatternDetectors.ComputeOpeningRange(
+                intraday1m,
+                minutes: orMinutes);
+
+            if (orHigh == 0m && orLow == 0m)
+                return;
+
+            SessionState.OpeningRangeHigh = orHigh;
+            SessionState.OpeningRangeLow = orLow;
+            SessionState.OpeningRangeSessionDate = sessionDate;
+        }
+
 
         /// <summary>
         /// Detekcja prostego wzorca sweep -> reclaim na ostatnim barze.

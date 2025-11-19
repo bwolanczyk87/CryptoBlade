@@ -65,7 +65,8 @@ namespace CryptoBlade.Strategies.Sigma
     /// </summary>
     public sealed class SigmaAuditRecord
     {
-        // Meta
+        // ========= META / TRYBY =========
+
         [AuditColumn(Order = 0, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
         public DateTime TimeUtc { get; init; }
 
@@ -80,7 +81,7 @@ namespace CryptoBlade.Strategies.Sigma
         public ModeLabel Prev { get; init; }          // Poprzedni Active
 
         [AuditColumn(Order = 4, EnumFormat = AuditEnumFormat.Int)]
-        public ModeLabel? Oracle { get; set; }        // Opcjonalny label referencyjny (np. z datsetu)
+        public ModeLabel? Oracle { get; set; }        // Opcjonalny label referencyjny (np. z datasetu)
 
         [AuditColumn(Order = 5, EnumFormat = AuditEnumFormat.Int)]
         public ModeLabel Proposed { get; init; }      // Argmax z bieżących score'ów
@@ -101,7 +102,8 @@ namespace CryptoBlade.Strategies.Sigma
         [AuditColumn(Order = 10, Decimals = 0)]
         public double HysteresisLockMinutes { get; init; }
 
-        // Scores (pełne) + metryki wyboru
+        // ========= SCORES =========
+
         [AuditColumn(Order = 11, Decimals = 2)]
         public double ScoreMM { get; init; }
 
@@ -123,7 +125,8 @@ namespace CryptoBlade.Strategies.Sigma
         [AuditColumn(Order = 17, Decimals = 2)]
         public double ActiveScore { get; init; }        // score wybranego Active
 
-        // Cechy – trend/value/vol
+        // ========= CECHY – TREND / VALUE / VOL =========
+
         [AuditColumn(Order = 18, Decimals = 2)]
         public double Adx1h { get; init; }
 
@@ -137,146 +140,157 @@ namespace CryptoBlade.Strategies.Sigma
         public double ZDvwap { get; init; }
 
         [AuditColumn(Order = 22, Decimals = 3)]
-        public double ZSlopeDvwap { get; init; }
-
-        [AuditColumn(Order = 23, Decimals = 4)]
-        public double AutoCorr5m { get; init; }
-
-        [AuditColumn(Order = 24, Decimals = 2)]
-        public double Bbw15mPct { get; init; }
-
-        [AuditColumn(Order = 25, Decimals = 6)]
-        public double Bbw15mRaw { get; init; }
-
-        // Mikrostruktura
-        [AuditColumn(Order = 26, Decimals = 4)]
-        public double SpreadBps { get; init; }
-
-        // Derywaty/flow
-        [AuditColumn(Order = 27, Decimals = 3)]
-        public double OiDelta1hPct { get; init; }
-
-        [AuditColumn(Order = 28, Decimals = 5)]
-        public double FundingPredictedPct { get; init; }
-
-        [AuditColumn(Order = 29, Decimals = 5)]
-        public double FundingLastSettledPct { get; init; }
-
-        [AuditColumn(Order = 30, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime? NextFundingUtc { get; init; }
-
-        [AuditColumn(Order = 31, Decimals = 4)]
-        public double BasisPct { get; init; }
-
-        [AuditColumn(Order = 32, Decimals = 6)]
-        public double DeltaCvd5m { get; init; }
-
-        [AuditColumn(Order = 33, Decimals = 2)]
-        public double DistToLiqPct { get; init; }
-
-        // Patterny/struktura
-        [AuditColumn(Order = 34, BoolAsInt = true)]
-        public bool HasInsideOrNr7 { get; init; }
-
-        [AuditColumn(Order = 35, BoolAsInt = true)]
-        public bool DonchianBreakUp { get; init; }
-
-        [AuditColumn(Order = 36, BoolAsInt = true)]
-        public bool DonchianBreakDown { get; init; }
-
-        [AuditColumn(Order = 37, BoolAsInt = true)]
-        public bool Bbw15mExpanding { get; init; }
-
-        [AuditColumn(Order = 38, Decimals = 2)]
-        public decimal? OpeningRangeHigh { get; init; }
-
-        [AuditColumn(Order = 39, Decimals = 2)]
-        public decimal? OpeningRangeLow { get; init; }
-
-        // Supervisor – korelacja do BTC
-        [AuditColumn(Order = 40, Decimals = 4)]
-        public double CorrToBtc15m { get; init; }
-
-        [AuditColumn(Order = 41, BoolAsInt = true)]
-        public bool BtcBiasOpposite { get; init; }
-
-        // Histereza (stan trybu)
-        [AuditColumn(Order = 42, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime SinceUtc { get; init; }         // od kiedy aktywny tryb
-
-        [AuditColumn(Order = 43, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji trybu
-
-        // Surowy snapshot tickera
-        [AuditColumn(Order = 50, Decimals = 2)]
-        public decimal? LastPrice { get; init; }
-
-        [AuditColumn(Order = 51, Decimals = 2)]
-        public decimal? BestBidPrice { get; init; }
-
-        [AuditColumn(Order = 52, Decimals = 2)]
-        public decimal? BestAskPrice { get; init; }
-
-        [AuditColumn(Order = 53, Decimals = 2)]
-        public decimal? MarkPrice { get; init; }
-
-        [AuditColumn(Order = 54, Decimals = 2)]
-        public decimal? IndexPrice { get; init; }
-
-        // Ostatni bar 1m
-        [AuditColumn(Order = 55, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
-        public DateTime? Last1mTimeUtc { get; init; }
-
-        [AuditColumn(Order = 56, Decimals = 2)]
-        public decimal? Last1mOpen { get; init; }
-
-        [AuditColumn(Order = 57, Decimals = 2)]
-        public decimal? Last1mHigh { get; init; }
-
-        [AuditColumn(Order = 58, Decimals = 2)]
-        public decimal? Last1mLow { get; init; }
-
-        [AuditColumn(Order = 59, Decimals = 2)]
-        public decimal? Last1mClose { get; init; }
-
-        [AuditColumn(Order = 60, Decimals = 4)]
-        public decimal? Last1mVolume { get; init; }
-
-        [AuditColumn(Order = 61, BoolAsInt = true)]
-        public bool SweepReclaimUp5m { get; init; }
-
-        [AuditColumn(Order = 62, BoolAsInt = true)]
-        public bool SweepReclaimDown5m { get; init; }
-
-        [AuditColumn(Order = 63, Decimals = 2)]
-        public double SweepUpOvershootBps5m { get; init; }
-
-        [AuditColumn(Order = 64, Decimals = 2)]
-        public double SweepDownOvershootBps5m { get; init; }
-
-        [AuditColumn(Order = 65, Decimals = 6)]
-        public double DeltaCvdPrev5m { get; init; }
-
-        [AuditColumn(Order = 66, BoolAsInt = true)]
-        public bool CvdFlipUp5m { get; init; }
-
-        [AuditColumn(Order = 67, BoolAsInt = true)]
-        public bool CvdFlipDown5m { get; init; }
-
-        [AuditColumn(Order = 68, Decimals = 3)]
         public double ZDvwapPrev { get; init; }
 
-        [AuditColumn(Order = 69, BoolAsInt = true)]
+        [AuditColumn(Order = 23, Decimals = 3)]
+        public double ZSlopeDvwap { get; init; }
+
+        [AuditColumn(Order = 24, Decimals = 4)]
+        public double AutoCorr5m { get; init; }
+
+        [AuditColumn(Order = 25, Decimals = 2)]
+        public double Bbw15mPct { get; init; }
+
+        [AuditColumn(Order = 26, Decimals = 6)]
+        public double Bbw15mRaw { get; init; }
+
+        [AuditColumn(Order = 27, BoolAsInt = true)]
+        public bool Bbw15mExpanding { get; init; }
+
+        // ========= MIKROSTRUKTURA / DERYWATY / FLOW =========
+
+        [AuditColumn(Order = 28, Decimals = 4)]
+        public double SpreadBps { get; init; }
+
+        [AuditColumn(Order = 29, Decimals = 3)]
+        public double OiDelta1hPct { get; init; }
+
+        [AuditColumn(Order = 30, Decimals = 6)]
+        public double DeltaCvd5m { get; init; }
+
+        [AuditColumn(Order = 31, Decimals = 6)]
+        public double DeltaCvdPrev5m { get; init; }
+
+        [AuditColumn(Order = 32, BoolAsInt = true)]
+        public bool CvdFlipUp5m { get; init; }
+
+        [AuditColumn(Order = 33, BoolAsInt = true)]
+        public bool CvdFlipDown5m { get; init; }
+
+        [AuditColumn(Order = 34, Decimals = 5)]
+        public double FundingPredictedPct { get; init; }
+
+        [AuditColumn(Order = 35, Decimals = 5)]
+        public double FundingLastSettledPct { get; init; }
+
+        [AuditColumn(Order = 36, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime? NextFundingUtc { get; init; }
+
+        [AuditColumn(Order = 37, Decimals = 4)]
+        public double BasisPct { get; init; }
+
+        [AuditColumn(Order = 38, Decimals = 2)]
+        public double DistToLiqPct { get; init; }
+
+        // ========= PATTERNY / STRUKTURA / OR / DONCHIAN =========
+
+        [AuditColumn(Order = 39, BoolAsInt = true)]
+        public bool HasInsideOrNr7 { get; init; }
+
+        [AuditColumn(Order = 40, BoolAsInt = true)]
+        public bool DonchianBreakUp { get; init; }
+
+        [AuditColumn(Order = 41, BoolAsInt = true)]
+        public bool DonchianBreakDown { get; init; }
+
+        [AuditColumn(Order = 42, Decimals = 4)]
+        public decimal? DonchianUpper15m { get; init; }
+
+        [AuditColumn(Order = 43, Decimals = 4)]
+        public decimal? DonchianLower15m { get; init; }
+
+        [AuditColumn(Order = 44, Decimals = 2)]
+        public decimal? OpeningRangeHigh { get; init; }
+
+        [AuditColumn(Order = 45, Decimals = 2)]
+        public decimal? OpeningRangeLow { get; init; }
+
+        [AuditColumn(Order = 46, BoolAsInt = true)]
         public bool OrBreakoutRetestUp5m { get; init; }
 
-        [AuditColumn(Order = 70, BoolAsInt = true)]
+        [AuditColumn(Order = 47, BoolAsInt = true)]
         public bool OrBreakoutRetestDown5m { get; init; }
 
-        [AuditColumn(Order = 71, Decimals = 2)]
+        [AuditColumn(Order = 48, Decimals = 2)]
         public double OrRetestDepthBpsUp5m { get; init; }
 
-        [AuditColumn(Order = 72, Decimals = 2)]
+        [AuditColumn(Order = 49, Decimals = 2)]
         public double OrRetestDepthBpsDown5m { get; init; }
+
+        [AuditColumn(Order = 50, BoolAsInt = true)]
+        public bool SweepReclaimUp5m { get; init; }
+
+        [AuditColumn(Order = 51, BoolAsInt = true)]
+        public bool SweepReclaimDown5m { get; init; }
+
+        [AuditColumn(Order = 52, Decimals = 2)]
+        public double SweepUpOvershootBps5m { get; init; }
+
+        [AuditColumn(Order = 53, Decimals = 2)]
+        public double SweepDownOvershootBps5m { get; init; }
+
+        // ========= SUPERVISOR – BTC =========
+
+        [AuditColumn(Order = 54, Decimals = 4)]
+        public double CorrToBtc15m { get; init; }
+
+        [AuditColumn(Order = 55, BoolAsInt = true)]
+        public bool BtcBiasOpposite { get; init; }
+
+        // ========= HISTEReZA (STAN TRYBU) =========
+
+        [AuditColumn(Order = 56, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime SinceUtc { get; init; }         // od kiedy aktywny tryb
+
+        [AuditColumn(Order = 57, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime LastDecisionUtc { get; init; }  // ostatni heartbeat decyzji trybu
+
+        // ========= SUROWY SNAPSHOT TICKERA =========
+
+        [AuditColumn(Order = 58, Decimals = 2)]
+        public decimal? LastPrice { get; init; }
+
+        [AuditColumn(Order = 59, Decimals = 2)]
+        public decimal? BestBidPrice { get; init; }
+
+        [AuditColumn(Order = 60, Decimals = 2)]
+        public decimal? BestAskPrice { get; init; }
+
+        [AuditColumn(Order = 61, Decimals = 2)]
+        public decimal? MarkPrice { get; init; }
+
+        [AuditColumn(Order = 62, Decimals = 2)]
+        public decimal? IndexPrice { get; init; }
+
+        // ========= OSTATNI BAR 1M =========
+
+        [AuditColumn(Order = 63, DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ")]
+        public DateTime? Last1mTimeUtc { get; init; }
+
+        [AuditColumn(Order = 64, Decimals = 2)]
+        public decimal? Last1mOpen { get; init; }
+
+        [AuditColumn(Order = 65, Decimals = 2)]
+        public decimal? Last1mHigh { get; init; }
+
+        [AuditColumn(Order = 66, Decimals = 2)]
+        public decimal? Last1mLow { get; init; }
+
+        [AuditColumn(Order = 67, Decimals = 2)]
+        public decimal? Last1mClose { get; init; }
+
+        [AuditColumn(Order = 68, Decimals = 4)]
+        public decimal? Last1mVolume { get; init; }
     }
 
     // ======== BUDOWANIE REKORDU (z ModeEngine.Classify) ========
@@ -345,29 +359,46 @@ namespace CryptoBlade.Strategies.Sigma
                 AtrPct1h = data.AtrPct1h,
                 Atr1hAbs = data.Atr1hAbs,
                 ZDvwap = data.ZDvwap,
-                ZSlopeDvwap = data.ZSlopeDvwap,
                 ZDvwapPrev = data.ZDvwapPrev,
+                ZSlopeDvwap = data.ZSlopeDvwap,
                 AutoCorr5m = data.AutoCorr5m,
                 Bbw15mPct = data.Bbw15mPct,
                 Bbw15mRaw = data.Bbw15mRaw,
+                Bbw15mExpanding = data.Bbw15mExpanding,
 
                 SpreadBps = data.SpreadBps,
 
                 OiDelta1hPct = data.OiDelta1hPct,
-                FundingLastSettledPct = data.FundingLastSettledPct,
+                DeltaCvd5m = data.DeltaCvd5m,
+                DeltaCvdPrev5m = data.DeltaCvdPrev5m,
+                CvdFlipUp5m = data.CvdFlipUp5m,
+                CvdFlipDown5m = data.CvdFlipDown5m,
+
                 FundingPredictedPct = data.FundingPredictedPct,
+                FundingLastSettledPct = data.FundingLastSettledPct,
                 NextFundingUtc = data.NextFundingUtc,
 
                 BasisPct = data.BasisPct,
-                DeltaCvd5m = data.DeltaCvd5m,
                 DistToLiqPct = data.DistToLiqPct,
 
                 HasInsideOrNr7 = data.HasInsideOrNr7,
                 DonchianBreakUp = data.DonchianBreakUp,
                 DonchianBreakDown = data.DonchianBreakDown,
-                Bbw15mExpanding = data.Bbw15mExpanding,
+                DonchianUpper15m = data.DonchianResult?.UpperBand,
+                DonchianLower15m = data.DonchianResult?.LowerBand,
+
                 OpeningRangeHigh = data.OpeningRangeHigh,
                 OpeningRangeLow = data.OpeningRangeLow,
+
+                OrBreakoutRetestUp5m = data.OrBreakoutRetestUp5m,
+                OrBreakoutRetestDown5m = data.OrBreakoutRetestDown5m,
+                OrRetestDepthBpsUp5m = data.OrRetestDepthBpsUp5m,
+                OrRetestDepthBpsDown5m = data.OrRetestDepthBpsDown5m,
+
+                SweepReclaimUp5m = data.SweepReclaimUp5m,
+                SweepReclaimDown5m = data.SweepReclaimDown5m,
+                SweepUpOvershootBps5m = data.SweepUpOvershootBps5m,
+                SweepDownOvershootBps5m = data.SweepDownOvershootBps5m,
 
                 CorrToBtc15m = data.CorrToBtc15m,
                 BtcBiasOpposite = data.BtcBiasOpposite,
@@ -386,23 +417,11 @@ namespace CryptoBlade.Strategies.Sigma
                 Last1mHigh = data.Last1mHigh,
                 Last1mLow = data.Last1mLow,
                 Last1mClose = data.Last1mClose,
-                Last1mVolume = data.Last1mVolume,
-
-                SweepReclaimUp5m = data.SweepReclaimUp5m,
-                SweepReclaimDown5m = data.SweepReclaimDown5m,
-                SweepUpOvershootBps5m = data.SweepUpOvershootBps5m,
-                SweepDownOvershootBps5m = data.SweepDownOvershootBps5m,
-                DeltaCvdPrev5m = data.DeltaCvdPrev5m,
-                CvdFlipUp5m = data.CvdFlipUp5m,
-                CvdFlipDown5m = data.CvdFlipDown5m,
-
-                OrBreakoutRetestUp5m = data.OrBreakoutRetestUp5m,
-                OrBreakoutRetestDown5m = data.OrBreakoutRetestDown5m,
-                OrRetestDepthBpsUp5m = data.OrRetestDepthBpsUp5m,
-                OrRetestDepthBpsDown5m = data.OrRetestDepthBpsDown5m,
+                Last1mVolume = data.Last1mVolume
             };
         }
     }
+
 
     // ======== CSV (GENERYCZNE, REFLEKSYJNE, Z CACHINGIEM) ========
 

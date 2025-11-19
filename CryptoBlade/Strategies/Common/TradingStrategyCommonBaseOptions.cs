@@ -32,7 +32,7 @@ namespace CryptoBlade.Strategies.Common
 
         public int ExecutionDelay { get; set; } = 0;
 
-        public int PublicTradeWindowMinutes { get; set; } = 5;
+        public int PublicTradeWindowMinutes { get; set; } = 20;
 
         public int LiquidationWindowMinutes { get; set; } = 20;
     }
