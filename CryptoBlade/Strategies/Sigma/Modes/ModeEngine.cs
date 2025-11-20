@@ -8,7 +8,19 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel);
     }
 
-    public enum Mode { None, MM, MR, BO }
+    public enum Mode { 
+        None = 0, 
+        MM = 1, 
+        MR = 2, 
+        BO = 3
+    }
+
+    public enum ModeTier {
+        None = 0,
+        Soft = 1,
+        Medium = 2,
+        Hard = 3
+    }
 
     public readonly record struct ModeState(Mode Mode, DateTime SinceUtc, ModeScores Scores);
 
@@ -25,14 +37,13 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         };
     }
 
-    public readonly struct ModeSignal(bool buy, bool sell, bool buyExtra, bool sellExtra)
+    public readonly struct ModeSignal(bool buy, bool sell, ModeTier tier)
     {
         public readonly bool HasBuy = buy;
         public readonly bool HasSell = sell;
-        public readonly bool HasBuyExtra = buyExtra;
-        public readonly bool HasSellExtra = sellExtra;
+        public readonly ModeTier Tier = tier;
 
-        public static ModeSignal None => new(false, false, false, false);
+        public static ModeSignal None => new(false, false, ModeTier.None);
     }
 
     public readonly record struct ModeDecision(
@@ -215,48 +226,71 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double mm = 0.0;
 
             double adx = f.Adx1h;
-            double zslope = f.ZSlopeDvwap;
-            double zdev = f.ZDvwap;
+            double zSlope = f.ZSlopeDvwap;
+            double zDev = f.ZDvwap;
             double ac = f.AutoCorr5m;
             double oi = f.OiDelta1hPct;
 
-            // 1) Trend wg ADX – rośnie między AdxDisableMomentum a AdxEnableMomentum
+            // 1) ADX – im bliżej AdxEnableMomentum, tym wyższy score (0..40)
             double adxNorm = StatisticsHelpers.Normalize01(
                 adx,
                 (double)o.AdxDisableMomentum,
                 (double)o.AdxEnableMomentum);
 
-            mm += 40.0 * StatisticsHelpers.Clamp01(adxNorm); // 0..40
+            adxNorm = StatisticsHelpers.Clamp01(adxNorm);
+            mm += 40.0 * adxNorm;                  // 0..40
 
-            // 2) Slope DVWAP – dodatni/ujemny trend (tylko dodatnia część jako "siła")
-            double slopeScore = Math.Tanh(zslope / 2.0); // ~[-1..1]
-            mm += 20.0 * Math.Max(0.0, slopeScore);      // 0..20
-
-            // 3) Oddalenie od DVWAP – większe |z| = po korekcie / daleko od value
-            double zAbs = Math.Abs(zdev);
-            double zScore = StatisticsHelpers.Normalize01(zAbs, 0.5, 3.0);
-            mm += 20.0 * StatisticsHelpers.Clamp01(zScore);                // 0..20
-
-            // 4) ΔOI zgodny z kierunkiem nachylenia DVWAP
-            int trendSign = StatisticsHelpers.Sign(zslope, 0.1);
-            double oiAligned = 0.0;
-            if (trendSign != 0)
+            // 2) Absolutne nachylenie DVWAP – "siła trendu" w obie strony (0..25)
+            if (double.IsFinite(zSlope))
             {
-                int oiSign = StatisticsHelpers.Sign(oi, 0.2);
+                // 4 sigma nachylenia → pełna premia
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 4.0, 1.0);
+                mm += 25.0 * slopeMag;             // 0..25
+            }
+
+            // 3) Umiarkowane odchylenie od DVWAP (nie za blisko, nie ekstremalnie daleko) (0..15)
+            if (double.IsFinite(zDev))
+            {
+                double absDev = Math.Abs(zDev);
+
+                // pełne 1.0 w okolicach 1.0–2.0 sigma, 0 przy 0 i >=4
+                double devScore = 0.0;
+                if (absDev > 0.2 && absDev < 4.0)
+                {
+                    if (absDev <= 2.0)
+                        devScore = (absDev - 0.2) / (2.0 - 0.2);   // rośnie 0→1
+                    else
+                        devScore = (4.0 - absDev) / (4.0 - 2.0);   // spada 1→0
+                }
+
+                devScore = StatisticsHelpers.Clamp01(devScore);
+                mm += 15.0 * devScore;              // 0..15
+            }
+
+            // 4) ΔOI wyrównany z kierunkiem trendu (0..10)
+            double oiAligned = 0.0;
+            if (double.IsFinite(oi) && double.IsFinite(zSlope) && Math.Abs(zSlope) > 0.1)
+            {
+                int trendSign = Math.Sign(zSlope);
+                int oiSign = Math.Sign(oi);
+
                 if (oiSign == trendSign)
                 {
-                    // saturacja przy ok. 10% zmiany OI
+                    // saturacja przy ~10% zmiany OI
                     double oiMag = Math.Min(Math.Abs(oi) / 10.0, 1.0);
                     oiAligned = oiMag;
                 }
             }
-            mm += 20.0 * oiAligned;                      // 0..20
+            mm += 10.0 * oiAligned;                 // 0..10
 
-            // 5) Lekka premia za dodatnią autokorelację (kontynuacja)
-            if (ac > 0)
-                mm += 10.0 * ac;                         // max +10
+            // 5) Dodatnia autokorelacja – kontynuacja (0..10)
+            if (double.IsFinite(ac) && ac > 0.0)
+            {
+                double acClamped = Math.Min(ac, 1.0);
+                mm += 10.0 * acClamped;             // 0..10
+            }
 
-            return mm;
+            return mm;  // później i tak jest clampowane do [0..100] w Score(...)
         }
 
         private static double ScoreMeanReversion(RegimeFeatures f, SigmaStrategyOptions o)
@@ -264,37 +298,73 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double mr = 0.0;
 
             double adx = f.Adx1h;
-            double zdev = f.ZDvwap;
+            double zDev = f.ZDvwap;
+            double zSlope = f.ZSlopeDvwap;
             double ac = f.AutoCorr5m;
             double bbwP = f.Bbw15mPct;
 
-            // 1) Niski ADX – im niższy tym lepiej dla MR
+            // 1) Niski ADX – im niższy, tym lepiej dla MR (0..30)
             double adxLow = 1.0 - StatisticsHelpers.Normalize01(
                 adx,
                 (double)o.AdxDisableMomentum,
                 (double)o.AdxEnableMomentum);
 
             adxLow = StatisticsHelpers.Clamp01(adxLow);
-            mr += 30.0 * adxLow;                         // 0..30
+            mr += 30.0 * adxLow;                    // 0..30
 
-            // 2) Duże oddalenie od DVWAP – sygnał "przesterowania"
-            double zAbs = Math.Abs(zdev);
-            double zScore = StatisticsHelpers.Normalize01(
-                zAbs,
-                (double)o.ZVwapEnableMR,
-                3.0);
+            // 2) Bliskość DVWAP – preferujemy |zDev| blisko 0 (0..35)
+            if (double.IsFinite(zDev))
+            {
+                double absDev = Math.Abs(zDev);
+                double devScore = 0.0;
 
-            mr += 40.0 * StatisticsHelpers.Clamp01(zScore);                // 0..40
+                // 1.0 przy zDev=0, 0 przy |zDev|>=3
+                if (absDev <= 3.0)
+                    devScore = 1.0 - (absDev / 3.0);
 
-            // 3) Ujemna autokorelacja sprzyja MR; blisko zera też OK
-            if (ac < 0)
-                mr += 20.0 * (-ac);                      // max +20 przy ac=-1
-            else
-                mr += 10.0 * (1.0 - ac);                 // flattish rynek dostaje lekką premię
+                devScore = StatisticsHelpers.Clamp01(devScore);
+                mr += 35.0 * devScore;              // 0..35
+            }
 
-            // 4) MR lubi relatywnie wąskie BB – kompresja
-            double bbwNorm = StatisticsHelpers.Normalize01(bbwP, 0.0, (double)o.BbWidthExitBreakoutPct);
-            mr += 10.0 * (1.0 - StatisticsHelpers.Clamp01(bbwNorm));       // 0..10, im mniejsze bbw tym więcej
+            // 3) Kara za duże |slope| – MR nie lubi runaway-trendów (do -25)
+            if (double.IsFinite(zSlope))
+            {
+                // 5 sigma nachylenia → pełna kara
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 5.0, 1.0);
+                mr -= 25.0 * slopeMag;              // 0..-25
+            }
+
+            // 4) Autokorelacja: ujemna lub blisko zera sprzyja MR (0..20)
+            if (double.IsFinite(ac))
+            {
+                if (ac < 0.0)
+                {
+                    double acMag = Math.Min(-ac, 1.0);
+                    mr += 20.0 * acMag;             // 0..20 przy ac=-1
+                }
+                else
+                {
+                    // im bliżej 0, tym lepiej; ac->1 obniża score
+                    double flatScore = 1.0 - Math.Min(ac, 1.0);
+                    mr += 10.0 * flatScore;         // 0..10
+                }
+            }
+
+            // 5) Wąskie BB – kompresja (0..15)
+            if (double.IsFinite(bbwP))
+            {
+                double bbwNorm = StatisticsHelpers.Normalize01(
+                    bbwP,
+                    0.0,
+                    (double)o.BbWidthExitBreakoutPct);
+
+                double bbwScore = 1.0 - StatisticsHelpers.Clamp01(bbwNorm);
+                mr += 15.0 * bbwScore;              // 0..15
+            }
+
+            // Ograniczenie do [0..100] – dodatkowy safety poza globalnym clampem
+            if (mr < 0.0) mr = 0.0;
+            if (mr > 100.0) mr = 100.0;
 
             return mr;
         }
@@ -303,43 +373,60 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         {
             double bo = 0.0;
 
+            double atr = f.AtrPct1h;
             double bbwP = f.Bbw15mPct;
+            double zSlope = f.ZSlopeDvwap;
             double ac = f.AutoCorr5m;
             double oi = f.OiDelta1hPct;
 
-            // 1) Szerokie pasma BB – breakout z kompresji w kierunku ekspansji
+            // 1) Szerokie pasma BB – breakout z kompresji → ekspansja (0..40)
             double bbwNorm = StatisticsHelpers.Normalize01(
                 bbwP,
                 (double)o.BbWidthBreakoutPct,
                 (double)o.BbWidthExitBreakoutPct);
 
             bbwNorm = StatisticsHelpers.Clamp01(bbwNorm);
-            bo += 40.0 * bbwNorm;                        // 0..40
+            bo += 40.0 * bbwNorm;                   // 0..40
 
-            // 2) Ekspansja BB – gwałtowna zmiana zmienności
-            if (d.Bbw15mExpanding)
-                bo += 10.0;
-
-            // 3) Strukturalne wybicia (Donchian, inside/NR7)
-            if (d.DonchianBreakUp || d.DonchianBreakDown)
-                bo += 20.0;
-
-            if (d.HasInsideOrNr7)
-                bo += 10.0;
-
-            // 4) ΔOI>0 – napływ kapitału na wybiciu
-            if (oi > 0)
+            // 2) ATR – breakout lubi wyższe ATR, ale z limitem (0..15)
+            if (double.IsFinite(atr))
             {
-                double oiMag = Math.Min(oi / 10.0, 1.0);
-                bo += 20.0 * oiMag;
+                // brak dolnego progu – rosnący score do BoAtrMaxPct
+                double atrNorm = StatisticsHelpers.Normalize01(
+                    atr,
+                    0.0,
+                    (double)o.BoAtrMaxPct);
+
+                atrNorm = StatisticsHelpers.Clamp01(atrNorm);
+                bo += 15.0 * atrNorm;               // 0..15
             }
 
-            // 5) Dodatnia autokorelacja – kontynuacja ruchu po wybiciu
-            if (ac > 0)
-                bo += 10.0 * ac;
+            // 3) Absolutny slope DVWAP – siła jednokierunkowego ruchu (0..25)
+            if (double.IsFinite(zSlope))
+            {
+                // 4 sigma nachylenia → pełna premia
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 4.0, 1.0);
+                bo += 25.0 * slopeMag;              // 0..25
+            }
+
+            // 4) ΔOI>0 – napływ kapitału na wybiciu (0..10)
+            if (double.IsFinite(oi) && oi > 0.0)
+            {
+                // saturacja przy ~10% zmiany OI
+                double oiMag = Math.Min(oi / 10.0, 1.0);
+                bo += 10.0 * oiMag;                 // 0..10
+            }
+
+            // 5) Dodatnia autokorelacja – kontynuacja po wybiciu (0..10)
+            if (double.IsFinite(ac) && ac > 0.0)
+            {
+                double acClamped = Math.Min(ac, 1.0);
+                bo += 10.0 * acClamped;             // 0..10
+            }
 
             return bo;
         }
+
 
         // =====================================================================
         //  KLASYFIKACJA (argmax + histereza/dwell/MinScore/MinMargin)

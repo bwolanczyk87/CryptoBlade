@@ -139,8 +139,8 @@ namespace CryptoBlade.Strategies.Sigma
             return new SignalEvaluation(
                 modeSignal.HasBuy,
                 modeSignal.HasSell,
-                modeSignal.HasBuyExtra,
-                modeSignal.HasSellExtra,
+                false,
+                false,
                 []);
         }
 

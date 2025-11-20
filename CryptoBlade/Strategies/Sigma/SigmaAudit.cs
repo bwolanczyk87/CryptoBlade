@@ -291,6 +291,34 @@ namespace CryptoBlade.Strategies.Sigma
 
         [AuditColumn(Order = 68, Decimals = 4)]
         public decimal? Last1mVolume { get; init; }
+
+        [AuditColumn(Order = 69)]
+        public int MmEntryTier { get; init; }
+
+        [AuditColumn(Order = 70)]
+        public int MrEntryTier { get; init; }
+
+        [AuditColumn(Order = 71)]
+        public int BoEntryTier { get; init; }
+
+        [AuditColumn(Order = 72)]
+        public bool MmLongCandidate { get; init; }
+
+        [AuditColumn(Order = 73)]
+        public bool MmShortCandidate { get; init; }
+
+        [AuditColumn(Order = 74)]
+        public bool MrLongCandidate { get; init; }
+
+        [AuditColumn(Order = 75)]
+        public bool MrShortCandidate { get; init; }
+
+        [AuditColumn(Order = 76)]
+        public bool BoLongCandidate { get; init; }
+
+        [AuditColumn(Order = 77)]
+        public bool BoShortCandidate { get; init; }
+
     }
 
     // ======== BUDOWANIE REKORDU (z ModeEngine.Classify) ========
@@ -417,7 +445,19 @@ namespace CryptoBlade.Strategies.Sigma
                 Last1mHigh = data.Last1mHigh,
                 Last1mLow = data.Last1mLow,
                 Last1mClose = data.Last1mClose,
-                Last1mVolume = data.Last1mVolume
+                Last1mVolume = data.Last1mVolume,
+
+                // --- Per-mode entry debug ---
+                MmEntryTier = data.MomentumEntryTier,
+                MrEntryTier = data.MeanReversionEntryTier,
+                BoEntryTier = data.BreakoutEntryTier,
+
+                MmLongCandidate = data.MomentumLongCandidate,
+                MmShortCandidate = data.MomentumShortCandidate,
+                MrLongCandidate = data.MeanReversionLongCandidate,
+                MrShortCandidate = data.MeanReversionShortCandidate,
+                BoLongCandidate = data.BreakoutLongCandidate,
+                BoShortCandidate = data.BreakoutShortCandidate,
             };
         }
     }

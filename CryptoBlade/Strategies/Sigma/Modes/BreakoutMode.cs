@@ -36,8 +36,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            if (data is null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
+
+            // Reset per-mode debug
+            data.BreakoutEntryTier = 0;
+            data.BreakoutLongCandidate = false;
+            data.BreakoutShortCandidate = false;
 
             // -----------------------------------------------------------------
             // 1. Globalne gate'y dla BO: spread + ATR (tylko górny próg)
@@ -116,32 +120,25 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             bool cvdUp = double.IsFinite(cvd) && cvd > 0.0;
             bool cvdDown = double.IsFinite(cvd) && cvd < 0.0;
 
-            // -----------------------------------------------------------------
-            // 5. BTC bias gating
-            // -----------------------------------------------------------------
+            // Dwa typy flow:
+            // - trendowy: OI↑ + CVD w stronę wybicia,
+            // - flush: OI↓ + CVD w stronę wybicia (kapitulacja).
+            bool trendLongFlow = oiUp && cvdUp;
+            bool trendShortFlow = oiUp && cvdDown;
 
-            if (data.BtcBiasOpposite)
-            {
-                // Jeśli nasz setup idzie przeciwnie do silnego BTC biasu
-                // przy wysokiej korelacji – w ogóle nie dotykamy BO.
-                return ModeSignal.None;
-            }
-
-            // -----------------------------------------------------------------
-            // 6. Składanie triggerów long/short
-            // -----------------------------------------------------------------
+            bool flushLongFlow = oiDown && cvdUp;
+            bool flushShortFlow = oiDown && cvdDown;
 
             bool longTrigger =
                 structureUp &&
-                oiUp &&
-                cvdUp &&
+                (trendLongFlow || flushLongFlow) &&
                 volSupportsBreakout;
 
             bool shortTrigger =
                 structureDown &&
-                oiDown &&
-                cvdDown &&
+                (trendShortFlow || flushShortFlow) &&
                 volSupportsBreakout;
+
 
             // "Extra" – silniejsze setupy:
             // - retest był głębszy (ale nie za głęboki),
@@ -156,7 +153,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             bool strongLong =
                 longTrigger &&
                 orRetestUp &&
-                depthUp >= 3.0 && depthUp <= 50.0 && // realny, ale nie "knife"
+                depthUp >= 3.0 && depthUp <= 50.0 &&
                 strongVol;
 
             bool strongShort =
@@ -165,13 +162,27 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 depthDown >= 3.0 && depthDown <= 50.0 &&
                 strongVol;
 
-            // Safety: jeśli z jakiegoś powodu wyszły oba kierunki – ignorujemy.
+            // Debug: kandydaci + tier
+            data.BreakoutLongCandidate = longTrigger;
+            data.BreakoutShortCandidate = shortTrigger;
+
+            if ((strongLong || strongShort) && (longTrigger || shortTrigger))
+                data.BreakoutEntryTier = 2;
+            else if (longTrigger || shortTrigger)
+                data.BreakoutEntryTier = 1;
+            else
+                data.BreakoutEntryTier = 0;
+
+            // Safety: jeśli wyszły oba kierunki – ignorujemy i zerujemy debug
             if (longTrigger && shortTrigger)
             {
                 longTrigger = false;
                 shortTrigger = false;
                 strongLong = false;
                 strongShort = false;
+                data.BreakoutEntryTier = 0;
+                data.BreakoutLongCandidate = false;
+                data.BreakoutShortCandidate = false;
             }
 
             return new ModeSignal(
@@ -179,6 +190,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 sell: shortTrigger,
                 buyExtra: strongLong,
                 sellExtra: strongShort);
+
         }
     }
 }

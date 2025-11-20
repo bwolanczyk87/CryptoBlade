@@ -1,15 +1,16 @@
 ﻿using System;
+using System.Threading;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
     /// <summary>
-    /// MomentumMode v2 – trigger-only:
-    /// - wejścia tylko przy zgrywie:
-    ///   * reżim Momentum już wybrany przez ModeEngine (trend / ATR / spread / gates),
-    ///   * lokalny sweep -> reclaim na 5m (polowanie na płynność),
-    ///   * flip CVD 5m w stronę zgodną z trendem,
-    ///   * pullback do DVWAP (price < DVWAP w uptrendzie, > DVWAP w downtrendzie),
-    ///   * ΔOI oraz autokorelacja wspierające kontynuację.
+    /// MomentumMode v3 – trigger-only z tierami:
+    /// - reżim Momentum (MM) wybierany jest wcześniej przez ModeEngine na podstawie ATR / spread / globalnych gate'ów,
+    /// - tutaj decydujemy tylko o TRIGGERZE wejścia, w trzech tierach jakości:
+    ///   * Soft   – luźniejsze progi trendu/pullbacku, bez wymogu sweepe'a ani CVD flipu,
+    ///   * Medium – bazowe progi, wymagany flip CVD, bez twardego wymogu sweepe'a,
+    ///   * Hard   – ostrzejsze progi, wymagany sweep + overshoot oraz CVD flip.
+    /// - cała metodologia jest jedna (CalculateSignal), tiery jedynie modulują progi i użyte komponenty patternu.
     /// </summary>
     public sealed class MomentumMode : IMode
     {
@@ -24,113 +25,232 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            if (data == null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
-            // Bezpieczeństwo: jeśli spread z jakiegoś powodu jest już > progu, nie handlujemy,
-            // nawet jeśli ModeEngine dopuścił reżim.
-            if (double.IsFinite(data.SpreadBps) &&
-                data.SpreadBps > (double)_options.MaxSpreadBps)
-            {
-                return ModeSignal.None;
-            }
+            // Reset per-bar debug
+            data.MomentumEntryTier = 0;
+            data.MomentumLongCandidate = false;
+            data.MomentumShortCandidate = false;
 
-            // ATR gate – dodatkowa kontrola dla Momentum
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h < (double)_options.MmAtrMinPct ||
                 data.AtrPct1h > (double)_options.MmAtrMaxPct)
             {
+                // Zmienność poza "zdrowym" zakresem dla Momentum.
                 return ModeSignal.None;
             }
 
-            // --- Trend i value ---
+            // -----------------------------------------------------------------
+            // 1. Hard – najbardziej selektywny tier
+            // -----------------------------------------------------------------
+            // - ostrzejsze wymagania na trend/pullback,
+            // - sweep + overshoot + CVD flip obowiązkowe.
+            var hard = CalculateSignal(
+                data,
+                tier: ModeTier.Hard,
+                slopeThresholdOffset: +0.15,   // DVWAP musi być wyraźniej nachylony
+                adxMinOffset: +2.0,     // ADX wyższy niż bazowy próg momentum
+                zDevMinMagOffset: +0.2,     // głębszy pullback od DVWAP
+                overshootOffset: +0.5,     // większy overshoot przy sweepie
+                useSweep: true,
+                useCvdFlip: true);
 
+            if (hard.HasBuy || hard.HasSell)
+                return hard;
+
+            // -----------------------------------------------------------------
+            // 2. Medium – bazowy tier Momentum
+            // -----------------------------------------------------------------
+            // - progi trendu/pullbacku jak w v2,
+            // - wymagamy CVD flipu, ale nie wymuszamy sweepe'a.
+            var medium = CalculateSignal(
+                data,
+                tier: ModeTier.Medium,
+                slopeThresholdOffset: 0.0,
+                adxMinOffset: 0.0,
+                zDevMinMagOffset: 0.0,
+                overshootOffset: null,   // brak wymogu overshootu
+                useSweep: false,  // nie wymagamy sweepe'a
+                useCvdFlip: true);  // ale wymagamy flipu takerów
+
+            if (medium.HasBuy || medium.HasSell)
+                return medium;
+
+            // -----------------------------------------------------------------
+            // 3. Soft – najluźniejszy tier
+            // -----------------------------------------------------------------
+            // - lekko obniżone progi trendu/pullbacku,
+            // - brak wymogu sweepe'a i CVD flipu – czyste proto-momentum.
+            var soft = CalculateSignal(
+                data,
+                tier: ModeTier.Soft,
+                slopeThresholdOffset: -0.10,
+                adxMinOffset: -3.0,
+                zDevMinMagOffset: -0.10,
+                overshootOffset: null,
+                useSweep: false,
+                useCvdFlip: false);
+
+            if (soft.HasBuy || soft.HasSell)
+                return soft;
+
+            // Brak sygnału w którymkolwiek tierze
+            return ModeSignal.None;
+        }
+
+        /// <summary>
+        /// Generyczne liczenie sygnału Momentum dla danego tieru.
+        /// Jeden algorytm, różne progi:
+        /// - slopeThresholdOffset  – korekta bazowego progu nachylenia D-VWAP,
+        /// - adxMinOffset          – korekta minimalnego ADX dla trendu,
+        /// - zDevMinMagOffset      – korekta minimalnego |zDVWAP| dla pullbacku,
+        /// - overshootOffset       – korekta minimalnego overshootu przy sweepie (jeśli useSweep == true),
+        /// - useSweep              – czy wymagamy sweepe'a (Reclaim + ewentualny overshoot),
+        /// - useCvdFlip            – czy wymagamy flipu CVD w stronę setupu.
+        /// </summary>
+        private ModeSignal CalculateSignal(
+            SigmaData data,
+            ModeTier tier,
+            double slopeThresholdOffset,
+            double adxMinOffset,
+            double zDevMinMagOffset,
+            double? overshootOffset,
+            bool useSweep,
+            bool useCvdFlip)
+        {
+            // --- Dane wejściowe ---
             double adx = data.Adx1h;
             double zSlope = data.ZSlopeDvwap;
             double zDev = data.ZDvwap;
             double ac = data.AutoCorr5m;
             double oi = data.OiDelta1hPct;
 
-            // Kierunek trendu wg nachylenia DVWAP (z lekkim deadbandem)
-            bool upTrend = zSlope > 0.5;
-            bool downTrend = zSlope < -0.5;
+            // -----------------------------------------------------------------
+            // 1) Trend: nachylenie DVWAP + ADX
+            // -----------------------------------------------------------------
 
-            // Pullback do value – „kupujemy poniżej DVWAP” w uptrendzie
-            // i „sprzedajemy powyżej DVWAP” w downtrendzie (ale bez ekstremów).
-            bool pullbackLong = zDev < -0.5 && zDev > -3.5;
-            bool pullbackShort = zDev > 0.5 && zDev < 3.5;
+            const double baseSlopeThreshold = 0.5; // bazowo: "wyraźny" trend D-VWAP
+            double slopeThreshold = baseSlopeThreshold + slopeThresholdOffset;
+            if (slopeThreshold < 0.2) slopeThreshold = 0.2;
+            if (slopeThreshold > 1.0) slopeThreshold = 1.0;
 
-            // Autokorelacja dodatnia – preferujemy kontynuację, nie mean reversion.
-            bool acSupportsTrend = ac >= 0.00;
+            bool upTrend = zSlope > slopeThreshold;
+            bool downTrend = zSlope < -slopeThreshold;
 
-            // ΔOI w stronę trendu – nie wymagamy bardzo dużej zmiany, ale niech będzie > 0.
+            double adxEnableBase = (double)_options.AdxEnableMomentum; // np. 22
+            double adxMin = adxEnableBase + adxMinOffset;
+            if (adxMin < 10.0) adxMin = 10.0;
+
+            bool trendLongOk = !double.IsFinite(adx) || adx >= adxMin;
+            bool trendShortOk = trendLongOk;
+
+            // -----------------------------------------------------------------
+            // 2) Pullback do DVWAP – jak daleko od "value" chcemy wejść
+            // -----------------------------------------------------------------
+
+            const double baseZDevMinMag = 0.5; // bazowo: 0.5 sigma od DVWAP
+            double zDevMinMag = baseZDevMinMag + zDevMinMagOffset;
+            if (zDevMinMag < 0.2) zDevMinMag = 0.2;
+            if (zDevMinMag > 2.0) zDevMinMag = 2.0;
+
+            bool pullbackLong = zDev < -zDevMinMag && zDev > -3.5;
+            bool pullbackShort = zDev > zDevMinMag && zDev < 3.5;
+
+            // -----------------------------------------------------------------
+            // 3) Flow wspierający kontynuację (AC + OI)
+            // -----------------------------------------------------------------
+
+            const double acMin = -0.10;
+            bool acSupportsTrend = !double.IsFinite(ac) || ac >= acMin;
+
             bool oiSupportsUp = oi > 0.0;
             bool oiSupportsDown = oi < 0.0;
 
-            // ADX – docelowo ModeEngine już wymusił sensowny poziom, ale dajmy miękki próg.
-            bool strongAdx = adx >= (double)_options.AdxEnableMomentum;
-
-            // --- Pattern: sweep -> reclaim ---
-
-            bool hasSweepLong =
-                data.SweepReclaimDown5m &&
-                data.SweepDownOvershootBps5m >= 1.0;    // realne wybicie low
-
-            bool hasSweepShort =
-                data.SweepReclaimUp5m &&
-                data.SweepUpOvershootBps5m >= 1.0;      // realne wybicie high
-
-            // --- Orderflow: CVD flip ---
-
-            bool cvdFlipLong = data.CvdFlipUp5m;
-            bool cvdFlipShort = data.CvdFlipDown5m;
-
-            // --- Składanie triggerów ---
-
-            bool longTrigger =
+            bool protoLong =
                 upTrend &&
-                strongAdx &&
+                trendLongOk &&
                 pullbackLong &&
                 acSupportsTrend &&
-                oiSupportsUp &&
-                hasSweepLong &&
-                cvdFlipLong;
+                oiSupportsUp;
 
-            bool shortTrigger =
+            bool protoShort =
                 downTrend &&
-                strongAdx &&
+                trendShortOk &&
                 pullbackShort &&
                 acSupportsTrend &&
-                oiSupportsDown &&
-                hasSweepShort &&
-                cvdFlipShort;
+                oiSupportsDown;
 
-            // Dodatkowe „extra” – silniejsze setupy (duży overshoot + większe |z|-score)
-            bool strongLong =
-                longTrigger &&
-                data.SweepDownOvershootBps5m >= 3.0 &&
-                Math.Abs(zDev) >= 2.0;
+            if (!protoLong && !protoShort)
+                return ModeSignal.None;
 
-            bool strongShort =
-                shortTrigger &&
-                data.SweepUpOvershootBps5m >= 3.0 &&
-                Math.Abs(zDev) >= 2.0;
+            // -----------------------------------------------------------------
+            // 4) Pattern: sweep -> reclaim + CVD flip (opcjonalnie)
+            // -----------------------------------------------------------------
 
-            bool buy = longTrigger;
-            bool sell = shortTrigger;
-            bool buyExtra = strongLong;
-            bool sellExtra = strongShort;
+            bool patternLongOk = true;
+            bool patternShortOk = true;
 
-            // Na wszelki wypadek, jeśli z jakiegoś powodu wyszłyby oba kierunki – ignorujemy.
-            if (buy && sell)
+            if (useSweep)
             {
-                buy = false;
-                sell = false;
-                buyExtra = false;
-                sellExtra = false;
+                bool sweepLong = data.SweepReclaimDown5m;
+                bool sweepShort = data.SweepReclaimUp5m;
+
+                if (overshootOffset is double o)
+                {
+                    const double baseOvershootBps = 1.0;
+                    double overshootMin = baseOvershootBps + o;
+                    if (overshootMin < 0.5) overshootMin = 0.5;
+                    if (overshootMin > 5.0) overshootMin = 5.0;
+
+                    sweepLong &= data.SweepDownOvershootBps5m >= overshootMin;
+                    sweepShort &= data.SweepUpOvershootBps5m >= overshootMin;
+                }
+
+                patternLongOk &= sweepLong;
+                patternShortOk &= sweepShort;
             }
 
-            return new ModeSignal(buy, sell, buyExtra, sellExtra);
+            if (useCvdFlip)
+            {
+                bool cvdFlipLong = data.CvdFlipUp5m;
+                bool cvdFlipShort = data.CvdFlipDown5m;
+
+                patternLongOk &= cvdFlipLong;
+                patternShortOk &= cvdFlipShort;
+            }
+
+            // jeśli wyłączyliśmy oba (useSweep == false && useCvdFlip == false),
+            // patternLongOk / patternShortOk pozostają true i nie filtrują proto-momentum.
+
+            bool buy =
+                protoLong &&
+                patternLongOk;
+
+            bool sell =
+                protoShort &&
+                patternShortOk;
+
+            // -----------------------------------------------------------------
+            // 5) Sanity + debug
+            // -----------------------------------------------------------------
+
+            if (buy && sell)
+            {
+                // konflikt – nie otwieramy w żadną stronę dla tego tieru
+                return ModeSignal.None;
+            }
+
+            if (!buy && !sell)
+            {
+                // brak sygnału dla tego tieru
+                return ModeSignal.None;
+            }
+
+            data.MomentumLongCandidate = buy;
+            data.MomentumShortCandidate = sell;
+            data.MomentumEntryTier = (int)tier;
+
+            return new ModeSignal(buy, sell, tier);
         }
     }
 }

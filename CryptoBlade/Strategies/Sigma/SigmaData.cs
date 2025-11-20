@@ -116,6 +116,25 @@ namespace CryptoBlade.Strategies.Sigma
         public decimal? LastDvwap { get; private set; }
 
         // =====================================================================
+        //  DEBUG / PER-MODE ENTRY INFO
+        // =====================================================================
+
+        // 0 = brak setupu; 1 = podstawowy setup; 2 = A+ (pełny pattern)
+        public int MomentumEntryTier { get; internal set; }
+        public int MeanReversionEntryTier { get; internal set; }
+        public int BreakoutEntryTier { get; internal set; }
+
+        // Czy dany mode widzi w tym barze kandydata long/short
+        public bool MomentumLongCandidate { get; internal set; }
+        public bool MomentumShortCandidate { get; internal set; }
+
+        public bool MeanReversionLongCandidate { get; internal set; }
+        public bool MeanReversionShortCandidate { get; internal set; }
+
+        public bool BreakoutLongCandidate { get; internal set; }
+        public bool BreakoutShortCandidate { get; internal set; }
+
+        // =====================================================================
         // BUILD – wypełnia bieżącą instancję SigmaData
         // =====================================================================
 

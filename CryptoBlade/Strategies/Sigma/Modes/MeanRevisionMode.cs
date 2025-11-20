@@ -31,8 +31,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
-            if (data is null)
-                throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
+
+            // Reset per-mode debug
+            data.MeanReversionEntryTier = 0;
+            data.MeanReversionLongCandidate = false;
+            data.MeanReversionShortCandidate = false;
 
             // -----------------------------------------------------------------
             // 1. Globalne gate’y: spread + ATR dla MR
@@ -74,16 +78,46 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (!double.IsFinite(zPrev) || !double.IsFinite(zCurr))
                 return ModeSignal.None;
 
-            var (backInLong, backInShort) =
-                PatternDetectors.DetectCloseBackInToVwap(
-                    zPrev,
-                    zCurr,
-                    outerZ: (double)_options.ZVwapEnableMR,
-                    innerZ: (double)_options.ZVwapExitMR);
+            var (strictBackInLong, strictBackInShort) = PatternDetectors.DetectCloseBackInToVwap(
+                zPrev,
+                zCurr,
+                outerZ: (double)_options.ZVwapEnableMR,
+                innerZ: (double)_options.ZVwapExitMR
+            );
 
-            if (!backInLong && !backInShort)
+            // Tier 1: luźniejszy back-in (outerSoft -> innerLoose + poprawa |z|)
+            bool relaxedBackInLong = strictBackInLong;
+            bool relaxedBackInShort = strictBackInShort;
+
+            if (!strictBackInLong && !strictBackInShort)
             {
-                // Nie mamy świeżego "powrotu do wartości" – brak triggera MR.
+                double outerZ = (double)_options.ZVwapEnableMR;
+                double innerZ = (double)_options.ZVwapExitMR;
+
+                // Miększe progi tylko w kodzie – bez nowych parametrów:
+                double outerSoft = Math.Max(0.8, outerZ - 0.3);   // np. z 1.6 zrobi się 1.3
+                double innerLoose = innerZ + 0.3;                  // np. z 0.8 zrobi się 1.1
+                double minImprovement = 0.5;                        // wymagana poprawa |z|
+
+                double absPrev = Math.Abs(zPrev);
+                double absCurr = Math.Abs(zCurr);
+
+                bool wasOuterEnough = absPrev > outerSoft;
+                bool improved = absPrev - absCurr >= minImprovement;
+                bool inLooseBand = absCurr <= innerLoose;
+
+                if (wasOuterEnough && improved && inLooseBand)
+                {
+                    if (zPrev < 0 && zCurr > zPrev)
+                        relaxedBackInLong = true;
+                    else if (zPrev > 0 && zCurr < zPrev)
+                        relaxedBackInShort = true;
+                }
+            }
+
+            if (!relaxedBackInLong && !relaxedBackInShort)
+            {
+                // Wciąż brak sensownego powrotu do wartości
                 return ModeSignal.None;
             }
 
@@ -121,38 +155,55 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
 
             bool longTrigger =
-                backInLong &&
+                relaxedBackInLong &&
                 weakMomentum &&
                 slopeOkLong &&
                 oiNeutral &&
                 cvdSupportsLong;
 
             bool shortTrigger =
-                backInShort &&
+                relaxedBackInShort &&
                 weakMomentum &&
                 slopeOkShort &&
                 oiNeutral &&
                 cvdSupportsShort;
 
-            // Silniejsze setupy MR: duże wcześniejsze odchylenie
+            // Tier 2 (A+): strict back-in + duże wcześniejsze odchylenie
             bool strongLong =
                 longTrigger &&
+                strictBackInLong &&
                 Math.Abs(zPrev) >= (double)_options.ZVwapEnableMR + 0.5;
 
             bool strongShort =
                 shortTrigger &&
+                strictBackInShort &&
                 Math.Abs(zPrev) >= (double)_options.ZVwapEnableMR + 0.5;
 
-            // W razie jakiegokolwiek błędu logiki (oba kierunki) – nic nie rób
+            // Debug: kandydaci + tier
+            data.MeanReversionLongCandidate = longTrigger;
+            data.MeanReversionShortCandidate = shortTrigger;
+
+            if ((strongLong || strongShort) && (longTrigger || shortTrigger))
+                data.MeanReversionEntryTier = 2;
+            else if (longTrigger || shortTrigger)
+                data.MeanReversionEntryTier = 1;
+            else
+                data.MeanReversionEntryTier = 0;
+
+            // W razie konfliktu – reset
             if (longTrigger && shortTrigger)
             {
                 longTrigger = false;
                 shortTrigger = false;
                 strongLong = false;
                 strongShort = false;
+                data.MeanReversionEntryTier = 0;
+                data.MeanReversionLongCandidate = false;
+                data.MeanReversionShortCandidate = false;
             }
 
             return new ModeSignal(longTrigger, shortTrigger, strongLong, strongShort);
+
         }
     }
 }
