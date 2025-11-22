@@ -10,4 +10,3 @@ services:
         - ../Backtest:/app/Data/Strategies/Sigma/Backtest
         - ../../../HistoricalData:/app/Data/HistoricalData
     environment:
-

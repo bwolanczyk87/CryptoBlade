@@ -35,7 +35,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             _audit = new SigmaAuditSink(relFile);
             _modeEngine = new ModeEngine(options.Value, _mm, _mr, _bo, _audit);
-            _positionManager = new SigmaPositionManager(options.Value);
+            _positionManager = new SigmaPositionManager(options.Value, SymbolInfo);
         }
 
         private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o) =>
@@ -66,7 +66,7 @@ namespace CryptoBlade.Strategies.Sigma
             var tradable = mode is not null;
             _audit.Add(SigmaAudit.MakeRecord(sigmaData, prevState, nowUtc, _options.Value, tradable, gateReason, modeDecision, nowUtc));
 
-            await _positionManager.OnSignalAsync(Symbol, SymbolInfo, sigmaData, modeDecision.ProposedMode, modeSignal, tradable,nowUtc, m_cbFuturesRestClient, WalletManager, cancel);
+            await _positionManager.OnSignalAsync(Symbol, sigmaData, modeDecision.ProposedMode, modeSignal, tradable,nowUtc, m_cbFuturesRestClient, WalletManager, cancel);
             return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
         }
 

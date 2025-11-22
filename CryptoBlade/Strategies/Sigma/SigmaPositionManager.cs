@@ -9,18 +9,36 @@ using OrderSide = CryptoBlade.Models.OrderSide;
 
 namespace CryptoBlade.Strategies.Sigma
 {
+    public enum TargetKind
+    {
+        None = 0,
+        RMultiple = 1,
+        Donchian = 2,
+        OpeningRange = 3,
+        Dvwap = 4,
+        Swing = 5,
+        LiqCluster = 6
+    }
+
+    public sealed record TargetLevel(
+        decimal Price,
+        double RMultiple,
+        TargetKind Kind,
+        string? Detail = null);
+
+
     /// <summary>
     /// Manager pojedynczego trade'u Sigmy (ENTRY + SL/TP1/TP2 + BE + trailing + MR time-stop).
     /// </summary>
-    public sealed class SigmaPositionManager(SigmaStrategyOptions options)
+    public sealed class SigmaPositionManager(SigmaStrategyOptions options, SymbolInfo symbolInfo)
     {
         private readonly SigmaTradeSession _session = new();
         private static readonly TimeSpan EntryTimeout = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan MrTimeStop = TimeSpan.FromMinutes(40);
 
+
         public async Task OnSignalAsync(
             string symbol,
-            SymbolInfo symbolInfo,
             SigmaData sigmaData,
             Mode activeMode,
             ModeSignal modeSignal,
@@ -30,6 +48,7 @@ namespace CryptoBlade.Strategies.Sigma
             IWalletManager walletManager, 
             CancellationToken cancel)
         {
+
             // 0) timeout dla pending ENTRY
             await CheckAndCancelStaleEntryAsync(symbol, restClient, nowUtc, cancel);
 
@@ -279,9 +298,48 @@ namespace CryptoBlade.Strategies.Sigma
             _session.Reset();
         }
 
-        private bool TryComputeEntrySetup(SigmaData d, SymbolInfo symbolInfo, Mode mode,  OrderSide side, out decimal entryPrice, out decimal slPrice, out decimal tp1Price, out decimal tp2Price)
+        private bool TryComputeEntrySetup(
+            SigmaData d,
+            SymbolInfo symbolInfo,
+            Mode mode,
+            OrderSide side,
+            out decimal entryPrice,
+            out decimal slPrice,
+            out decimal tp1Price,
+            out decimal tp2Price)
         {
             entryPrice = slPrice = tp1Price = tp2Price = 0m;
+
+            // 1) ENTRY + SL zależnie od reżimu
+            if (!TryComputeEntryAndStop(d, symbolInfo, mode, side, out entryPrice, out slPrice))
+                return false;
+
+            // 2) R (odległość ENTRY–SL)
+            decimal r = Math.Abs(entryPrice - slPrice);
+            if (r <= 0m)
+                return false;
+
+            // 3) level-aware TP1/TP2 zależnie od trybu
+            var (rawTp1, rawTp2) = ComputeLevelAwareTargets(d, mode, side, entryPrice, r);
+            if (rawTp1 <= 0m)
+                return false;
+
+            tp1Price = RoundPrice(symbolInfo, rawTp1);
+            tp2Price = RoundPrice(symbolInfo, rawTp2 > 0m ? rawTp2 : rawTp1);
+
+            return tp1Price > 0m && tp2Price > 0m;
+        }
+
+        private static bool TryComputeEntryAndStop(
+            SigmaData d,
+            SymbolInfo symbolInfo,
+            Mode mode,
+            OrderSide side,
+            out decimal entryPrice,
+            out decimal slPrice)
+        {
+            entryPrice = slPrice = 0m;
+
             decimal? lastClose = d.Last1mClose ?? d.LastPrice;
             if (lastClose is null || lastClose <= 0m)
                 return false;
@@ -292,39 +350,42 @@ namespace CryptoBlade.Strategies.Sigma
             decimal atr5m = double.IsNaN(d.Atr5mAbs) ? 0m : (decimal)d.Atr5mAbs;
 
             // bazowa jednostka ryzyka – preferujemy ATR 5m, fallback do ATR 1h / 0.5% ceny
-            decimal riskUnit = atr5m > 0m ? atr5m : atr1h > 0m ? atr1h * 0.5m : refPrice * 0.005m;
+            decimal riskUnit =
+                atr5m > 0m ? atr5m :
+                atr1h > 0m ? atr1h * 0.5m :
+                refPrice * 0.005m;
 
             if (riskUnit <= 0m)
                 return false;
 
-            decimal dir = side == OrderSide.Buy ? 1m : -1m;
-
-            decimal? last5High = d.Last5mHigh ?? d.Last1mHigh ?? refPrice;
-            decimal? last5Low = d.Last5mLow ?? d.Last1mLow ?? refPrice;
-
-            decimal range5 = (last5High.HasValue && last5Low.HasValue)
-                ? (last5High.Value - last5Low.Value)
-                : refPrice * 0.002m;
-
-            if (range5 <= 0m)
-                range5 = refPrice * 0.002m;
-
-            decimal? dvwap = d.LastDvwap;
+            decimal lo = d.Last5mLow ?? d.Last1mLow ?? refPrice;
+            decimal hi = d.Last5mHigh ?? d.Last1mHigh ?? refPrice;
 
             switch (mode)
             {
                 case Mode.MM:
                     {
+                        // MM – chcemy wejście „w połowie korekty” względem ostatniej ceny,
+                        // a nie 50% całego range’u z złą orientacją.
+
                         if (side == OrderSide.Buy)
                         {
-                            decimal lo = last5Low ?? refPrice;
-                            entryPrice = lo + 0.5m * range5;
+                            // korekta = refPrice -> local low
+                            decimal pullbackRange = refPrice - lo;
+                            if (pullbackRange <= 0m)
+                                return false;
+
+                            entryPrice = refPrice - 0.5m * pullbackRange;
                             slPrice = lo - riskUnit;
                         }
                         else
                         {
-                            decimal hi = last5High ?? refPrice;
-                            entryPrice = hi - 0.5m * range5;
+                            // short: korekta = local high -> refPrice
+                            decimal pullbackRange = hi - refPrice;
+                            if (pullbackRange <= 0m)
+                                return false;
+
+                            entryPrice = refPrice + 0.5m * pullbackRange;
                             slPrice = hi + riskUnit;
                         }
                         break;
@@ -332,8 +393,9 @@ namespace CryptoBlade.Strategies.Sigma
 
                 case Mode.MR:
                     {
-                        decimal baseEntry = dvwap.HasValue && dvwap.Value > 0m
-                            ? dvwap.Value
+                        // MR – wejście przy D-VWAP / refPrice, SL ciaśniejszy (0.8 * riskUnit)
+                        decimal baseEntry = d.LastDvwap.HasValue && d.LastDvwap.Value > 0m
+                            ? d.LastDvwap.Value
                             : refPrice;
 
                         entryPrice = baseEntry;
@@ -348,11 +410,13 @@ namespace CryptoBlade.Strategies.Sigma
 
                 case Mode.BO:
                     {
+                        // BO – breakout OR + SL poza OR z marginesem
                         if (d.OpeningRangeHigh.HasValue && d.OpeningRangeLow.HasValue)
                         {
                             decimal orHigh = d.OpeningRangeHigh.Value;
                             decimal orLow = d.OpeningRangeLow.Value;
-                            decimal margin = riskUnit * 0.5m;
+                            decimal orRange = orHigh - orLow;
+                            decimal margin = Math.Max(riskUnit * 0.5m, orRange * 0.2m);
 
                             if (side == OrderSide.Buy)
                             {
@@ -367,16 +431,23 @@ namespace CryptoBlade.Strategies.Sigma
                         }
                         else
                         {
+                            // fallback: geometria jak w MM (pullback do lokalnego ekstremum)
                             if (side == OrderSide.Buy)
                             {
-                                decimal lo = last5Low ?? refPrice;
-                                entryPrice = lo + 0.5m * range5;
+                                decimal pullbackRange = refPrice - lo;
+                                if (pullbackRange <= 0m)
+                                    return false;
+
+                                entryPrice = refPrice - 0.5m * pullbackRange;
                                 slPrice = lo - riskUnit;
                             }
                             else
                             {
-                                decimal hi = last5High ?? refPrice;
-                                entryPrice = hi - 0.5m * range5;
+                                decimal pullbackRange = hi - refPrice;
+                                if (pullbackRange <= 0m)
+                                    return false;
+
+                                entryPrice = refPrice + 0.5m * pullbackRange;
                                 slPrice = hi + riskUnit;
                             }
                         }
@@ -384,34 +455,209 @@ namespace CryptoBlade.Strategies.Sigma
                     }
 
                 default:
-                    {
-                        entryPrice = refPrice;
-                        slPrice = side == OrderSide.Buy
-                            ? refPrice - riskUnit
-                            : refPrice + riskUnit;
-                        break;
-                    }
+                    // wolimy no-trade niż losowe ustawienia
+                    return false;
             }
 
-            // R i TP1/TP2
-            decimal r = Math.Abs(entryPrice - slPrice);
-            if (r <= 0m)
-                return false;
+            // geometry gating (poza MR):
+            if (mode != Mode.MR)
+            {
+                if (side == OrderSide.Buy)
+                {
+                    // dla longa chcemy entry poniżej refPrice i SL poniżej entry
+                    if (!(entryPrice < refPrice && slPrice < entryPrice))
+                        return false;
+                }
+                else
+                {
+                    // dla shorta odwrotnie
+                    if (!(entryPrice > refPrice && slPrice > entryPrice))
+                        return false;
+                }
+            }
 
-            tp1Price = entryPrice + dir * 1.0m * r;
-            tp2Price = entryPrice + dir * 1.8m * r;
-
-            // zaokrąglenia
+            // finalny rounding po skali instrumentu
             entryPrice = RoundPrice(symbolInfo, entryPrice);
             slPrice = RoundPrice(symbolInfo, slPrice);
-            tp1Price = RoundPrice(symbolInfo, tp1Price);
-            tp2Price = RoundPrice(symbolInfo, tp2Price);
 
-            if (entryPrice <= 0m || slPrice <= 0m || tp1Price <= 0m || tp2Price <= 0m)
-                return false;
-
-            return true;
+            return entryPrice > 0m && slPrice > 0m;
         }
+
+
+        private (decimal tp1, decimal tp2) ComputeLevelAwareTargets(
+            SigmaData d,
+            Mode mode,
+            OrderSide side,
+            decimal entryPrice,
+            decimal r)
+        {
+            if (r <= 0m)
+                return (0m, 0m);
+
+            decimal dir = side == OrderSide.Buy ? 1m : -1m;
+            var candidates = new List<(decimal Price, double RMultiple)>();
+
+            // 1) kandydaci per tryb – NAJPIERW poziomy strukturalne
+            switch (mode)
+            {
+                case Mode.MM:
+                    AddMomentumTargets(d, side, entryPrice, r, candidates);
+                    break;
+
+                case Mode.MR:
+                    AddMeanReversionTargets(d, side, entryPrice, r, candidates);
+                    break;
+
+                case Mode.BO:
+                    AddBreakoutTargets(d, side, entryPrice, r, candidates);
+                    break;
+            }
+
+            // 2) Fallback – jeśli brak sensownych poziomów, używamy czystych R-multipli
+            if (candidates.Count == 0)
+            {
+                decimal tp1Fallback = entryPrice + dir * r;
+                decimal tp2Fallback = entryPrice + dir * 1.8m * r;
+                candidates.Add((tp1Fallback, 1.0));
+                candidates.Add((tp2Fallback, 1.8));
+            }
+
+            const double minR = 0.6;
+            const double maxR = 3.0;
+
+            bool IsValid((decimal Price, double RMultiple) t)
+            {
+                if (t.Price <= 0m)
+                    return false;
+
+                if (side == OrderSide.Buy && t.Price <= entryPrice)
+                    return false;
+
+                if (side == OrderSide.Sell && t.Price >= entryPrice)
+                    return false;
+
+                if (double.IsNaN(t.RMultiple) || double.IsInfinity(t.RMultiple))
+                    return false;
+
+                if (t.RMultiple < minR || t.RMultiple > maxR)
+                    return false;
+
+                return true;
+            }
+
+            var valid = candidates
+                .Where(IsValid)
+                .OrderBy(t => t.RMultiple)
+                .ToArray();
+
+            if (valid.Length == 0)
+                return (0m, 0m);
+
+            var tp1 = valid[0];
+
+            // TP2 – najbardziej odległy, ale tylko gdy daje sensowną separację od TP1
+            (decimal Price, double RMultiple) tp2 = tp1;
+            if (valid.Length > 1)
+            {
+                var candidateTp2 = valid[^1];
+                if (candidateTp2.RMultiple > tp1.RMultiple + 0.3)
+                    tp2 = candidateTp2;
+            }
+
+            return (tp1.Price, tp2.Price);
+        }
+
+
+        private static void AddMomentumTargets(
+            SigmaData d,
+            OrderSide side,
+            decimal entryPrice,
+            decimal r,
+            List<(decimal Price, double RMultiple)> targets)
+        {
+            var don = d.DonchianResult;
+            if (don == null)
+                return;
+
+            decimal donHigh = don.UpperBand ?? 0m;
+            decimal donLow = don.LowerBand ?? 0m;
+
+            if (side == OrderSide.Buy && donHigh > entryPrice)
+            {
+                double rDon = (double)((donHigh - entryPrice) / r);
+                targets.Add((donHigh, rDon));
+            }
+            else if (side == OrderSide.Sell && donLow < entryPrice)
+            {
+                double rDon = (double)((entryPrice - donLow) / r);
+                targets.Add((donLow, rDon));
+            }
+        }
+
+        private static void AddMeanReversionTargets(
+            SigmaData d,
+            OrderSide side,
+            decimal entryPrice,
+            decimal r,
+            List<(decimal Price, double RMultiple)> targets)
+        {
+            // MR – prosty, ale spójny: TP1 ~1R, TP2 ~1.8R wokół entry (D-VWAP był punktem wejścia)
+
+            double r1 = 1.0;
+            decimal tp1 = entryPrice + (side == OrderSide.Buy ? 1m : -1m) * (decimal)r1 * r;
+            targets.Add((tp1, r1));
+
+            double r2 = 1.8;
+            decimal tp2 = entryPrice + (side == OrderSide.Buy ? 1m : -1m) * (decimal)r2 * r;
+            targets.Add((tp2, r2));
+        }
+
+        private static void AddBreakoutTargets(
+            SigmaData d,
+            OrderSide side,
+            decimal entryPrice,
+            decimal r,
+            List<(decimal Price, double RMultiple)> targets)
+        {
+            // Opening Range – klasyczny measured move
+            if (d.OpeningRangeHigh.HasValue && d.OpeningRangeLow.HasValue)
+            {
+                decimal orHigh = d.OpeningRangeHigh.Value;
+                decimal orLow = d.OpeningRangeLow.Value;
+                decimal orRange = orHigh - orLow;
+
+                if (orRange > 0m)
+                {
+                    decimal tp1 = entryPrice + (side == OrderSide.Buy ? orRange : -orRange);
+                    double r1 = (double)(Math.Abs(tp1 - entryPrice) / r);
+                    targets.Add((tp1, r1));
+
+                    decimal tp2 = entryPrice + (side == OrderSide.Buy ? 1.5m * orRange : -1.5m * orRange);
+                    double r2 = (double)(Math.Abs(tp2 - entryPrice) / r);
+                    targets.Add((tp2, r2));
+                }
+            }
+
+            // Donchian jako dodatkowy poziom strukturalny
+            var don = d.DonchianResult;
+            if (don != null)
+            {
+                decimal donHigh = don.UpperBand ?? 0m;
+                decimal donLow = don.LowerBand ?? 0m;
+
+                if (side == OrderSide.Buy && donHigh > entryPrice)
+                {
+                    double rDon = (double)((donHigh - entryPrice) / r);
+                    targets.Add((donHigh, rDon));
+                }
+                else if (side == OrderSide.Sell && donLow < entryPrice)
+                {
+                    double rDon = (double)((entryPrice - donLow) / r);
+                    targets.Add((donLow, rDon));
+                }
+            }
+        }
+
 
         private async Task HandleEntryFilledAsync(string symbol, OrderUpdate update, ICbFuturesRestClient restClient, CancellationToken cancel)
         {
@@ -474,58 +720,101 @@ namespace CryptoBlade.Strategies.Sigma
             _session.SlClientOrderId = slClientOrderId;
             _session.SlOrderId = slOrderId.OrderId;
 
-            // TP1 / TP2
-            decimal tp1Qty = qty * 0.5m;
-            decimal tp2Qty = qty - tp1Qty;
+            // TP1 / TP2 – 50% / 25% / 25% (ostatnie 25% to runner bez TP)
+            // Używamy RoundQty(SymbolInfo, qty), bo symbolInfo masz jako pole klasy.
+            decimal tp1QtyRaw = qty * 0.5m;
+            decimal tp2QtyRaw = qty * 0.25m;
 
-            string tp1ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP1",
-                _session.EntryFilledUtc.Value);
+            // Zaokrąglamy w dół do kroku kontraktu
+            decimal tp1Qty = RoundQty(symbolInfo, tp1QtyRaw);
+            decimal tp2Qty = RoundQty(symbolInfo, tp2QtyRaw);
 
-            var tp1Req = new BybitCbFuturesRestClient.CbOrderRequest(
-                Symbol: symbol,
-                Category: Category.Linear,
-                Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
-                Type: NewOrderType.Limit,
-                Quantity: tp1Qty,
-                Price: tp1Price,
-                TriggerPrice: null,
-                TriggerBy: null,
-                ReduceOnly: true,
-                CloseOnTrigger: true,
-                TimeInForce: TimeInForce.GoodTillCanceled,
-                PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
-                ClientOrderId: tp1ClientOrderId);
+            // Obliczamy ile zostaje na runnera (ostatnie 25% +/- zaokrąglenia)
+            decimal runnerQty = qty - tp1Qty - tp2Qty;
 
-            var tp1OrderId = await restClient.PlaceOrderAsync(tp1Req, cancel);
-            if (tp1OrderId is not null)
+            // Jeżeli TP1 wyszedł 0 (za mała pozycja / duży QtyStep) – wszystko w TP1
+            if (tp1Qty <= 0m)
             {
-                _session.Tp1ClientOrderId = tp1ClientOrderId;
-                _session.Tp1OrderId = tp1OrderId.OrderId;
+                tp1Qty = qty;
+                tp2Qty = 0m;
+                runnerQty = 0m;
+            }
+            else
+            {
+                // Jeśli przez zaokrąglenie TP1+TP2 przekracza całość – przytnij TP2
+                if (tp1Qty + tp2Qty > qty)
+                {
+                    tp2Qty = RoundQty(symbolInfo, qty - tp1Qty);
+                    if (tp2Qty < 0m) tp2Qty = 0m;
+                }
+
+                // przeliczymy runner'a po ewentualnej korekcie TP2
+                runnerQty = qty - tp1Qty - tp2Qty;
+
+                // Jeżeli runner wyszedł ujemny przez numerykę – sprowadź do 0
+                if (runnerQty < 0m)
+                    runnerQty = 0m;
             }
 
-            string tp2ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP2",
+            // W tym miejscu:
+            // - TP1: tp1Qty
+            // - TP2: tp2Qty
+            // - Runner: runnerQty (bez osobnego TP – tylko SL/trailing)
+
+            if (tp1Qty > 0m)
+            {
+                string tp1ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP1",
                 _session.EntryFilledUtc.Value);
 
-            var tp2Req = new BybitCbFuturesRestClient.CbOrderRequest(
-                Symbol: symbol,
-                Category: Category.Linear,
-                Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
-                Type: NewOrderType.Limit,
-                Quantity: tp2Qty,
-                Price: tp2Price,
-                TriggerPrice: null,
-                TriggerBy: null,
-                ReduceOnly: true,
-                CloseOnTrigger: true,
-                TimeInForce: TimeInForce.GoodTillCanceled,
-                PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
-                ClientOrderId: tp2ClientOrderId);
+                var tp1Req = new BybitCbFuturesRestClient.CbOrderRequest(
+                    Symbol: symbol,
+                    Category: Category.Linear,
+                    Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
+                    Type: NewOrderType.Limit,
+                    Quantity: tp1Qty,
+                    Price: tp1Price,
+                    TriggerPrice: null,
+                    TriggerBy: null,
+                    ReduceOnly: true,
+                    CloseOnTrigger: false,
+                    TimeInForce: TimeInForce.GoodTillCanceled,
+                    PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
+                    ClientOrderId: tp1ClientOrderId);
 
-            var tp2OrderId = await restClient.PlaceOrderAsync(tp2Req, cancel);
-            if (tp2OrderId is not null)
+                var tp1OrderId = await restClient.PlaceOrderAsync(tp1Req, cancel);
+                if (tp1OrderId is not null)
+                {
+                    _session.Tp1ClientOrderId = tp1ClientOrderId;
+                    _session.Tp1OrderId = tp1OrderId.OrderId;
+                }
+            }
+
+            if (tp2Qty > 0m)
             {
-                _session.Tp2ClientOrderId = tp2ClientOrderId;
-                _session.Tp2OrderId = tp2OrderId.OrderId;
+                string tp2ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP2",
+                _session.EntryFilledUtc.Value);
+
+                var tp2Req = new BybitCbFuturesRestClient.CbOrderRequest(
+                    Symbol: symbol,
+                    Category: Category.Linear,
+                    Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
+                    Type: NewOrderType.Limit,
+                    Quantity: tp2Qty,
+                    Price: tp2Price,
+                    TriggerPrice: null,
+                    TriggerBy: null,
+                    ReduceOnly: true,
+                    CloseOnTrigger: false,
+                    TimeInForce: TimeInForce.GoodTillCanceled,
+                    PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
+                    ClientOrderId: tp2ClientOrderId);
+
+                var tp2OrderId = await restClient.PlaceOrderAsync(tp2Req, cancel);
+                if (tp2OrderId is not null)
+                {
+                    _session.Tp2ClientOrderId = tp2ClientOrderId;
+                    _session.Tp2OrderId = tp2OrderId.OrderId;
+                }
             }
         }
 
@@ -685,7 +974,7 @@ namespace CryptoBlade.Strategies.Sigma
             string symbol,
             ICbFuturesRestClient restClient,
             DateTime nowUtc,
-            CancellationToken cancel)
+            CancellationToken cancel) 
         {
             // Trade musi być aktywny i pochodzić z MR
             if (!_session.IsActive || _session.EntryMode != Mode.MR)
@@ -841,6 +1130,17 @@ namespace CryptoBlade.Strategies.Sigma
                 scale = 4;
 
             return Math.Round(price, scale, MidpointRounding.AwayFromZero);
+        }
+
+        private static decimal RoundQty(SymbolInfo symbolInfo, decimal qty)
+        {
+            var s = symbolInfo.QtyStep;
+            if (qty <= 0m || !s.HasValue || s.Value <= 0m)
+                return qty;
+
+            // zawsze w dół, żeby nie przekroczyć rzeczywistej pozycji
+            qty -= qty % s.Value;
+            return qty;
         }
 
         private static decimal ComputeMinSlMove(SymbolInfo symbolInfo, decimal refPrice)

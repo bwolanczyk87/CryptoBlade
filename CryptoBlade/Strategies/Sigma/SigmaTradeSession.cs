@@ -36,6 +36,12 @@ namespace CryptoBlade.Strategies.Sigma
         public string? Tp2OrderId { get; set; }
         public decimal? Tp2Price { get; set; }
 
+        public double? Tp1R { get; set; }
+        public double? Tp2R { get; set; }
+        public TargetKind Tp1Kind { get; set; }
+        public TargetKind Tp2Kind { get; set; }
+
+
         public void Reset()
         {
             State = SigmaTradeState.Flat;
