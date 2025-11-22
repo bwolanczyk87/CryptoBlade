@@ -319,6 +319,9 @@ namespace CryptoBlade.Strategies.Sigma
         [AuditColumn(Order = 77)]
         public bool BoShortCandidate { get; init; }
 
+        [AuditColumn(Order = 78, Decimals = 4)]
+        public double SpreadGateThresholdBps { get; init; }
+
     }
 
     // ======== BUDOWANIE REKORDU (z ModeEngine.Classify) ========
@@ -395,6 +398,7 @@ namespace CryptoBlade.Strategies.Sigma
                 Bbw15mExpanding = data.Bbw15mExpanding,
 
                 SpreadBps = data.SpreadBps,
+                SpreadGateThresholdBps = data.SpreadGateThresholdBps,
 
                 OiDelta1hPct = data.OiDelta1hPct,
                 DeltaCvd5m = data.DeltaCvd5m,

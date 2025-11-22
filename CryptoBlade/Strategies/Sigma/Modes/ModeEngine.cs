@@ -74,6 +74,10 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         // Bieżący stan (Mode + Since + Scores)
         private ModeState _state;
 
+        // Stan dynamicznego gate'u na spread (per-symbol, per-strategia)
+        private double _spreadEmaBps;
+        private bool _spreadEmaInitialized;
+
         // Wspólne cechy wejściowe dla scoringu trybów
         private readonly record struct RegimeFeatures(
             double AtrPct1h,
@@ -119,7 +123,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             CancellationToken cancel)
         {
             // 1) Globalne bramki (twarde) – decydują, czy w ogóle wolno otwierać nowe pozycje.
-            var (ok, reason) = CheckGlobalGates(data, nowUtc, _options);
+            var (ok, reason) = CheckGlobalGates(data, nowUtc);
 
             if (!ok)
             {
@@ -586,17 +590,54 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         //  GLOBAL GATES
         // =====================================================================
 
-        private static (bool ok, string reason) CheckGlobalGates(SigmaData d, DateTime nowUtc, SigmaStrategyOptions o)
+        private (bool ok, string reason) CheckGlobalGates(SigmaData d, DateTime nowUtc)
         {
-            // 1) Spread gate (twardy)
-            if (!double.IsFinite(d.SpreadBps) || d.SpreadBps > (double)o.MaxSpreadBps)
-                return (false, $"Global gate: Spread {d.SpreadBps:F2} bps > {o.MaxSpreadBps}");
+            var o = _options;
+
+            // 1) Dynamiczny spread gate (twardy, pair-aware)
+            if (!double.IsFinite(d.SpreadBps) || d.SpreadBps <= 0)
+                return (false, $"Global gate: invalid spread {d.SpreadBps:F2} bps");
+
+            double current = d.SpreadBps;
+
+            double minBps = (double)o.SpreadGateMinBps;
+            double absMax = (double)o.MaxSpreadBps;          // twardy cap
+            double alpha = o.SpreadGateEmaAlpha;
+            double multiple = o.SpreadGateMultiplier;
+
+            if (!_spreadEmaInitialized)
+            {
+                // seed: zaciśnięty do [minBps, absMax], żeby egzotyki od razu nie przebiły sufitu
+                double seed = Math.Max(minBps, Math.Min(current, absMax));
+                _spreadEmaBps = seed;
+                _spreadEmaInitialized = true;
+            }
+            else
+            {
+                double x = Math.Max(minBps, Math.Min(current, absMax));
+                double oneMinusAlpha = 1.0 - alpha;
+                _spreadEmaBps = alpha * x + oneMinusAlpha * _spreadEmaBps;
+            }
+
+            // typowy spread dla tej pary
+            double baseline = Math.Max(minBps, _spreadEmaBps);
+
+            // gate pair-aware: max(EMA * k, minBps), ale nie powyżej absMax
+            double dynamicGate = baseline * multiple;
+            double threshold = Math.Min(dynamicGate, absMax);
+
+            // zapis do audytu
+            d.SpreadGateThresholdBps = threshold;
+
+            if (current > threshold + 1e-6)
+                return (false,
+                    $"Global gate: Spread {current:F2} bps > dynamic gate {threshold:F2} bps (ema={_spreadEmaBps:F2})");
 
             // 2) Macro freeze (twardy)
             if (IsMacroFreeze(nowUtc, o))
                 return (false, "Global gate: Macro freeze window");
 
-            // 3) Funding window freeze (twardy) – wokół najbliższego cyklu funding
+            // 3) Funding window freeze (twardy)
             if (IsFundingFreeze(d, nowUtc, o))
                 return (false, "Global gate: Funding window");
 
@@ -606,6 +647,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             return (true, "OK");
         }
+
 
         private static bool IsMacroFreeze(DateTime nowUtc, SigmaStrategyOptions o)
         {

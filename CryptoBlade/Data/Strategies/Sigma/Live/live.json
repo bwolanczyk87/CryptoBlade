@@ -1,0 +1,62 @@
+{
+    "AccountName":  "Demo",
+    "BotMode":  "Live",
+    "StrategyName":  "Sigma",
+    "TradingMode":  "Dynamic",
+    "MaxRunningStrategies":  30,
+    "DcaOrdersCount":  1000,
+    "DynamicBotCount":  {
+                            "TargetLongExposure":  200.0,
+                            "TargetShortExposure":  0,
+                            "MaxLongStrategies":  100,
+                            "MaxShortStrategies":  0,
+                            "MaxDynamicStrategyOpenPerStep":  10,
+                            "Step":  "00:01:00"
+                        },
+    "WalletExposureLong":  50.0,
+    "WalletExposureShort":  0.0,
+    "MinimumVolume":  15000.0,
+    "MinimumPriceDistance":  0.015,
+    "ForceMinQty":  false,
+    "QtyFactorLong":  2.0,
+    "QtyFactorShort":  0,
+    "EnableRecursiveQtyFactorLong":  true,
+    "EnableRecursiveQtyFactorShort":  true,
+    "PlaceOrderAttempts":  5,
+    "MaxAbsFundingRate":  0.0002,
+    "MakerFeeRate":  0.0002,
+    "TakerFeeRate":  0.00055,
+    "MinProfitRate":  0.0006,
+    "SpotRebalancingRatio":  0.0,
+    "StrategySelectPreference":  0,
+    "NormalizedAverageTrueRangePeriod":  14,
+    "MinNormalizedAverageTrueRangePeriod":  1.0,
+    "Whitelist":  [
+                      "BTCUSDT",
+                      "ETHUSDT",
+                      "XRPUSDT",
+                      "BNBUSDT",
+                      "SOLUSDT",
+                      "TRXUSDT",
+                      "DOGEUSDT",
+                      "ADAUSDT",
+                      "HYPEUSDT",
+                      "BCHUSDT",
+                      "ZECUSDT",
+                      "LEOUSDT",
+                      "LINKUSDT",
+                      "XLMUSDT",
+                      "LTCUSDT",
+                      "XMRUSDT",
+                      "AVAXUSDT",
+                      "HBARUSDT",
+                      "SUIUSDT",
+                      "SHIBUSDT"
+                  ],
+    "Blacklist":  [
+
+                  ],
+    "SymbolTradingModes":  [
+
+                           ]
+}

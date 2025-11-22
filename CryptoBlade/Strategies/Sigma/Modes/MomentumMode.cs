@@ -94,6 +94,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (soft.HasBuy || soft.HasSell)
                 return soft;
 
+            // -----------------------------------------------------------------
+            // 4. None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
+            //var none = new ModeSignal(true, false, ModeTier.None);
+            //return none;
+
             // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;
         }

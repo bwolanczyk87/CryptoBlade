@@ -45,6 +45,7 @@ namespace CryptoBlade.Strategies.Sigma
         // Mikrostruktura / egzekucja
         // public set zostawiony – jeśli zechcesz nadpisać SpreadBps świeższym live spreade’em.
         public double SpreadBps { get; set; }                 // spread bid-ask w bps (NaN jeśli brak)
+        public double SpreadGateThresholdBps { get; internal set; } // Dynamiczny próg hard-gate na spread (w bps), wyliczony przez ModeEngine, 0 lub NaN = jeszcze nie zainicjalizowany
 
         // Derywaty / flow
         public double OiDelta1hPct { get; private set; }      // ΔOI$ 1h w %

@@ -61,6 +61,7 @@
     <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
     <Folder Include="Data\Strategies\Sigma\Audit\" />
     <Folder Include="Data\Strategies\Sigma\Audit\ETHUSDT\" />
+    <Folder Include="Data\Strategies\Sigma\Backtest\" />
     <Folder Include="Documentation\" />
   </ItemGroup>
 

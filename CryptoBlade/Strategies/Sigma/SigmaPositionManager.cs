@@ -3,174 +3,18 @@ using CryptoBlade.Exchanges;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Modes;
+using CryptoBlade.Strategies.Wallet;
 using System.Globalization;
 using OrderSide = CryptoBlade.Models.OrderSide;
 
 namespace CryptoBlade.Strategies.Sigma
 {
-    public enum SigmaTradeState
-    {
-        Flat = 0,
-        WaitingForEntryFill = 1,
-        Active = 2
-    }
-
-    public sealed class SigmaTradeSession
-    {
-        public SigmaTradeState State { get; set; } = SigmaTradeState.Flat;
-
-        public OrderSide? Side { get; set; }
-        public string? DirectionTag { get; set; }     // "LONG"/"SHORT"
-
-        public decimal? Quantity { get; set; }
-
-        public string? EntryClientOrderId { get; set; }
-        public string? EntryOrderId { get; set; }
-        public DateTime? EntryCreatedUtc { get; set; }
-        public DateTime? EntryFilledUtc { get; set; }
-        public decimal? EntryPrice { get; set; }
-        public Mode? EntryMode { get; set; }
-
-        public string? SlClientOrderId { get; set; }
-        public string? SlOrderId { get; set; }
-        public decimal? SlPrice { get; set; }
-
-        public string? Tp1ClientOrderId { get; set; }
-        public string? Tp1OrderId { get; set; }
-        public decimal? Tp1Price { get; set; }
-        public bool Tp1Hit { get; set; }
-
-        public string? Tp2ClientOrderId { get; set; }
-        public string? Tp2OrderId { get; set; }
-        public decimal? Tp2Price { get; set; }
-
-        public void Reset()
-        {
-            State = SigmaTradeState.Flat;
-            Side = null;
-            DirectionTag = null;
-            Quantity = null;
-
-            EntryClientOrderId = null;
-            EntryOrderId = null;
-            EntryCreatedUtc = null;
-            EntryFilledUtc = null;
-            EntryPrice = null;
-            EntryMode = null;
-
-            SlClientOrderId = null;
-            SlOrderId = null;
-            SlPrice = null;
-
-            Tp1ClientOrderId = null;
-            Tp1OrderId = null;
-            Tp1Price = null;
-            Tp1Hit = false;
-
-            Tp2ClientOrderId = null;
-            Tp2OrderId = null;
-            Tp2Price = null;
-        }
-
-        public bool HasPendingEntry =>
-            State == SigmaTradeState.WaitingForEntryFill && EntryClientOrderId is not null;
-
-        public bool IsActive => State == SigmaTradeState.Active;
-
-        /// <summary>Ustawia sesję w stan oczekiwania na fill nowego ENTRY.</summary>
-        public void InitPendingEntry(
-            OrderSide side,
-            string directionTag,
-            decimal quantity,
-            string entryClientOrderId,
-            string entryOrderId,
-            DateTime entryCreatedUtc,
-            decimal entryPrice,
-            Mode entryMode,
-            decimal slPrice,
-            decimal tp1Price,
-            decimal tp2Price)
-        {
-            Reset();
-            State = SigmaTradeState.WaitingForEntryFill;
-            Side = side;
-            DirectionTag = directionTag;
-            Quantity = quantity;
-
-            EntryClientOrderId = entryClientOrderId;
-            EntryOrderId = entryOrderId;
-            EntryCreatedUtc = entryCreatedUtc;
-            EntryPrice = entryPrice;
-            EntryMode = entryMode;
-
-            SlPrice = slPrice;
-            Tp1Price = tp1Price;
-            Tp2Price = tp2Price;
-        }
-
-        /// <summary>Odtwarza stan oczekującego ENTRY z istniejącego zlecenia.</summary>
-        public void InitPendingEntryFromRecovery(Order entry)
-        {
-            Reset();
-            State = SigmaTradeState.WaitingForEntryFill;
-            Side = entry.Side;
-            DirectionTag = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
-            EntryMode = null;
-            Quantity = entry.Quantity;
-            EntryClientOrderId = entry.ClientOrderId;
-            EntryOrderId = entry.OrderId;
-            EntryCreatedUtc = entry.CreateTime;
-            EntryPrice = entry.Price > 0m ? entry.Price : null;
-        }
-
-        /// <summary>Odtwarza stan aktywnego trade'u z istniejącego SL i opcjonalnie TP1/TP2.</summary>
-        public void InitActiveFromRecovery(Order sl, Order? tp1, Order? tp2)
-        {
-            Reset();
-
-            var side = sl.Side == OrderSide.Sell ? OrderSide.Buy : OrderSide.Sell;
-            State = SigmaTradeState.Active;
-            Side = side;
-            DirectionTag = side == OrderSide.Buy ? "LONG" : "SHORT";
-            EntryMode = null;
-            Quantity = sl.Quantity;
-
-            SlClientOrderId = sl.ClientOrderId;
-            SlOrderId = sl.OrderId;
-            SlPrice = sl.Price;
-
-            if (tp1 is not null)
-            {
-                Tp1ClientOrderId = tp1.ClientOrderId;
-                Tp1OrderId = tp1.OrderId;
-                Tp1Price = tp1.Price;
-            }
-
-            if (tp2 is not null)
-            {
-                Tp2ClientOrderId = tp2.ClientOrderId;
-                Tp2OrderId = tp2.OrderId;
-                Tp2Price = tp2.Price;
-            }
-
-            decimal? guessEntry = null;
-            if (Tp1Price.HasValue && SlPrice.HasValue)
-                guessEntry = (Tp1Price.Value + SlPrice.Value) / 2m;
-            else if (Tp2Price.HasValue && SlPrice.HasValue)
-                guessEntry = (Tp2Price.Value + SlPrice.Value) / 2m;
-
-            EntryPrice = guessEntry;
-            EntryFilledUtc = sl.CreateTime;
-        }
-    }
-
     /// <summary>
     /// Manager pojedynczego trade'u Sigmy (ENTRY + SL/TP1/TP2 + BE + trailing + MR time-stop).
     /// </summary>
-    public sealed class SigmaPositionManager
+    public sealed class SigmaPositionManager(SigmaStrategyOptions options)
     {
         private readonly SigmaTradeSession _session = new();
-
         private static readonly TimeSpan EntryTimeout = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan MrTimeStop = TimeSpan.FromMinutes(40);
 
@@ -183,6 +27,7 @@ namespace CryptoBlade.Strategies.Sigma
             bool tradable,
             DateTime nowUtc,
             ICbFuturesRestClient restClient,
+            IWalletManager walletManager, 
             CancellationToken cancel)
         {
             // 0) timeout dla pending ENTRY
@@ -190,45 +35,76 @@ namespace CryptoBlade.Strategies.Sigma
 
             // 0.5) trailing SL dla aktywnej pozycji
             if (_session.IsActive)
-                await ApplyTrailingStopAsync(symbol, symbolInfo, sigmaData, activeMode, restClient, nowUtc, cancel);
+                await ApplyTrailingStopAsync(symbol, symbolInfo, sigmaData, restClient, nowUtc, cancel);
 
             // 0.6) time-stop dla MR
             await ApplyMrTimeStopAsync(symbol, restClient, nowUtc, cancel);
+
+            // --- Obsługa istniejącego pending ENTRY ---
+
+            if (_session.HasPendingEntry)
+            {
+                bool conflictingSignal = (modeSignal.HasBuy && _session.Side == OrderSide.Sell) || (modeSignal.HasSell && _session.Side == OrderSide.Buy);
+
+                // Jeśli globalne gate'y blokują nowe wejścia lub sygnał odwraca kierunek,
+                // kasujemy pending ENTRY zamiast bezmyślnie czekać na timeout.
+                if (!tradable || conflictingSignal)
+                {
+                    await CancelPendingEntryAsync(symbol, restClient, nowUtc, cancel);
+                }
+                else
+                {
+                    // Gate'y są OK i brak konfliktu – szanujemy istniejący pending ENTRY.
+                    return;
+                }
+            }
 
             // 1) jeśli globalne gate'y blokują, nie otwieramy nowego trade'u
             if (!tradable)
                 return;
 
-            // 2) nie otwieramy nowego, jeśli już mamy trade
-            if (_session.IsActive || _session.HasPendingEntry)
+            // 2) nie otwieramy nowego, jeśli już mamy aktywny trade
+            if (_session.IsActive)
                 return;
 
             bool buy = modeSignal.HasBuy && !modeSignal.HasSell;
             bool sell = modeSignal.HasSell && !modeSignal.HasBuy;
             if (!buy && !sell)
-                return;
+                return; // brak jednoznacznego biasu
 
             var side = buy ? OrderSide.Buy : OrderSide.Sell;
             var directionTag = buy ? "LONG" : "SHORT";
 
-            // 3) wyliczamy entry/SL/TP w sposób zależny od reżimu:
-            if (!TryComputeEntrySetup(
-                    sigmaData,
-                    symbolInfo,
-                    activeMode,
-                    side,
-                    out var entryPrice,
-                    out var slPrice,
-                    out var tp1Price,
-                    out var tp2Price))
+            // 3) ENTRY/SL/TP z cech Sigmy
+            if (!TryComputeEntrySetup(sigmaData, symbolInfo, activeMode, side, out var entryPrice, out var slPrice, out var tp1Price, out var tp2Price))
             {
                 return;
             }
 
-            // 4) sizing – na razie na sztywno 100 USD
-            decimal qty = CalculateQuantityInContracts(symbolInfo, entryPrice, 100m);
-            if (qty <= 0)
+            // 4) Risk sizing – target R = riskPerTradeUsd, liczone z odległości ENTRY→SL
+            decimal distance = side == OrderSide.Buy
+                ? entryPrice - slPrice
+                : slPrice - entryPrice;
+
+            if (distance <= 0m)
                 return;
+
+            var riskPerTradeUsd = ComputeRiskPerTradeUsdAsync(
+                sigmaData,
+                modeSignal,
+                equity: walletManager.Contract.Equity);
+
+            if (riskPerTradeUsd <= 0m)
+                return;
+
+            // Dla kontraktów linear: risk ≈ (distance / entryPrice) * notional,
+            // więc notional = Risk * entryPrice / distance.
+            decimal notionalUsd = riskPerTradeUsd * entryPrice / distance;
+
+            decimal qty = CalculateQuantityInContracts(symbolInfo, entryPrice, notionalUsd);
+            if (qty <= 0m)
+                return;
+
 
             string entryClientOrderId = BuildClientOrderId(symbol, directionTag, "ENTRY", nowUtc);
 
@@ -251,7 +127,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (orderId is null)
                 return;
 
-            // 5) zapis stanu sesji (w jednej linijce na call-site)
+            // 5) zapis stanu sesji
             _session.InitPendingEntry(
                 side,
                 directionTag,
@@ -265,6 +141,7 @@ namespace CryptoBlade.Strategies.Sigma
                 tp1Price,
                 tp2Price);
         }
+
 
         /// <summary>
         /// Reakcja na OrderUpdate – pośrednio wołana z TradingStrategyBase.
@@ -282,8 +159,14 @@ namespace CryptoBlade.Strategies.Sigma
             if (!clientOrderId.StartsWith("SIGMA|", StringComparison.Ordinal))
                 return;
 
-            if (update.Status != CryptoBlade.Models.OrderStatus.Filled)
+            if (update.Status == CryptoBlade.Models.OrderStatus.Cancelled)
+            {
+                _session.Reset();
                 return;
+            }
+
+            if (update.Status != CryptoBlade.Models.OrderStatus.Filled)
+                return; 
 
             var kind = TryParseKind(clientOrderId);
 
@@ -304,6 +187,62 @@ namespace CryptoBlade.Strategies.Sigma
 
         #region ENTRY timeout / entry setup / SL/TP / BE / trailing / cleanup
 
+        public decimal ComputeRiskPerTradeUsdAsync(
+            SigmaData sigmaData,
+            ModeSignal modeSignal,
+            decimal? equity)
+        {
+            // 1) Equity strategii w USDT.
+            // Dopasuj tę linijkę do swojego IWalletManager.
+            // Przykład zakłada metodę GetStrategyEquityUsdAsync(symbol).
+
+            if (equity.HasValue && equity <= 0m)
+                return options.MinRiskPerTradeUsd;
+
+            // 2) Base risk z equity (przed tierami i środowiskiem)
+            decimal baseRisk = equity.Value * options.RiskPerTradePct;
+
+            // clamp do widełek globalnych
+            if (baseRisk < options.MinRiskPerTradeUsd) baseRisk = options.MinRiskPerTradeUsd;
+            if (baseRisk > options.MaxRiskPerTradeUsd) baseRisk = options.MaxRiskPerTradeUsd;
+
+            // 3) Mnożnik tieru (Hard/Medium/Soft/None)
+            decimal tierMultiplier = modeSignal.Tier switch
+            {
+                ModeTier.Hard => options.TierHardRiskMultiplier,
+                ModeTier.Medium => options.TierMediumRiskMultiplier,
+                ModeTier.Soft => options.TierSoftRiskMultiplier,
+                _ => options.TierNoneRiskMultiplier
+            };
+
+            decimal risk = baseRisk * tierMultiplier;
+
+            // 4) Modulatory środowiska – korelacja / BTC shock
+            decimal envMultiplier = 1.0m;
+
+            // Wysoka korelacja z BTC → redukcja size (ale nie twarda blokada, ta jest w ModeEngine).
+            if (double.IsFinite(sigmaData.CorrToBtc15m) &&
+                Math.Abs(sigmaData.CorrToBtc15m) >= (double)options.CorrHighReduceSizeThreshold &&
+                Math.Abs(sigmaData.CorrToBtc15m) < (double)options.CorrOppositeBlock)
+            {
+                envMultiplier *= options.CorrHighSizeMultiplier;
+            }
+
+            // BTC shock – placeholder; po dodaniu BtcAtr do SigmaData wstaw tu warunek.
+            // if (sigmaData.BtcAtrPct1d >= (double)opt.BtcAtrShockThresholdPct)
+            // {
+            //     envMultiplier *= opt.BtcShockSizeMultiplier;
+            // }
+
+            risk *= envMultiplier;
+
+            // 5) Ostateczny clamp
+            if (risk < options.MinRiskPerTradeUsd) risk = options.MinRiskPerTradeUsd;
+            if (risk > options.MaxRiskPerTradeUsd) risk = options.MaxRiskPerTradeUsd;
+
+            return risk;
+        }
+
         private async Task CheckAndCancelStaleEntryAsync(
             string symbol,
             ICbFuturesRestClient restClient,
@@ -323,18 +262,26 @@ namespace CryptoBlade.Strategies.Sigma
             _session.Reset();
         }
 
-        private bool TryComputeEntrySetup(
-            SigmaData d,
-            SymbolInfo symbolInfo,
-            Mode mode,
-            OrderSide side,
-            out decimal entryPrice,
-            out decimal slPrice,
-            out decimal tp1Price,
-            out decimal tp2Price)
+        private async Task CancelPendingEntryAsync(
+            string symbol,
+            ICbFuturesRestClient restClient,
+            DateTime nowUtc,
+            CancellationToken cancel)
+        {
+            if (!_session.HasPendingEntry)
+                return;
+
+            if (!string.IsNullOrEmpty(_session.EntryOrderId))
+            {
+                await restClient.CancelOrderAsync(symbol, _session.EntryOrderId!, cancel);
+            }
+
+            _session.Reset();
+        }
+
+        private bool TryComputeEntrySetup(SigmaData d, SymbolInfo symbolInfo, Mode mode,  OrderSide side, out decimal entryPrice, out decimal slPrice, out decimal tp1Price, out decimal tp2Price)
         {
             entryPrice = slPrice = tp1Price = tp2Price = 0m;
-
             decimal? lastClose = d.Last1mClose ?? d.LastPrice;
             if (lastClose is null || lastClose <= 0m)
                 return false;
@@ -345,10 +292,7 @@ namespace CryptoBlade.Strategies.Sigma
             decimal atr5m = double.IsNaN(d.Atr5mAbs) ? 0m : (decimal)d.Atr5mAbs;
 
             // bazowa jednostka ryzyka – preferujemy ATR 5m, fallback do ATR 1h / 0.5% ceny
-            decimal riskUnit =
-                atr5m > 0m ? atr5m :
-                atr1h > 0m ? atr1h * 0.5m :
-                refPrice * 0.005m;
+            decimal riskUnit = atr5m > 0m ? atr5m : atr1h > 0m ? atr1h * 0.5m : refPrice * 0.005m;
 
             if (riskUnit <= 0m)
                 return false;
@@ -358,10 +302,9 @@ namespace CryptoBlade.Strategies.Sigma
             decimal? last5High = d.Last5mHigh ?? d.Last1mHigh ?? refPrice;
             decimal? last5Low = d.Last5mLow ?? d.Last1mLow ?? refPrice;
 
-            decimal range5 =
-                (last5High.HasValue && last5Low.HasValue)
-                    ? (last5High.Value - last5Low.Value)
-                    : refPrice * 0.002m;
+            decimal range5 = (last5High.HasValue && last5Low.HasValue)
+                ? (last5High.Value - last5Low.Value)
+                : refPrice * 0.002m;
 
             if (range5 <= 0m)
                 range5 = refPrice * 0.002m;
@@ -470,11 +413,7 @@ namespace CryptoBlade.Strategies.Sigma
             return true;
         }
 
-        private async Task HandleEntryFilledAsync(
-            string symbol,
-            OrderUpdate update,
-            ICbFuturesRestClient restClient,
-            CancellationToken cancel)
+        private async Task HandleEntryFilledAsync(string symbol, OrderUpdate update, ICbFuturesRestClient restClient, CancellationToken cancel)
         {
             if (!_session.HasPendingEntry ||
                 !string.Equals(update.ClientOrderId, _session.EntryClientOrderId, StringComparison.Ordinal))
@@ -646,7 +585,6 @@ namespace CryptoBlade.Strategies.Sigma
             string symbol,
             SymbolInfo symbolInfo,
             SigmaData d,
-            Mode mode,
             ICbFuturesRestClient restClient,
             DateTime nowUtc,
             CancellationToken cancel)
@@ -657,12 +595,13 @@ namespace CryptoBlade.Strategies.Sigma
                 _session.EntryPrice is null)
                 return;
 
-            // trailing dopiero po TP1 (logika MM/BO z założeń Sigmy)
+            // Trailing dopiero po TP1 (logika MM/BO z założeń Sigmy)
             if (!_session.Tp1Hit)
                 return;
 
-            double atr5 = d.Atr5mAbs;
-            if (double.IsNaN(atr5) || !(atr5 > 0.0))
+            // ATR 5m jako podstawa
+            double atr5 = double.IsNaN(d.Atr5mAbs) ? double.NaN : d.Atr5mAbs;
+            if (!double.IsFinite(atr5) || atr5 <= 0.0)
                 return;
 
             decimal atr = (decimal)atr5;
@@ -675,7 +614,10 @@ namespace CryptoBlade.Strategies.Sigma
             decimal entry = _session.EntryPrice.Value;
             var side = _session.Side.Value;
 
-            decimal factor = mode switch
+            // Używamy trybu z wejścia, nie bieżącego reżimu
+            var entryMode = _session.EntryMode ?? Mode.MM;
+
+            decimal factor = entryMode switch
             {
                 Mode.MM => 1.0m,
                 Mode.BO => 1.0m,
@@ -687,7 +629,7 @@ namespace CryptoBlade.Strategies.Sigma
                 ? lastClose.Value - factor * atr
                 : lastClose.Value + factor * atr;
 
-            // tylko w stronę zysku
+            // Tylko w stronę zysku
             bool improves = side == OrderSide.Buy
                 ? rawNewSl > currentSl
                 : rawNewSl < currentSl;
@@ -695,8 +637,10 @@ namespace CryptoBlade.Strategies.Sigma
             if (!improves)
                 return;
 
-            // nie schodzimy poniżej BE (long) / powyżej BE (short)
-            decimal be = entry;
+            // BE po TP1 – SL nie może wrócić poniżej BE
+            decimal be = entry; // uproszczone: po TP1 zakładamy BE na entry; 
+                                // jeśli masz bardziej złożoną logikę, wstaw ją tutaj.
+
             if (side == OrderSide.Buy && rawNewSl < be) rawNewSl = be;
             if (side == OrderSide.Sell && rawNewSl > be) rawNewSl = be;
 
@@ -705,11 +649,12 @@ namespace CryptoBlade.Strategies.Sigma
             if (Math.Abs(newSl - currentSl) < ComputeMinSlMove(symbolInfo, entry))
                 return;
 
-            // kasujemy stary SL
+            // Kasujemy stary SL
             if (!string.IsNullOrEmpty(_session.SlOrderId))
                 await restClient.CancelOrderAsync(symbol, _session.SlOrderId!, cancel);
 
             string slClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "SLTRAIL", nowUtc);
+
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
                 Category: Category.Linear,
@@ -734,6 +679,7 @@ namespace CryptoBlade.Strategies.Sigma
             _session.SlOrderId = slOrderId.OrderId;
             _session.SlPrice = newSl;
         }
+
 
         private async Task ApplyMrTimeStopAsync(
             string symbol,

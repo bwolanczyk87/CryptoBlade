@@ -15,163 +15,71 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly IMode _mm;
         private readonly IMode _mr;
         private readonly IMode _bo;
-
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
-
-        // Stan trybu (MM/MR/BO/None) + score'y – utrzymywany przez strategię na potrzeby audytu
         private ModeState _modeState = new(Mode.None, DateTime.MinValue, ModeScores.Zero);
-        private readonly SigmaPositionManager _positionManager = new();
+        private readonly SigmaPositionManager _positionManager;
 
         protected override bool UseMarketOrdersForEntries => false;
 
-        public SigmaStrategy(
-            IOptions<SigmaStrategyOptions> options,
-            IOptions<TradingBotOptions> botOptions,
-            string symbol,
-            IWalletManager walletManager,
-            ICbFuturesRestClient restClient)
+        public SigmaStrategy(IOptions<SigmaStrategyOptions> options, IOptions<TradingBotOptions> botOptions, string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient)
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
-
             _mm = new MomentumMode(options.Value);
             _mr = new MeanReversionMode(options.Value);
             _bo = new BreakoutMode(options.Value);
 
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"sigma_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
-            _audit = new SigmaAuditSink(relFile);
 
-            // ModeEngine jest stanowy – tworzymy go raz
+            _audit = new SigmaAuditSink(relFile);
             _modeEngine = new ModeEngine(options.Value, _mm, _mr, _bo, _audit);
+            _positionManager = new SigmaPositionManager(options.Value);
         }
 
-        private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o)
-            =>
-            [
-                new TimeFrameWindow(TimeFrame.OneMinute,       o.OneMinuteWindow,  true),
-                new TimeFrameWindow(TimeFrame.FiveMinutes,     o.FiveMinuteWindow, false),
-                new TimeFrameWindow(TimeFrame.FifteenMinutes,  o.FifteenMinuteWindow, false),
-                new TimeFrameWindow(TimeFrame.OneHour,         o.OneHourWindow,    false),
-            ];
+        private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o) =>
+        [
+            new TimeFrameWindow(TimeFrame.OneMinute,       o.OneMinuteWindow,  true),
+            new TimeFrameWindow(TimeFrame.FiveMinutes,     o.FiveMinuteWindow, false),
+            new TimeFrameWindow(TimeFrame.FifteenMinutes,  o.FifteenMinuteWindow, false),
+            new TimeFrameWindow(TimeFrame.OneHour,         o.OneHourWindow,    false),
+        ];
 
         public override string Name => "Sigma";
 
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
             var nowUtc = DateTime.UtcNow;
-
-            // SigmaData agreguje wszystkie cechy z helperów
             var sigmaData = new SigmaData(Symbol);
+            var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.Value.FifteenMinuteWindow, cancel);
+            var oiPoints = await GetOpenInterestAsync(TimeFrame.FiveMinutes, 60, cancel);
+            var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(Symbol,nowUtc - TimeSpan.FromDays(1), nowUtc, cancel);
 
-            // BTC 15m – do korelacji i biasu
-            var btcQuotes15m = await GetQuotesAsync(
-                "BTCUSDT",
-                TimeFrame.FifteenMinutes,
-                _options.Value.FifteenMinuteWindow,
-                cancel);
+            sigmaData.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
 
-            // Open Interest – 1h history (limit=100, ale SigmaData użyje ile trzeba)
-            var oiPoints = await GetOpenInterestAsync(
-                TimeFrame.FiveMinutes,
-                60,
-                cancel);
-
-            // Funding rates – ostatnie parę minut (czas okna możesz potem doprecyzować)
-            var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(
-                Symbol,
-                nowUtc - TimeSpan.FromDays(1),
-                nowUtc,
-                cancel);
-
-            // Build SigmaData – wszystkie obliczenia lecą w środku
-            sigmaData.Build(
-                nowUtc,
-                QuoteQueues,
-                btcQuotes15m,
-                Ticker,
-                PublicTrades,
-                Liquidations,
-                oiPoints,
-                fundingRates);
-
-            // Zachowujemy poprzedni stan trybu do audytu
             var prevState = _modeState;
-
-            // 1) Globalne bramki + klasyfikacja reżimu
-            var (mode, modeDecision, gateReason) = _modeEngine.Evaluate(
-                sigmaData,
-                nowUtc,
-                cancel);
-
-            // Aktualizujemy stan trybu zgodnie z decyzją ModeEngine
+            var (mode, modeDecision, gateReason) = _modeEngine.Evaluate(sigmaData, nowUtc, cancel);
             _modeState = modeDecision.State;
 
-            // 2) Sygnał z aktywnego trybu (jeśli globalne bramki pozwalają i istnieje aktywny tryb)
             var modeSignal = mode?.Execute(sigmaData, nowUtc, cancel) ?? ModeSignal.None;
-
-            // 3) Audyt – pełny snapshot cech + scores + wybór trybu + gating
             var tradable = mode is not null;
+            _audit.Add(SigmaAudit.MakeRecord(sigmaData, prevState, nowUtc, _options.Value, tradable, gateReason, modeDecision, nowUtc));
 
-            _audit.Add(SigmaAudit.MakeRecord(
-                sigmaData,
-                prevState,
-                nowUtc,
-                _options.Value,
-                tradable: tradable,
-                reason: gateReason,
-                decision: modeDecision,
-                lastDecisionUtc: nowUtc));
-
-            await _positionManager.OnSignalAsync(
-                symbol: Symbol,
-                symbolInfo: SymbolInfo,
-                sigmaData: sigmaData,
-                activeMode: modeDecision.ProposedMode,
-                modeSignal: modeSignal,
-                tradable: tradable,
-                nowUtc: nowUtc,
-                restClient: m_cbFuturesRestClient,
-                cancel: cancel);
-
-            // 4) Zwracamy sygnał bez wskaźników (pusta tablica)
-            return new SignalEvaluation(
-                modeSignal.HasBuy,
-                modeSignal.HasSell,
-                false,
-                false,
-                []);
-        }
-
-        public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel)
-        {
-            // Sigma nie korzysta z domyślnego engine’u wejść/wyjść.
-            // Wszystkie decyzje o orderach idą przez SigmaPositionManager.
-            return Task.CompletedTask;
+            await _positionManager.OnSignalAsync(Symbol, SymbolInfo, sigmaData, modeDecision.ProposedMode, modeSignal, tradable,nowUtc, m_cbFuturesRestClient, WalletManager, cancel);
+            return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
         }
 
         public override async Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
         {
-            // Reagujemy tylko kiedy mamy rest client (powinien być zawsze)
-            await _positionManager.OnOrderUpdateAsync(
-                symbol: Symbol,
-                update: orderUpdate,
-                restClient: m_cbFuturesRestClient,
-                cancel: cancel);
+            await _positionManager.OnOrderUpdateAsync(Symbol, orderUpdate, m_cbFuturesRestClient, cancel);
         }
 
         public async Task RecoverSigmaStateAsync(CancellationToken cancel)
         {
-            var nowUtc = DateTime.UtcNow;
-
-            await _positionManager.RecoverFromOpenOrdersAsync(
-                openOrders: [.. BuyOrders, .. SellOrders],
-                symbol: Symbol,
-                symbolInfo: SymbolInfo,
-                restClient: m_cbFuturesRestClient,
-                nowUtc: nowUtc,
-                cancel: cancel);
+            await _positionManager.RecoverFromOpenOrdersAsync([.. BuyOrders, .. SellOrders], Symbol, SymbolInfo, m_cbFuturesRestClient, DateTime.UtcNow, cancel);
         }
+
+        public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel) => Task.CompletedTask;
     }
 }
