@@ -104,34 +104,73 @@ namespace CryptoBlade.Exchanges
 
         public async Task<bool> CancelOrderAsync(string symbol, string orderId, CancellationToken cancel = default)
         {
+            const string op = "Order.Cancel";
+
+            m_logger.LogDebug(
+                "sym={Symbol} | op={Operation} | stage=Start | orderId={OrderId}",
+                symbol,
+                op,
+                orderId);
+
             var cancelOrder = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading
                     .CancelOrderAsync(m_category, symbol, orderId, null, null, cancel));
+
             if (cancelOrder.GetResultOrError(out _, out var error))
+            {
+                m_logger.LogInformation(
+                    "sym={Symbol} | op={Operation} | stage=Success | orderId={OrderId}",
+                    symbol,
+                    op,
+                    orderId);
+
                 return true;
-            m_logger.LogError($"{symbol}: Error canceling order: {error}");
+            }
+
+            m_logger.LogError(
+                "sym={Symbol} | op={Operation} | stage=Fail | orderId={OrderId} errorCode={ErrorCode} errorMsg={ErrorMessage}",
+                symbol,
+                op,
+                orderId,
+                error?.Code,
+                error?.Message);
 
             return false;
         }
+
 
         /// <summary>
         /// Uniwersalne składanie zleceń dla Sigmy i innych zaawansowanych strategii.
         /// Nie ustawia TP/SL "magicznie" – to robimy osobnymi orderami.
         /// </summary>
+        /// <summary>
         public async Task<BybitOrderId?> PlaceOrderAsync(
             CbOrderRequest request,
             CancellationToken cancel = default)
         {
+            const string op = "Order.Place";
+
             for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
             {
                 try
                 {
                     m_logger.LogDebug(
-                        $"{request.Symbol}: Placing order " +
-                        $"Side={request.Side}, Type={request.Type}, Qty={request.Quantity}, " +
-                        $"Price={request.Price}, TriggerPrice={request.TriggerPrice}, " +
-                        $"ReduceOnly={request.ReduceOnly}, CloseOnTrigger={request.CloseOnTrigger}, " +
-                        $"ClientOrderId={request.ClientOrderId}");
+                        "sym={Symbol} | op={Operation} | stage=Start | " +
+                        "side={Side} type={Type} qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
+                        "reduceOnly={ReduceOnly} closeOnTrigger={CloseOnTrigger} " +
+                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
+                        request.Symbol,
+                        op,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.TriggerPrice,
+                        request.ReduceOnly,
+                        request.CloseOnTrigger,
+                        request.ClientOrderId,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts);
 
                     var res = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                         .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
@@ -152,22 +191,68 @@ namespace CryptoBlade.Exchanges
                             ct: cancel));
 
                     if (res.GetResultOrError(out var data, out var error))
+                    {
+                        m_logger.LogInformation(
+                            "sym={Symbol} | op={Operation} | stage=Success | " +
+                            "side={Side} type={Type} qty={Qty} price={Price} clientOrderId={ClientOrderId} " +
+                            "attempt={Attempt}/{MaxAttempts}",
+                            request.Symbol,
+                            op,
+                            request.Side,
+                            request.Type,
+                            request.Quantity,
+                            request.Price,
+                            request.ClientOrderId,
+                            attempt + 1,
+                            m_options.Value.PlaceOrderAttempts);
+
                         return data;
+                    }
 
                     m_logger.LogWarning(
-                        $"{request.Symbol}: PlaceOrderAsync failed on attempt {attempt + 1}. " +
-                        $"Error: {error?.Message}");
+                        "sym={Symbol} | op={Operation} | stage=Fail | attempt={Attempt}/{MaxAttempts} " +
+                        "side={Side} type={Type} qty={Qty} price={Price} clientOrderId={ClientOrderId} " +
+                        "errorCode={ErrorCode} errorMsg={ErrorMessage}",
+                        request.Symbol,
+                        op,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.ClientOrderId,
+                        error?.Code,
+                        error?.Message);
                 }
                 catch (Exception ex) when (!cancel.IsCancellationRequested)
                 {
-                    m_logger.LogError(ex,
-                        $"{request.Symbol}: Exception while placing order on attempt {attempt + 1}");
+                    m_logger.LogError(
+                        ex,
+                        "sym={Symbol} | op={Operation} | stage=Exception | attempt={Attempt}/{MaxAttempts} " +
+                        "side={Side} type={Type} qty={Qty} price={Price} clientOrderId={ClientOrderId}",
+                        request.Symbol,
+                        op,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.ClientOrderId);
                 }
             }
 
-            m_logger.LogError($"{request.Symbol}: PlaceOrderAsync exhausted all attempts.");
+            m_logger.LogError(
+                "sym={Symbol} | op={Operation} | stage=Exhausted | attempts={Attempts} clientOrderId={ClientOrderId}",
+                request.Symbol,
+                op,
+                m_options.Value.PlaceOrderAttempts,
+                request.ClientOrderId);
+
             return null;
         }
+
 
         public async Task<bool> PlaceLimitBuyOrderAsync(string symbol, decimal quantity, decimal price,
             CancellationToken cancel = default)

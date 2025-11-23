@@ -120,8 +120,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             // -----------------------------------------------------------------
             // 4. None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
-            //var none = new ModeSignal(true, false, ModeTier.None);
-            //return none;
+            var none = new ModeSignal(true, false, ModeTier.None);
+            return none;
 
             // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;

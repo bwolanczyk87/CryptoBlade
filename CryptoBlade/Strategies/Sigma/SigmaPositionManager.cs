@@ -2,6 +2,7 @@
 using CryptoBlade.Exchanges;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
+using CryptoBlade.Strategies.Sigma.Helpers;
 using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Wallet;
 using System.Globalization;
@@ -30,7 +31,7 @@ namespace CryptoBlade.Strategies.Sigma
     /// <summary>
     /// Manager pojedynczego trade'u Sigmy (ENTRY + SL/TP1/TP2 + BE + trailing + MR time-stop).
     /// </summary>
-    public sealed class SigmaPositionManager(SigmaStrategyOptions options, SymbolInfo symbolInfo)
+    public sealed class SigmaPositionManager(SigmaStrategyOptions options)
     {
         private readonly SigmaTradeSession _session = new();
         private static readonly TimeSpan EntryTimeout = TimeSpan.FromMinutes(10);
@@ -39,6 +40,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         public async Task OnSignalAsync(
             string symbol,
+            SymbolInfo symbolInfo,
             SigmaData sigmaData,
             Mode activeMode,
             ModeSignal modeSignal,
@@ -54,10 +56,10 @@ namespace CryptoBlade.Strategies.Sigma
 
             // 0.5) trailing SL dla aktywnej pozycji
             if (_session.IsActive)
-                await ApplyTrailingStopAsync(symbol, symbolInfo, sigmaData, restClient, nowUtc, cancel);
+                await ApplyTrailingStopAsync(symbol, symbolInfo, activeMode, sigmaData, restClient, nowUtc, cancel);
 
             // 0.6) time-stop dla MR
-            await ApplyMrTimeStopAsync(symbol, restClient, nowUtc, cancel);
+            await ApplyMrTimeStopAsync(symbol, activeMode, restClient, nowUtc, cancel);
 
             // --- Obsługa istniejącego pending ENTRY ---
 
@@ -125,7 +127,7 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
 
 
-            string entryClientOrderId = BuildClientOrderId(symbol, directionTag, "ENTRY", nowUtc);
+            string entryClientOrderId = BuildClientOrderId(symbol, activeMode, directionTag, "ENTRY", nowUtc);
 
             var request = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -167,6 +169,7 @@ namespace CryptoBlade.Strategies.Sigma
         /// </summary>
         public async Task OnOrderUpdateAsync(
             string symbol,
+            SymbolInfo symbolInfo,
             OrderUpdate update,
             ICbFuturesRestClient restClient,
             CancellationToken cancel)
@@ -192,7 +195,7 @@ namespace CryptoBlade.Strategies.Sigma
             switch (kind)
             {
                 case SigmaOrderKind.Entry:
-                    await HandleEntryFilledAsync(symbol, update, restClient, cancel);
+                    await HandleEntryFilledAsync(symbol, symbolInfo, update, restClient, cancel);
                     break;
                 case SigmaOrderKind.TakeProfit1:
                     await HandleTp1FilledAsync(symbol, update, restClient, cancel);
@@ -523,7 +526,7 @@ namespace CryptoBlade.Strategies.Sigma
             }
 
             const double minR = 0.6;
-            const double maxR = 3.0;
+            const double maxR = 5.0;
 
             bool IsValid((decimal Price, double RMultiple) t)
             {
@@ -659,7 +662,7 @@ namespace CryptoBlade.Strategies.Sigma
         }
 
 
-        private async Task HandleEntryFilledAsync(string symbol, OrderUpdate update, ICbFuturesRestClient restClient, CancellationToken cancel)
+        private async Task HandleEntryFilledAsync(string symbol, SymbolInfo symbolInfo, OrderUpdate update, ICbFuturesRestClient restClient, CancellationToken cancel)
         {
             if (!_session.HasPendingEntry ||
                 !string.Equals(update.ClientOrderId, _session.EntryClientOrderId, StringComparison.Ordinal))
@@ -690,9 +693,9 @@ namespace CryptoBlade.Strategies.Sigma
             var tp1Price = _session.Tp1Price.Value;
             var tp2Price = _session.Tp2Price.Value;
 
-            // SL stop-market RO
-            string slClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "SL",
-                _session.EntryFilledUtc!.Value);
+            Mode mode = TryParseMode(update.ClientOrderId);
+            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SL",
+            _session.EntryFilledUtc!.Value);
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -763,7 +766,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             if (tp1Qty > 0m)
             {
-                string tp1ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP1",
+                string tp1ClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "TP1",
                 _session.EntryFilledUtc.Value);
 
                 var tp1Req = new BybitCbFuturesRestClient.CbOrderRequest(
@@ -791,7 +794,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             if (tp2Qty > 0m)
             {
-                string tp2ClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "TP2",
+                string tp2ClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "TP2",
                 _session.EntryFilledUtc.Value);
 
                 var tp2Req = new BybitCbFuturesRestClient.CbOrderRequest(
@@ -841,9 +844,11 @@ namespace CryptoBlade.Strategies.Sigma
             if (!string.IsNullOrEmpty(_session.SlOrderId))
                 await restClient.CancelOrderAsync(symbol, _session.SlOrderId!, cancel);
 
+            Mode mode = TryParseMode(update.ClientOrderId);
+            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SLBE", update.UpdateTime!.Value);
+
             var side = _session.Side ?? OrderSide.Buy;
-            string slClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "SLBE",
-                update.UpdateTime!.Value);
+            
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -873,6 +878,7 @@ namespace CryptoBlade.Strategies.Sigma
         private async Task ApplyTrailingStopAsync(
             string symbol,
             SymbolInfo symbolInfo,
+            Mode mode,
             SigmaData d,
             ICbFuturesRestClient restClient,
             DateTime nowUtc,
@@ -942,7 +948,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (!string.IsNullOrEmpty(_session.SlOrderId))
                 await restClient.CancelOrderAsync(symbol, _session.SlOrderId!, cancel);
 
-            string slClientOrderId = BuildClientOrderId(symbol, _session.DirectionTag!, "SLTRAIL", nowUtc);
+            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SLTRAIL", nowUtc);
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -972,6 +978,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         private async Task ApplyMrTimeStopAsync(
             string symbol,
+            Mode mode,
             ICbFuturesRestClient restClient,
             DateTime nowUtc,
             CancellationToken cancel) 
@@ -1007,7 +1014,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             // Zamykamy pozycję marketem reduce-only
             var closeSide = (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide();
-            string clientOrderId = BuildClientOrderId(symbol, _session.DirectionTag ?? "UNK", "MRTSTOP", nowUtc);
+            string clientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag ?? "UNK", "MRTSTOP", nowUtc);
 
             var closeReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -1060,7 +1067,7 @@ namespace CryptoBlade.Strategies.Sigma
                 rawQty -= rawQty % step;
             }
 
-            return rawQty;
+            return RoundQty(symbolInfo, rawQty);
         }
 
         public async Task RecoverFromOpenOrdersAsync(
@@ -1129,7 +1136,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (scale is < 0 or > 18)
                 scale = 4;
 
-            return Math.Round(price, scale, MidpointRounding.AwayFromZero);
+            return StatisticsHelpers.TrimDecimal(Math.Round(price, scale, MidpointRounding.AwayFromZero), scale);
         }
 
         private static decimal RoundQty(SymbolInfo symbolInfo, decimal qty)
@@ -1140,6 +1147,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             // zawsze w dół, żeby nie przekroczyć rzeczywistej pozycji
             qty -= qty % s.Value;
+            qty = StatisticsHelpers.TrimDecimal(qty, symbolInfo.QtyStep.Value);
             return qty;
         }
 
@@ -1153,27 +1161,85 @@ namespace CryptoBlade.Strategies.Sigma
             return tick * 2m;
         }
 
-        private static string BuildClientOrderId(string symbol, string directionTag, string kind, DateTime nowUtc)
+        private static string BuildClientOrderId(string symbol, Mode mode, string directionTag, string kind, DateTime nowUtc)
         {
             var ts = nowUtc.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
-            return $"SIGMA|{symbol}|{directionTag}|{kind}|{ts}";
+            return $"SIGMA|{symbol}|{mode}|{directionTag}|{kind}|{ts}";
         }
+
+        private const string ClientIdPrefix = "SIGMA";
+        private const char ClientIdSeparator = '|';
+
+        private record ParsedClientOrderId(
+            string Symbol,
+            Mode Mode,
+            string DirectionTag,
+            SigmaOrderKind Kind,
+            DateTime? TimestampUtc);
 
         private static SigmaOrderKind TryParseKind(string clientOrderId)
         {
-            var parts = clientOrderId.Split('|');
-            if (parts.Length < 4)
-                return SigmaOrderKind.Unknown;
+            return TryParseClientOrderId(clientOrderId, out var parsed)
+                ? parsed.Kind
+                : SigmaOrderKind.Unknown;
+        }
 
-            return parts[3] switch
+        private static Mode TryParseMode(string clientOrderId)
+        {
+            return TryParseClientOrderId(clientOrderId, out var parsed)
+                ? parsed.Mode
+                : Mode.None;
+        }
+
+        private static bool TryParseClientOrderId(
+            string clientOrderId,
+            out ParsedClientOrderId parsed)
+        {
+            parsed = null!;
+
+            if (string.IsNullOrWhiteSpace(clientOrderId))
+                return false;
+
+            var parts = clientOrderId.Split(ClientIdSeparator);
+            if (parts.Length < 6)
+                return false;
+
+            if (!string.Equals(parts[0], ClientIdPrefix, StringComparison.Ordinal))
+                return false;
+
+            var symbol = parts[1];
+
+            if (!Enum.TryParse<Mode>(parts[2], ignoreCase: true, out var mode))
+                mode = Mode.None; // albo false i return
+
+            var directionTag = parts[3];
+
+            var kind = parts[4] switch
             {
                 "ENTRY" => SigmaOrderKind.Entry,
-                "SL" or "SLBE" or "SLTRAIL" => SigmaOrderKind.StopLoss,
+                "SL" => SigmaOrderKind.StopLoss,
+                "SLBE" => SigmaOrderKind.StopLoss,    // albo osobne enumy
+                "SLTRAIL" => SigmaOrderKind.StopLoss,
                 "TP1" => SigmaOrderKind.TakeProfit1,
                 "TP2" => SigmaOrderKind.TakeProfit2,
                 _ => SigmaOrderKind.Unknown
             };
+
+            DateTime? ts = null;
+            if (DateTime.TryParseExact(
+                    parts[5],
+                    "yyyyMMddHHmmssfff",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out var parsedTs))
+            {
+                ts = parsedTs;
+            }
+
+            parsed = new ParsedClientOrderId(symbol, mode, directionTag, kind, ts);
+            return true;
         }
+
 
         private enum SigmaOrderKind
         {

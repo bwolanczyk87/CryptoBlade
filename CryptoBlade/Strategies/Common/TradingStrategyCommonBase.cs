@@ -165,8 +165,8 @@ namespace CryptoBlade.Strategies.Common
                 UnrealizedShortPnlPercent = shortPositionValue / balance.WalletBalance.Value;
             }
 
-            m_logger.LogDebug(
-                $"{Name}: {Symbol} Long position: '{longPosition?.Quantity} @ {longPosition?.AveragePrice}' Short position: '{shortPosition?.Quantity} @ {shortPosition?.AveragePrice}' InTrade: '{IsInTrade}'");
+            //m_logger.LogDebug(
+            //    $"{Name}: {Symbol} Long position: '{longPosition?.Quantity} @ {longPosition?.AveragePrice}' Short position: '{shortPosition?.Quantity} @ {shortPosition?.AveragePrice}' InTrade: '{IsInTrade}'");
             return Task.CompletedTask;
         }
 

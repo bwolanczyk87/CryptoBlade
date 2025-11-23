@@ -179,12 +179,12 @@ namespace CryptoBlade.Services
                             break;
 
                         var strategyState = await UpdateTradingStatesAsync(cancel);
-                        m_logger.LogDebug(
-                            "Total long exposure: {LongExposure}, total short exposure: {ShortExposure}, long WE: {LongWE}, short WE: {ShortWE}",
-                            strategyState.TotalLongExposure,
-                            strategyState.TotalShortExposure,
-                            strategyState.TotalWalletLongExposure,
-                            strategyState.TotalWalletShortExposure);
+                        //m_logger.LogDebug(
+                        //    "Total long exposure: {LongExposure}, total short exposure: {ShortExposure}, long WE: {LongWE}, short WE: {ShortWE}",
+                        //    strategyState.TotalLongExposure,
+                        //    strategyState.TotalShortExposure,
+                        //    strategyState.TotalWalletLongExposure,
+                        //    strategyState.TotalWalletShortExposure);
 
                         List<string> symbolsToProcess = [];
                         using (await Lock.LockAsync(cancel))
@@ -251,14 +251,14 @@ namespace CryptoBlade.Services
 
                             var inLongTradeSymbols = Strategies.Values.Where(x => x.IsInLongTrade).ToArray();
                             var inShortTradeSymbols = Strategies.Values.Where(x => x.IsInShortTrade).ToArray();
-                            m_logger.LogDebug(
-                                "Long strategies: '{LongStrategies}', short strategies: '{ShortStrategies}'",
-                                inLongTradeSymbols.Length, inShortTradeSymbols.Length);
+                            //m_logger.LogDebug(
+                            //    "Long strategies: '{LongStrategies}', short strategies: '{ShortStrategies}'",
+                            //    inLongTradeSymbols.Length, inShortTradeSymbols.Length);
 
                             int remainingLongSlots = dynamicBotCount.MaxLongStrategies - inLongTradeSymbols.Length;
-                            LogRemainingLongSlots(remainingLongSlots);
+                            //LogRemainingLongSlots(remainingLongSlots);
                             int remainingShortSlots = dynamicBotCount.MaxShortStrategies - inShortTradeSymbols.Length;
-                            LogRemainingShortSlots(remainingShortSlots);
+                            //LogRemainingShortSlots(remainingShortSlots);
                             bool canAddLongPositions = remainingLongSlots > 0
                                                        && strategyState.TotalWalletLongExposure.HasValue
                                                        && strategyState.TotalWalletLongExposure.Value <
@@ -269,10 +269,10 @@ namespace CryptoBlade.Services
                                                         && strategyState.TotalWalletShortExposure.Value <
                                                         dynamicBotCount.TargetShortExposure
                                                         && !criticalShort;
-                            m_logger.LogDebug(
-                                "Can add long positions: '{CanAddLongPositions}', can add short positions: '{CanAddShortPositions}'.",
-                                canAddLongPositions,
-                                canAddShortPositions);
+                            //m_logger.LogDebug(
+                            //    "Can add long positions: '{CanAddLongPositions}', can add short positions: '{CanAddShortPositions}'.",
+                            //    canAddLongPositions,
+                            //    canAddShortPositions);
                             // we need to put it back to hashset, we might open opposite position on the same symbol
                             HashSet<string> tradeSymbols = [];
                             foreach (string inTradeSymbol in inTradeSymbols)

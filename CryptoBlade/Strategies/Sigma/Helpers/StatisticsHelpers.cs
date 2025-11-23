@@ -1,8 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using MathNet.Numerics.Statistics;
+﻿using MathNet.Numerics.Statistics;
 using Skender.Stock.Indicators;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 
 namespace CryptoBlade.Strategies.Sigma.Helpers
 {
@@ -320,6 +321,19 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             if (x > eps) return 1;
             if (x < -eps) return -1;
             return 0;
+        }
+
+        public static decimal TrimDecimal(decimal value, decimal scale)
+        {
+            if (scale <= 0m)
+                return value;
+
+            var units = value / scale;
+            var roundedUnits = Math.Round(units, 0, MidpointRounding.AwayFromZero);
+            var result = roundedUnits * scale;
+
+            var s = result.ToString("G29", CultureInfo.InvariantCulture);
+            return decimal.Parse(s, CultureInfo.InvariantCulture);
         }
     }
 }

@@ -17,7 +17,7 @@
         public decimal BbWidthExitBreakoutPct { get; init; } = 45m;
         public decimal ZVwapEnableMR { get; init; } = 1.6m;
         public decimal ZVwapExitMR { get; init; } = 0.8m;
-        public decimal MinScore { get; init; } = 30m;
+        public decimal MinScore { get; init; } = 20m;
         public decimal MinScoreStay { get; init; } = 15m;
         public decimal MinMargin { get; init; } = 3m;
 

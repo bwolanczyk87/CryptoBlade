@@ -22,8 +22,15 @@ namespace CryptoBlade.Authentication
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
             if (!Request.Headers.TryGetValue("X-API-TOKEN", out var token) ||
-                token != _opt.Token)
+                string.IsNullOrEmpty(token))
+            {
+                return Task.FromResult(AuthenticateResult.NoResult());
+            }
+
+            if (token != _opt.Token)
+            {
                 return Task.FromResult(AuthenticateResult.Fail("Bad token"));
+            }
 
             var identity = new ClaimsIdentity(Scheme);
             identity.AddClaim(new Claim(ClaimTypes.Name, "ApiClient"));

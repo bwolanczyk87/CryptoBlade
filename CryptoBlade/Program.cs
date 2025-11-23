@@ -19,6 +19,7 @@ using CryptoBlade.Strategies.Wallet;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Objects;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using ScottPlot.Statistics;
@@ -59,13 +60,26 @@ namespace CryptoBlade
             var healthChecksBuilder = builder.Services.AddHealthChecks();
             builder.Services.AddHostedService<TradingHostedService>();
             builder.Services.Configure<TradingBotOptions>(builder.Configuration.GetSection("TradingBot"));
-            builder.Services.AddLogging(options =>
+            builder.Services.AddLogging(logging =>
             {
-                options.AddSimpleConsole(o =>
+                logging.AddSimpleConsole(o =>
                 {
                     o.UseUtcTimestamp = true;
                     o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+                    o.ColorBehavior = LoggerColorBehavior.Enabled;
+                    o.SingleLine = true;
                 });
+
+                // 1) Przytnij cały HttpClient do Warning
+                logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+
+                // 2) (opcjonalnie bardziej precyzyjnie) tylko dla bybitowego klienta:
+                logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient", LogLevel.Warning);
+                logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient.ClientHandler", LogLevel.Warning);
+                logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient.LogicalHandler", LogLevel.Warning);
+
+                // (opcjonalnie) mniej szumu z Microsoft
+                // logging.AddFilter("Microsoft", LogLevel.Warning);
             });
             builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
             builder.Services.AddEndpointsApiExplorer();
@@ -143,7 +157,7 @@ namespace CryptoBlade
             {
                 context.Response.Redirect("/swagger");
                 return Task.CompletedTask;
-            });
+            }).AllowAnonymous();
             app.Run();
         }
 
@@ -153,7 +167,7 @@ namespace CryptoBlade
             var assembly = Assembly.GetExecutingAssembly();
             var version = assembly.GetName().Version;
             logger.LogInformation($"CryptoBlade v{version}");
-            logger.LogInformation(configuration);
+            //logger.LogInformation(configuration);
         }
 
         private static void AddOptimizerDependencies(WebApplicationBuilder builder,
