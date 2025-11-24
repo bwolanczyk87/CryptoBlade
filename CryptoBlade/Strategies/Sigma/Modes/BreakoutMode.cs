@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CryptoBlade.Strategies.Sigma.Helpers;
+using System;
 using System.Threading;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
@@ -28,9 +29,72 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public Mode Kind => Mode.BO;
+        public ModeKind Kind => ModeKind.BO;
 
-        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public static double Score(SigmaData data, SigmaStrategyOptions options)
+        {
+            double bo = 0.0;
+            double atr = data.AtrPct1h;
+            bool mmAtrOk = double.IsFinite(atr) && atr > 0.0 &&
+                           atr <= (double)options.BoAtrMaxPct;
+
+            if (!mmAtrOk)
+                return bo;
+
+            double bbwP = data.Bbw15mPct;
+            double zSlope = data.ZSlopeDvwap;
+            double ac = data.AutoCorr5m;
+            double oi = data.OiDelta1hPct;
+
+            // 1) Szerokie pasma BB – breakout z kompresji → ekspansja (0..40)
+            double bbwNorm = StatisticsHelpers.Normalize01(
+                bbwP,
+                (double)options.BbWidthBreakoutPct,
+                (double)options.BbWidthExitBreakoutPct);
+
+            bbwNorm = StatisticsHelpers.Clamp01(bbwNorm);
+            bo += 40.0 * bbwNorm;                   // 0..40
+
+            // 2) ATR – breakout lubi wyższe ATR, ale z limitem (0..15)
+            if (double.IsFinite(atr))
+            {
+                // brak dolnego progu – rosnący score do BoAtrMaxPct
+                double atrNorm = StatisticsHelpers.Normalize01(
+                    atr,
+                    0.0,
+                    (double)options.BoAtrMaxPct);
+
+                atrNorm = StatisticsHelpers.Clamp01(atrNorm);
+                bo += 15.0 * atrNorm;               // 0..15
+            }
+
+            // 3) Absolutny slope DVWAP – siła jednokierunkowego ruchu (0..25)
+            if (double.IsFinite(zSlope))
+            {
+                // 4 sigma nachylenia → pełna premia
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 4.0, 1.0);
+                bo += 25.0 * slopeMag;              // 0..25
+            }
+
+            // 4) ΔOI>0 – napływ kapitału na wybiciu (0..10)
+            if (double.IsFinite(oi) && oi > 0.0)
+            {
+                // saturacja przy ~10% zmiany OI
+                double oiMag = Math.Min(oi / 10.0, 1.0);
+                bo += 10.0 * oiMag;                 // 0..10
+            }
+
+            // 5) Dodatnia autokorelacja – kontynuacja po wybiciu (0..10)
+            if (double.IsFinite(ac) && ac > 0.0)
+            {
+                double acClamped = Math.Min(ac, 1.0);
+                bo += 10.0 * acClamped;             // 0..10
+            }
+
+            return Math.Min(Math.Max(bo, 0.0), 100.0);
+        }
+
+        public ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
             ArgumentNullException.ThrowIfNull(data);
 

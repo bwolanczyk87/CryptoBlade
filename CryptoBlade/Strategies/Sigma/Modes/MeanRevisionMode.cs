@@ -23,9 +23,92 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public Mode Kind => Mode.MR;
+        public ModeKind Kind => ModeKind.MR;
 
-        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public static double Score(SigmaData data, SigmaStrategyOptions options)
+        {
+            double mr = 0.0;
+            double atr = data.AtrPct1h;
+            bool mmAtrOk = double.IsFinite(atr) && atr > 0.0 &&
+                           atr >= (double)options.MrAtrMinPct &&
+                           atr <= (double)options.MrAtrMaxPct;
+
+            if (!mmAtrOk)
+                return mr;
+
+            double adx = data.Adx1h;
+            double zDev = data.ZDvwap;
+            double zSlope = data.ZSlopeDvwap;
+            double ac = data.AutoCorr5m;
+            double bbwP = data.Bbw15mPct;
+
+            // 1) Niski ADX – im niższy, tym lepiej dla MR (0..30)
+            double adxLow = 1.0 - StatisticsHelpers.Normalize01(
+                adx,
+                (double)options.AdxDisableMomentum,
+                (double)options.AdxEnableMomentum);
+
+            adxLow = StatisticsHelpers.Clamp01(adxLow);
+            mr += 30.0 * adxLow;                    // 0..30
+
+            // 2) Bliskość DVWAP – preferujemy |zDev| blisko 0 (0..35)
+            if (double.IsFinite(zDev))
+            {
+                double absDev = Math.Abs(zDev);
+                double devScore = 0.0;
+
+                // 1.0 przy zDev=0, 0 przy |zDev|>=3
+                if (absDev <= 3.0)
+                    devScore = 1.0 - (absDev / 3.0);
+
+                devScore = StatisticsHelpers.Clamp01(devScore);
+                mr += 35.0 * devScore;              // 0..35
+            }
+
+            // 3) Kara za duże |slope| – MR nie lubi runaway-trendów (do -25)
+            if (double.IsFinite(zSlope))
+            {
+                // 5 sigma nachylenia → pełna kara
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 5.0, 1.0);
+                mr -= 25.0 * slopeMag;              // 0..-25
+            }
+
+            // 4) Autokorelacja: ujemna lub blisko zera sprzyja MR (0..20)
+            if (double.IsFinite(ac))
+            {
+                if (ac < 0.0)
+                {
+                    double acMag = Math.Min(-ac, 1.0);
+                    mr += 20.0 * acMag;             // 0..20 przy ac=-1
+                }
+                else
+                {
+                    // im bliżej 0, tym lepiej; ac->1 obniża score
+                    double flatScore = 1.0 - Math.Min(ac, 1.0);
+                    mr += 10.0 * flatScore;         // 0..10
+                }
+            }
+
+            // 5) Wąskie BB – kompresja (0..15)
+            if (double.IsFinite(bbwP))
+            {
+                double bbwNorm = StatisticsHelpers.Normalize01(
+                    bbwP,
+                    0.0,
+                    (double)options.BbWidthExitBreakoutPct);
+
+                double bbwScore = 1.0 - StatisticsHelpers.Clamp01(bbwNorm);
+                mr += 15.0 * bbwScore;              // 0..15
+            }
+
+            // Ograniczenie do [0..100] – dodatkowy safety poza globalnym clampem
+            if (mr < 0.0) mr = 0.0;
+            if (mr > 100.0) mr = 100.0;
+
+            return Math.Min(Math.Max(mr, 0.0), 100.0);
+        }
+
+        public ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
             ArgumentNullException.ThrowIfNull(data);
 

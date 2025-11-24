@@ -77,9 +77,6 @@ namespace CryptoBlade.Strategies.Sigma
         [AuditColumn(Order = 2, EnumFormat = AuditEnumFormat.Int)]
         public ModeLabel Selected { get; init; }      // Active (po histerezie/dwell)
 
-        [AuditColumn(Order = 3, EnumFormat = AuditEnumFormat.Int)]
-        public ModeLabel Prev { get; init; }          // Poprzedni Active
-
         [AuditColumn(Order = 4, EnumFormat = AuditEnumFormat.Int)]
         public ModeLabel? Oracle { get; set; }        // Opcjonalny label referencyjny (np. z datasetu)
 
@@ -328,11 +325,11 @@ namespace CryptoBlade.Strategies.Sigma
 
     public static class SigmaAudit
     {
-        private static ModeLabel ToLabel(Mode mode) => mode switch
+        private static ModeLabel ToLabel(ModeKind mode) => mode switch
         {
-            Mode.MM => ModeLabel.Momentum,
-            Mode.MR => ModeLabel.MeanReversion,
-            Mode.BO => ModeLabel.Breakout,
+            ModeKind.MM => ModeLabel.Momentum,
+            ModeKind.MR => ModeLabel.MeanReversion,
+            ModeKind.BO => ModeLabel.Breakout,
             _ => ModeLabel.None
         };
 
@@ -345,13 +342,13 @@ namespace CryptoBlade.Strategies.Sigma
         /// - konfiguracji progów (SigmaStrategyOptions).
         /// </summary>
         public static SigmaAuditRecord MakeRecord(
-            SigmaData data,
-            ModeState prev,
             DateTime nowUtc,
+            SigmaData data,
             SigmaStrategyOptions options,
             bool tradable,
             string reason,
-            ModeDecision decision,
+            IMode mode,
+            ModeScores modeScores,
             DateTime lastDecisionUtc)
         {
             var active = decision.State.Mode;
@@ -368,7 +365,6 @@ namespace CryptoBlade.Strategies.Sigma
                 Symbol = data.Symbol,
 
                 Selected = ToLabel(active),
-                Prev = ToLabel(prev.Mode),
                 Oracle = null,
                 Proposed = ToLabel(proposed),
 

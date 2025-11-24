@@ -21,7 +21,7 @@ namespace CryptoBlade.Strategies.Sigma
         public DateTime? EntryCreatedUtc { get; set; }
         public DateTime? EntryFilledUtc { get; set; }
         public decimal? EntryPrice { get; set; }
-        public Mode? EntryMode { get; set; }
+        public ModeKind? EntryMode { get; set; }
 
         public string? SlClientOrderId { get; set; }
         public string? SlOrderId { get; set; }
@@ -83,7 +83,7 @@ namespace CryptoBlade.Strategies.Sigma
             string entryOrderId,
             DateTime entryCreatedUtc,
             decimal entryPrice,
-            Mode entryMode,
+            ModeKind entryMode,
             decimal slPrice,
             decimal tp1Price,
             decimal tp2Price)

@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Bybit.Net.Enums;
+using CryptoBlade.Strategies.Sigma.Helpers;
+using System;
 using System.Threading;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
@@ -21,9 +23,88 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public Mode Kind => Mode.MM;
+        public ModeKind Kind => ModeKind.MM;
 
-        public ModeSignal Execute(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public static double Score(SigmaData data, SigmaStrategyOptions options)
+        {
+            double mm = 0.0;
+            double atr = data.AtrPct1h;
+            bool mmAtrOk = double.IsFinite(atr) && atr > 0.0 &&
+                           atr >= (double)options.MmAtrMinPct &&
+                           atr <= (double)options.MmAtrMaxPct;
+
+            if (!mmAtrOk)
+                return mm;
+
+            double adx = data.Adx1h;
+            double zSlope = data.ZSlopeDvwap;
+            double zDev = data.ZDvwap;
+            double ac = data.AutoCorr5m;
+            double oi = data.OiDelta1hPct;
+
+            // 1) ADX – im bliżej AdxEnableMomentum, tym wyższy score (0..40)
+            double adxNorm = StatisticsHelpers.Normalize01(
+                adx,
+                (double)options.AdxDisableMomentum,
+                (double)options.AdxEnableMomentum);
+
+            adxNorm = StatisticsHelpers.Clamp01(adxNorm);
+            mm += 40.0 * adxNorm;                  // 0..40
+
+            // 2) Absolutne nachylenie DVWAP – "siła trendu" w obie strony (0..25)
+            if (double.IsFinite(zSlope))
+            {
+                // 4 sigma nachylenia → pełna premia
+                double slopeMag = Math.Min(Math.Abs(zSlope) / 4.0, 1.0);
+                mm += 25.0 * slopeMag;             // 0..25
+            }
+
+            // 3) Umiarkowane odchylenie od DVWAP (nie za blisko, nie ekstremalnie daleko) (0..15)
+            if (double.IsFinite(zDev))
+            {
+                double absDev = Math.Abs(zDev);
+
+                // pełne 1.0 w okolicach 1.0–2.0 sigma, 0 przy 0 i >=4
+                double devScore = 0.0;
+                if (absDev > 0.2 && absDev < 4.0)
+                {
+                    if (absDev <= 2.0)
+                        devScore = (absDev - 0.2) / (2.0 - 0.2);   // rośnie 0→1
+                    else
+                        devScore = (4.0 - absDev) / (4.0 - 2.0);   // spada 1→0
+                }
+
+                devScore = StatisticsHelpers.Clamp01(devScore);
+                mm += 15.0 * devScore;              // 0..15
+            }
+
+            // 4) ΔOI wyrównany z kierunkiem trendu (0..10)
+            double oiAligned = 0.0;
+            if (double.IsFinite(oi) && double.IsFinite(zSlope) && Math.Abs(zSlope) > 0.1)
+            {
+                int trendSign = Math.Sign(zSlope);
+                int oiSign = Math.Sign(oi);
+
+                if (oiSign == trendSign)
+                {
+                    // saturacja przy ~10% zmiany OI
+                    double oiMag = Math.Min(Math.Abs(oi) / 10.0, 1.0);
+                    oiAligned = oiMag;
+                }
+            }
+            mm += 10.0 * oiAligned;                 // 0..10
+
+            // 5) Dodatnia autokorelacja – kontynuacja (0..10)
+            if (double.IsFinite(ac) && ac > 0.0)
+            {
+                double acClamped = Math.Min(ac, 1.0);
+                mm += 10.0 * acClamped;             // 0..10
+            }
+
+            return Math.Min(Math.Max(mm, 0.0), 100.0);
+        }
+
+        public ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel)
         {
             ArgumentNullException.ThrowIfNull(data);
 
@@ -256,6 +337,38 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.MomentumEntryTier = (int)tier;
 
             return new ModeSignal(buy, sell, tier);
+        }
+
+        public List<(decimal Price, double RMultiple)> AddTakeProfitTargets(
+            SigmaData data,
+            OrderSide side,
+            decimal entryPrice,
+            decimal risk)
+        {
+            var targets = new List<(decimal Price, double RMultiple)>();
+
+            if (risk <= 0m)
+                return targets;
+
+            var don = data.DonchianResult;
+            if (don is null)
+                return targets;
+
+            decimal donHigh = don.UpperBand ?? 0m;
+            decimal donLow = don.LowerBand ?? 0m;
+
+            if (side == OrderSide.Buy && donHigh > entryPrice)
+            {
+                var rDon = (double)((donHigh - entryPrice) / risk);
+                targets.Add((donHigh, rDon));
+            }
+            else if (side == OrderSide.Sell && donLow < entryPrice)
+            {
+                var rDon = (double)((entryPrice - donLow) / risk);
+                targets.Add((donLow, rDon));
+            }
+
+            return targets;
         }
     }
 }

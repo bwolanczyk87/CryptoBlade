@@ -5,7 +5,7 @@ using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Wallet;
-using System.Globalization;
+using CryptoExchange.Net.CommonObjects;
 using OrderSide = CryptoBlade.Models.OrderSide;
 
 namespace CryptoBlade.Strategies.Sigma
@@ -27,62 +27,49 @@ namespace CryptoBlade.Strategies.Sigma
         TargetKind Kind,
         string? Detail = null);
 
-
     /// <summary>
     /// Manager pojedynczego trade'u Sigmy (ENTRY + SL/TP1/TP2 + BE + trailing + MR time-stop).
     /// </summary>
-    public sealed class SigmaPositionManager(SigmaStrategyOptions options)
+    public sealed class SigmaPositionManager(SigmaStrategyOptions options, ICbFuturesRestClient restClient)
     {
         private readonly SigmaTradeSession _session = new();
         private static readonly TimeSpan EntryTimeout = TimeSpan.FromMinutes(10);
-        private static readonly TimeSpan MrTimeStop = TimeSpan.FromMinutes(40);
 
-
-        public async Task OnSignalAsync(
-            string symbol,
+        public async void BeforeSingalExecutionAsync(
+            DateTime nowUtc,
             SymbolInfo symbolInfo,
             SigmaData sigmaData,
-            Mode activeMode,
+            CancellationToken cancel)
+        {
+            if(_session.HasPendingEntry && _session.EntryCreatedUtc.HasValue)
+            {
+                var age = nowUtc - _session.EntryCreatedUtc.Value;
+                if (age >= EntryTimeout)
+                {
+                    if (!string.IsNullOrEmpty(_session.EntryOrderId))
+                    {
+                        await restClient.CancelOrderAsync(symbolInfo.Name, _session.EntryOrderId!, cancel);
+                        _session.Reset();
+                        return;
+                    }
+                }
+            }
+
+            if (_session.IsActive && _session.Tp1Hit)
+                await ApplyTrailingStopAsync(nowUtc, symbolInfo, sigmaData, restClient, cancel);
+        }
+
+        public async Task OnSignalAsync(
+            SymbolInfo symbolInfo,
+            SigmaData sigmaData,
+            IMode activeMode,
             ModeSignal modeSignal,
             bool tradable,
             DateTime nowUtc,
             ICbFuturesRestClient restClient,
-            IWalletManager walletManager, 
+            IWalletManager walletManager,
             CancellationToken cancel)
         {
-
-            // 0) timeout dla pending ENTRY
-            await CheckAndCancelStaleEntryAsync(symbol, restClient, nowUtc, cancel);
-
-            // 0.5) trailing SL dla aktywnej pozycji
-            if (_session.IsActive)
-                await ApplyTrailingStopAsync(symbol, symbolInfo, activeMode, sigmaData, restClient, nowUtc, cancel);
-
-            // 0.6) time-stop dla MR
-            await ApplyMrTimeStopAsync(symbol, activeMode, restClient, nowUtc, cancel);
-
-            // --- Obsługa istniejącego pending ENTRY ---
-
-            if (_session.HasPendingEntry)
-            {
-                bool conflictingSignal = (modeSignal.HasBuy && _session.Side == OrderSide.Sell) || (modeSignal.HasSell && _session.Side == OrderSide.Buy);
-
-                // Jeśli globalne gate'y blokują nowe wejścia lub sygnał odwraca kierunek,
-                // kasujemy pending ENTRY zamiast bezmyślnie czekać na timeout.
-                if (!tradable || conflictingSignal)
-                {
-                    await CancelPendingEntryAsync(symbol, restClient, nowUtc, cancel);
-                }
-                else
-                {
-                    // Gate'y są OK i brak konfliktu – szanujemy istniejący pending ENTRY.
-                    return;
-                }
-            }
-
-            // 1) jeśli globalne gate'y blokują, nie otwieramy nowego trade'u
-            if (!tradable)
-                return;
 
             // 2) nie otwieramy nowego, jeśli już mamy aktywny trade
             if (_session.IsActive)
@@ -97,7 +84,8 @@ namespace CryptoBlade.Strategies.Sigma
             var directionTag = buy ? "LONG" : "SHORT";
 
             // 3) ENTRY/SL/TP z cech Sigmy
-            if (!TryComputeEntrySetup(sigmaData, symbolInfo, activeMode, side, out var entryPrice, out var slPrice, out var tp1Price, out var tp2Price))
+            if (!TryComputeEntrySetup(sigmaData, symbolInfo, activeMode, side,
+                    out var entryPrice, out var slPrice, out var tp1Price, out var tp2Price))
             {
                 return;
             }
@@ -126,8 +114,12 @@ namespace CryptoBlade.Strategies.Sigma
             if (qty <= 0m)
                 return;
 
-
-            string entryClientOrderId = BuildClientOrderId(symbol, activeMode, directionTag, "ENTRY", nowUtc);
+            string entryClientOrderId = SigmaClientOrderId.Build(
+                symbol,
+                activeMode,
+                directionTag,
+                "ENTRY",
+                nowUtc);
 
             var request = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -138,6 +130,7 @@ namespace CryptoBlade.Strategies.Sigma
                 Price: entryPrice,
                 TriggerPrice: null,
                 TriggerBy: null,
+                TriggerDirection: null,
                 ReduceOnly: false,
                 CloseOnTrigger: false,
                 TimeInForce: TimeInForce.PostOnly,
@@ -163,7 +156,6 @@ namespace CryptoBlade.Strategies.Sigma
                 tp2Price);
         }
 
-
         /// <summary>
         /// Reakcja na OrderUpdate – pośrednio wołana z TradingStrategyBase.
         /// </summary>
@@ -178,7 +170,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (string.IsNullOrWhiteSpace(clientOrderId))
                 return;
 
-            if (!clientOrderId.StartsWith("SIGMA|", StringComparison.Ordinal))
+            if (!SigmaClientOrderId.IsSigmaOrderId(clientOrderId))
                 return;
 
             if (update.Status == CryptoBlade.Models.OrderStatus.Cancelled)
@@ -188,9 +180,9 @@ namespace CryptoBlade.Strategies.Sigma
             }
 
             if (update.Status != CryptoBlade.Models.OrderStatus.Filled)
-                return; 
+                return;
 
-            var kind = TryParseKind(clientOrderId);
+            var kind = SigmaClientOrderId.TryParseKind(clientOrderId);
 
             switch (kind)
             {
@@ -215,10 +207,10 @@ namespace CryptoBlade.Strategies.Sigma
             decimal? equity)
         {
             // 1) Equity strategii w USDT.
-            // Dopasuj tę linijkę do swojego IWalletManager.
-            // Przykład zakłada metodę GetStrategyEquityUsdAsync(symbol).
-
             if (equity.HasValue && equity <= 0m)
+                return options.MinRiskPerTradeUsd;
+
+            if (!equity.HasValue)
                 return options.MinRiskPerTradeUsd;
 
             // 2) Base risk z equity (przed tierami i środowiskiem)
@@ -242,7 +234,6 @@ namespace CryptoBlade.Strategies.Sigma
             // 4) Modulatory środowiska – korelacja / BTC shock
             decimal envMultiplier = 1.0m;
 
-            // Wysoka korelacja z BTC → redukcja size (ale nie twarda blokada, ta jest w ModeEngine).
             if (double.IsFinite(sigmaData.CorrToBtc15m) &&
                 Math.Abs(sigmaData.CorrToBtc15m) >= (double)options.CorrHighReduceSizeThreshold &&
                 Math.Abs(sigmaData.CorrToBtc15m) < (double)options.CorrOppositeBlock)
@@ -250,12 +241,7 @@ namespace CryptoBlade.Strategies.Sigma
                 envMultiplier *= options.CorrHighSizeMultiplier;
             }
 
-            // BTC shock – placeholder; po dodaniu BtcAtr do SigmaData wstaw tu warunek.
-            // if (sigmaData.BtcAtrPct1d >= (double)opt.BtcAtrShockThresholdPct)
-            // {
-            //     envMultiplier *= opt.BtcShockSizeMultiplier;
-            // }
-
+            // BTC shock – do uzupełnienia po dodaniu BtcAtr do SigmaData.
             risk *= envMultiplier;
 
             // 5) Ostateczny clamp
@@ -284,27 +270,10 @@ namespace CryptoBlade.Strategies.Sigma
             _session.Reset();
         }
 
-        private async Task CancelPendingEntryAsync(
-            string symbol,
-            ICbFuturesRestClient restClient,
-            DateTime nowUtc,
-            CancellationToken cancel)
-        {
-            if (!_session.HasPendingEntry)
-                return;
-
-            if (!string.IsNullOrEmpty(_session.EntryOrderId))
-            {
-                await restClient.CancelOrderAsync(symbol, _session.EntryOrderId!, cancel);
-            }
-
-            _session.Reset();
-        }
-
         private bool TryComputeEntrySetup(
             SigmaData d,
             SymbolInfo symbolInfo,
-            Mode mode,
+            ModeKind mode,
             OrderSide side,
             out decimal entryPrice,
             out decimal slPrice,
@@ -336,7 +305,7 @@ namespace CryptoBlade.Strategies.Sigma
         private static bool TryComputeEntryAndStop(
             SigmaData d,
             SymbolInfo symbolInfo,
-            Mode mode,
+            ModeKind mode,
             OrderSide side,
             out decimal entryPrice,
             out decimal slPrice)
@@ -366,14 +335,10 @@ namespace CryptoBlade.Strategies.Sigma
 
             switch (mode)
             {
-                case Mode.MM:
+                case ModeKind.MM:
                     {
-                        // MM – chcemy wejście „w połowie korekty” względem ostatniej ceny,
-                        // a nie 50% całego range’u z złą orientacją.
-
                         if (side == OrderSide.Buy)
                         {
-                            // korekta = refPrice -> local low
                             decimal pullbackRange = refPrice - lo;
                             if (pullbackRange <= 0m)
                                 return false;
@@ -383,7 +348,6 @@ namespace CryptoBlade.Strategies.Sigma
                         }
                         else
                         {
-                            // short: korekta = local high -> refPrice
                             decimal pullbackRange = hi - refPrice;
                             if (pullbackRange <= 0m)
                                 return false;
@@ -394,9 +358,8 @@ namespace CryptoBlade.Strategies.Sigma
                         break;
                     }
 
-                case Mode.MR:
+                case ModeKind.MR:
                     {
-                        // MR – wejście przy D-VWAP / refPrice, SL ciaśniejszy (0.8 * riskUnit)
                         decimal baseEntry = d.LastDvwap.HasValue && d.LastDvwap.Value > 0m
                             ? d.LastDvwap.Value
                             : refPrice;
@@ -411,9 +374,8 @@ namespace CryptoBlade.Strategies.Sigma
                         break;
                     }
 
-                case Mode.BO:
+                case ModeKind.BO:
                     {
-                        // BO – breakout OR + SL poza OR z marginesem
                         if (d.OpeningRangeHigh.HasValue && d.OpeningRangeLow.HasValue)
                         {
                             decimal orHigh = d.OpeningRangeHigh.Value;
@@ -434,7 +396,7 @@ namespace CryptoBlade.Strategies.Sigma
                         }
                         else
                         {
-                            // fallback: geometria jak w MM (pullback do lokalnego ekstremum)
+                            // fallback: geometria jak w MM
                             if (side == OrderSide.Buy)
                             {
                                 decimal pullbackRange = refPrice - lo;
@@ -458,75 +420,53 @@ namespace CryptoBlade.Strategies.Sigma
                     }
 
                 default:
-                    // wolimy no-trade niż losowe ustawienia
                     return false;
             }
 
             // geometry gating (poza MR):
-            if (mode != Mode.MR)
+            if (mode != ModeKind.MR)
             {
                 if (side == OrderSide.Buy)
                 {
-                    // dla longa chcemy entry poniżej refPrice i SL poniżej entry
                     if (!(entryPrice < refPrice && slPrice < entryPrice))
                         return false;
                 }
                 else
                 {
-                    // dla shorta odwrotnie
                     if (!(entryPrice > refPrice && slPrice > entryPrice))
                         return false;
                 }
             }
 
-            // finalny rounding po skali instrumentu
             entryPrice = RoundPrice(symbolInfo, entryPrice);
             slPrice = RoundPrice(symbolInfo, slPrice);
 
             return entryPrice > 0m && slPrice > 0m;
         }
 
-
-        private (decimal tp1, decimal tp2) ComputeLevelAwareTargets(
-            SigmaData d,
-            Mode mode,
+        private (decimal tp1, decimal tp2) ComputeTakeProfits(
+            SigmaData data,
+            IMode mode,
             OrderSide side,
             decimal entryPrice,
-            decimal r)
+            decimal risk)
         {
-            if (r <= 0m)
+            if (risk <= 0m)
                 return (0m, 0m);
 
-            decimal dir = side == OrderSide.Buy ? 1m : -1m;
-            var candidates = new List<(decimal Price, double RMultiple)>();
 
-            // 1) kandydaci per tryb – NAJPIERW poziomy strukturalne
-            switch (mode)
+
+            List<(decimal Price, double RMultiple)> targets = mode.AddTargets(data, side, entryPrice, risk);
+
+            // 1) Fallback – jeśli tryb nie wygenerował żadnego poziomu strukturalnego
+            if (targets.Count == 0)
             {
-                case Mode.MM:
-                    AddMomentumTargets(d, side, entryPrice, r, candidates);
-                    break;
-
-                case Mode.MR:
-                    AddMeanReversionTargets(d, side, entryPrice, r, candidates);
-                    break;
-
-                case Mode.BO:
-                    AddBreakoutTargets(d, side, entryPrice, r, candidates);
-                    break;
+                decimal dir = side == OrderSide.Buy ? 1m : -1m;
+                decimal tp1Fallback = entryPrice + dir * risk;
+                decimal tp2Fallback = entryPrice + dir * 1.8m * risk;
+                targets.Add((tp1Fallback, 1.0));
+                targets.Add((tp2Fallback, 1.8));
             }
-
-            // 2) Fallback – jeśli brak sensownych poziomów, używamy czystych R-multipli
-            if (candidates.Count == 0)
-            {
-                decimal tp1Fallback = entryPrice + dir * r;
-                decimal tp2Fallback = entryPrice + dir * 1.8m * r;
-                candidates.Add((tp1Fallback, 1.0));
-                candidates.Add((tp2Fallback, 1.8));
-            }
-
-            const double minR = 0.6;
-            const double maxR = 5.0;
 
             bool IsValid((decimal Price, double RMultiple) t)
             {
@@ -542,13 +482,13 @@ namespace CryptoBlade.Strategies.Sigma
                 if (double.IsNaN(t.RMultiple) || double.IsInfinity(t.RMultiple))
                     return false;
 
-                if (t.RMultiple < minR || t.RMultiple > maxR)
+                if (t.RMultiple < MinR || t.RMultiple > MaxR)
                     return false;
 
                 return true;
             }
 
-            var valid = candidates
+            var valid = targets
                 .Where(IsValid)
                 .OrderBy(t => t.RMultiple)
                 .ToArray();
@@ -558,12 +498,11 @@ namespace CryptoBlade.Strategies.Sigma
 
             var tp1 = valid[0];
 
-            // TP2 – najbardziej odległy, ale tylko gdy daje sensowną separację od TP1
             (decimal Price, double RMultiple) tp2 = tp1;
             if (valid.Length > 1)
             {
                 var candidateTp2 = valid[^1];
-                if (candidateTp2.RMultiple > tp1.RMultiple + 0.3)
+                if (candidateTp2.RMultiple > tp1.RMultiple + MinSeparation)
                     tp2 = candidateTp2;
             }
 
@@ -571,31 +510,6 @@ namespace CryptoBlade.Strategies.Sigma
         }
 
 
-        private static void AddMomentumTargets(
-            SigmaData d,
-            OrderSide side,
-            decimal entryPrice,
-            decimal r,
-            List<(decimal Price, double RMultiple)> targets)
-        {
-            var don = d.DonchianResult;
-            if (don == null)
-                return;
-
-            decimal donHigh = don.UpperBand ?? 0m;
-            decimal donLow = don.LowerBand ?? 0m;
-
-            if (side == OrderSide.Buy && donHigh > entryPrice)
-            {
-                double rDon = (double)((donHigh - entryPrice) / r);
-                targets.Add((donHigh, rDon));
-            }
-            else if (side == OrderSide.Sell && donLow < entryPrice)
-            {
-                double rDon = (double)((entryPrice - donLow) / r);
-                targets.Add((donLow, rDon));
-            }
-        }
 
         private static void AddMeanReversionTargets(
             SigmaData d,
@@ -604,8 +518,6 @@ namespace CryptoBlade.Strategies.Sigma
             decimal r,
             List<(decimal Price, double RMultiple)> targets)
         {
-            // MR – prosty, ale spójny: TP1 ~1R, TP2 ~1.8R wokół entry (D-VWAP był punktem wejścia)
-
             double r1 = 1.0;
             decimal tp1 = entryPrice + (side == OrderSide.Buy ? 1m : -1m) * (decimal)r1 * r;
             targets.Add((tp1, r1));
@@ -622,7 +534,6 @@ namespace CryptoBlade.Strategies.Sigma
             decimal r,
             List<(decimal Price, double RMultiple)> targets)
         {
-            // Opening Range – klasyczny measured move
             if (d.OpeningRangeHigh.HasValue && d.OpeningRangeLow.HasValue)
             {
                 decimal orHigh = d.OpeningRangeHigh.Value;
@@ -641,7 +552,6 @@ namespace CryptoBlade.Strategies.Sigma
                 }
             }
 
-            // Donchian jako dodatkowy poziom strukturalny
             var don = d.DonchianResult;
             if (don != null)
             {
@@ -661,8 +571,12 @@ namespace CryptoBlade.Strategies.Sigma
             }
         }
 
-
-        private async Task HandleEntryFilledAsync(string symbol, SymbolInfo symbolInfo, OrderUpdate update, ICbFuturesRestClient restClient, CancellationToken cancel)
+        private async Task HandleEntryFilledAsync(
+            string symbol,
+            SymbolInfo symbolInfo,
+            OrderUpdate update,
+            ICbFuturesRestClient restClient,
+            CancellationToken cancel)
         {
             if (!_session.HasPendingEntry ||
                 !string.Equals(update.ClientOrderId, _session.EntryClientOrderId, StringComparison.Ordinal))
@@ -693,9 +607,14 @@ namespace CryptoBlade.Strategies.Sigma
             var tp1Price = _session.Tp1Price.Value;
             var tp2Price = _session.Tp2Price.Value;
 
-            Mode mode = TryParseMode(update.ClientOrderId);
-            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SL",
-            _session.EntryFilledUtc!.Value);
+            ModeKind mode = SigmaClientOrderId.TryParseMode(update.ClientOrderId);
+
+            string slClientOrderId = SigmaClientOrderId.Build(
+                symbol,
+                mode,
+                _session.DirectionTag!,
+                "SL",
+                _session.EntryFilledUtc!.Value);
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -723,19 +642,15 @@ namespace CryptoBlade.Strategies.Sigma
             _session.SlClientOrderId = slClientOrderId;
             _session.SlOrderId = slOrderId.OrderId;
 
-            // TP1 / TP2 – 50% / 25% / 25% (ostatnie 25% to runner bez TP)
-            // Używamy RoundQty(SymbolInfo, qty), bo symbolInfo masz jako pole klasy.
+            // TP1 / TP2 – 50% / 25% / 25%
             decimal tp1QtyRaw = qty * 0.5m;
             decimal tp2QtyRaw = qty * 0.25m;
 
-            // Zaokrąglamy w dół do kroku kontraktu
             decimal tp1Qty = RoundQty(symbolInfo, tp1QtyRaw);
             decimal tp2Qty = RoundQty(symbolInfo, tp2QtyRaw);
 
-            // Obliczamy ile zostaje na runnera (ostatnie 25% +/- zaokrąglenia)
             decimal runnerQty = qty - tp1Qty - tp2Qty;
 
-            // Jeżeli TP1 wyszedł 0 (za mała pozycja / duży QtyStep) – wszystko w TP1
             if (tp1Qty <= 0m)
             {
                 tp1Qty = qty;
@@ -744,30 +659,25 @@ namespace CryptoBlade.Strategies.Sigma
             }
             else
             {
-                // Jeśli przez zaokrąglenie TP1+TP2 przekracza całość – przytnij TP2
                 if (tp1Qty + tp2Qty > qty)
                 {
                     tp2Qty = RoundQty(symbolInfo, qty - tp1Qty);
                     if (tp2Qty < 0m) tp2Qty = 0m;
                 }
 
-                // przeliczymy runner'a po ewentualnej korekcie TP2
                 runnerQty = qty - tp1Qty - tp2Qty;
-
-                // Jeżeli runner wyszedł ujemny przez numerykę – sprowadź do 0
                 if (runnerQty < 0m)
                     runnerQty = 0m;
             }
 
-            // W tym miejscu:
-            // - TP1: tp1Qty
-            // - TP2: tp2Qty
-            // - Runner: runnerQty (bez osobnego TP – tylko SL/trailing)
-
             if (tp1Qty > 0m)
             {
-                string tp1ClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "TP1",
-                _session.EntryFilledUtc.Value);
+                string tp1ClientOrderId = SigmaClientOrderId.Build(
+                    symbol,
+                    mode,
+                    _session.DirectionTag!,
+                    "TP1",
+                    _session.EntryFilledUtc.Value);
 
                 var tp1Req = new BybitCbFuturesRestClient.CbOrderRequest(
                     Symbol: symbol,
@@ -778,6 +688,7 @@ namespace CryptoBlade.Strategies.Sigma
                     Price: tp1Price,
                     TriggerPrice: null,
                     TriggerBy: null,
+                    TriggerDirection: null,
                     ReduceOnly: true,
                     CloseOnTrigger: false,
                     TimeInForce: TimeInForce.GoodTillCanceled,
@@ -794,8 +705,12 @@ namespace CryptoBlade.Strategies.Sigma
 
             if (tp2Qty > 0m)
             {
-                string tp2ClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "TP2",
-                _session.EntryFilledUtc.Value);
+                string tp2ClientOrderId = SigmaClientOrderId.Build(
+                    symbol,
+                    mode,
+                    _session.DirectionTag!,
+                    "TP2",
+                    _session.EntryFilledUtc.Value);
 
                 var tp2Req = new BybitCbFuturesRestClient.CbOrderRequest(
                     Symbol: symbol,
@@ -806,6 +721,7 @@ namespace CryptoBlade.Strategies.Sigma
                     Price: tp2Price,
                     TriggerPrice: null,
                     TriggerBy: null,
+                    TriggerDirection: null,
                     ReduceOnly: true,
                     CloseOnTrigger: false,
                     TimeInForce: TimeInForce.GoodTillCanceled,
@@ -838,17 +754,21 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
 
             var entry = _session.EntryPrice.Value;
-            var bePrice = entry; // na start czysty BE
+            var bePrice = entry;
 
             // kasujemy stary SL i stawiamy nowy na BE
             if (!string.IsNullOrEmpty(_session.SlOrderId))
                 await restClient.CancelOrderAsync(symbol, _session.SlOrderId!, cancel);
 
-            Mode mode = TryParseMode(update.ClientOrderId);
-            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SLBE", update.UpdateTime!.Value);
-
+            ModeKind mode = SigmaClientOrderId.TryParseMode(update.ClientOrderId);
             var side = _session.Side ?? OrderSide.Buy;
-            
+
+            string slClientOrderId = SigmaClientOrderId.Build(
+                symbol,
+                mode,
+                _session.DirectionTag!,
+                "SLBE",
+                update.UpdateTime!.Value);
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
                 Symbol: symbol,
@@ -876,32 +796,22 @@ namespace CryptoBlade.Strategies.Sigma
         }
 
         private async Task ApplyTrailingStopAsync(
-            string symbol,
-            SymbolInfo symbolInfo,
-            Mode mode,
-            SigmaData d,
-            ICbFuturesRestClient restClient,
             DateTime nowUtc,
+            SymbolInfo symbolInfo,
+            SigmaData data,
+            ICbFuturesRestClient restClient,
             CancellationToken cancel)
         {
-            if (!_session.IsActive ||
-                _session.Side is null ||
-                _session.SlPrice is null ||
-                _session.EntryPrice is null)
+            if (_session.Side is null || _session.SlPrice is null || _session.EntryPrice is null)
                 return;
 
-            // Trailing dopiero po TP1 (logika MM/BO z założeń Sigmy)
-            if (!_session.Tp1Hit)
-                return;
-
-            // ATR 5m jako podstawa
-            double atr5 = double.IsNaN(d.Atr5mAbs) ? double.NaN : d.Atr5mAbs;
+            double atr5 = double.IsNaN(data.Atr5mAbs) ? double.NaN : data.Atr5mAbs;
             if (!double.IsFinite(atr5) || atr5 <= 0.0)
                 return;
 
             decimal atr = (decimal)atr5;
 
-            decimal? lastClose = d.Last1mClose ?? d.LastPrice;
+            decimal? lastClose = data.Last1mClose ?? data.LastPrice;
             if (lastClose is null || lastClose <= 0m)
                 return;
 
@@ -909,14 +819,11 @@ namespace CryptoBlade.Strategies.Sigma
             decimal entry = _session.EntryPrice.Value;
             var side = _session.Side.Value;
 
-            // Używamy trybu z wejścia, nie bieżącego reżimu
-            var entryMode = _session.EntryMode ?? Mode.MM;
-
-            decimal factor = entryMode switch
+            decimal factor = _session.EntryMode switch
             {
-                Mode.MM => 1.0m,
-                Mode.BO => 1.0m,
-                Mode.MR => 1.5m,
+                ModeKind.MM => 1.0m,
+                ModeKind.BO => 1.0m,
+                ModeKind.MR => 1.5m,
                 _ => 1.2m
             };
 
@@ -924,7 +831,6 @@ namespace CryptoBlade.Strategies.Sigma
                 ? lastClose.Value - factor * atr
                 : lastClose.Value + factor * atr;
 
-            // Tylko w stronę zysku
             bool improves = side == OrderSide.Buy
                 ? rawNewSl > currentSl
                 : rawNewSl < currentSl;
@@ -932,9 +838,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (!improves)
                 return;
 
-            // BE po TP1 – SL nie może wrócić poniżej BE
-            decimal be = entry; // uproszczone: po TP1 zakładamy BE na entry; 
-                                // jeśli masz bardziej złożoną logikę, wstaw ją tutaj.
+            decimal be = entry;
 
             if (side == OrderSide.Buy && rawNewSl < be) rawNewSl = be;
             if (side == OrderSide.Sell && rawNewSl > be) rawNewSl = be;
@@ -944,14 +848,18 @@ namespace CryptoBlade.Strategies.Sigma
             if (Math.Abs(newSl - currentSl) < ComputeMinSlMove(symbolInfo, entry))
                 return;
 
-            // Kasujemy stary SL
             if (!string.IsNullOrEmpty(_session.SlOrderId))
-                await restClient.CancelOrderAsync(symbol, _session.SlOrderId!, cancel);
+                await restClient.CancelOrderAsync(symbolInfo.Name, _session.SlOrderId!, cancel);
 
-            string slClientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag!, "SLTRAIL", nowUtc);
+            string slClientOrderId = SigmaClientOrderId.Build(
+                symbolInfo.Name,
+                _session.EntryMode.Value,
+                _session.DirectionTag!,
+                "TSL",
+                nowUtc);
 
             var slReq = new BybitCbFuturesRestClient.CbOrderRequest(
-                Symbol: symbol,
+                Symbol: symbolInfo.Name,
                 Category: Category.Linear,
                 Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
                 Type: NewOrderType.Market,
@@ -975,74 +883,13 @@ namespace CryptoBlade.Strategies.Sigma
             _session.SlPrice = newSl;
         }
 
-
-        private async Task ApplyMrTimeStopAsync(
-            string symbol,
-            Mode mode,
-            ICbFuturesRestClient restClient,
-            DateTime nowUtc,
-            CancellationToken cancel) 
-        {
-            // Trade musi być aktywny i pochodzić z MR
-            if (!_session.IsActive || _session.EntryMode != Mode.MR)
-                return;
-
-            if (_session.EntryFilledUtc is null)
-                return;
-
-            // Time-stop tylko jeśli TP1 jeszcze nie strzelony
-            if (_session.Tp1Hit)
-                return;
-
-            var age = nowUtc - _session.EntryFilledUtc.Value;
-            if (age <= MrTimeStop)
-                return;
-
-            if (_session.Side is null || _session.Quantity is null)
-            {
-                await HandleFinalExitAsync(symbol, restClient, cancel);
-                return;
-            }
-
-            var side = _session.Side.Value;
-            decimal qty = _session.Quantity.Value;
-            if (qty <= 0)
-            {
-                await HandleFinalExitAsync(symbol, restClient, cancel);
-                return;
-            }
-
-            // Zamykamy pozycję marketem reduce-only
-            var closeSide = (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide();
-            string clientOrderId = BuildClientOrderId(symbol, mode, _session.DirectionTag ?? "UNK", "MRTSTOP", nowUtc);
-
-            var closeReq = new BybitCbFuturesRestClient.CbOrderRequest(
-                Symbol: symbol,
-                Category: Category.Linear,
-                Side: closeSide,
-                Type: NewOrderType.Market,
-                Quantity: qty,
-                Price: null,
-                TriggerPrice: null,
-                TriggerBy: null,
-                ReduceOnly: true,
-                CloseOnTrigger: false,
-                TimeInForce: TimeInForce.GoodTillCanceled,
-                PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
-                ClientOrderId: clientOrderId);
-
-            await restClient.PlaceOrderAsync(closeReq, cancel);
-
-            // Sprzątamy wszystkie nasze SIGMA-order’y i resetujemy stan
-            await HandleFinalExitAsync(symbol, restClient, cancel);
-        }
-
         private async Task HandleFinalExitAsync(
             string symbol,
             ICbFuturesRestClient restClient,
             CancellationToken cancel)
         {
-            var ids = new[] { _session.EntryOrderId, _session.SlOrderId, _session.Tp1OrderId, _session.Tp2OrderId }
+            var ids = new[]
+                { _session.EntryOrderId, _session.SlOrderId, _session.Tp1OrderId, _session.Tp2OrderId }
                 .Where(id => !string.IsNullOrEmpty(id));
 
             foreach (var id in ids)
@@ -1062,7 +909,7 @@ namespace CryptoBlade.Strategies.Sigma
             var rawQty = usdNotional / entryPrice;
 
             if (symbolInfo.QtyStep.HasValue && symbolInfo.QtyStep.Value > 0m)
-            { 
+            {
                 var step = symbolInfo.QtyStep.Value;
                 rawQty -= rawQty % step;
             }
@@ -1082,22 +929,30 @@ namespace CryptoBlade.Strategies.Sigma
             if (openOrders is null || openOrders.Length == 0)
                 return;
 
-            // Tylko nasze SIGMA-order’y
             var sigmaOrders = openOrders
                 .Where(o => !string.IsNullOrWhiteSpace(o.ClientOrderId) &&
-                            o.ClientOrderId!.StartsWith("SIGMA|", StringComparison.Ordinal))
+                            SigmaClientOrderId.IsSigmaOrderId(o.ClientOrderId!))
                 .ToArray();
 
             if (sigmaOrders.Length == 0)
                 return;
 
-            // Rozdzielamy według rodzaju
-            var entries = sigmaOrders.Where(o => TryParseKind(o.ClientOrderId!) == SigmaOrderKind.Entry).ToList();
-            var sls = sigmaOrders.Where(o => TryParseKind(o.ClientOrderId!) == SigmaOrderKind.StopLoss).ToList();
-            var tp1s = sigmaOrders.Where(o => TryParseKind(o.ClientOrderId!) == SigmaOrderKind.TakeProfit1).ToList();
-            var tp2s = sigmaOrders.Where(o => TryParseKind(o.ClientOrderId!) == SigmaOrderKind.TakeProfit2).ToList();
+            var entries = sigmaOrders
+                .Where(o => SigmaClientOrderId.TryParseKind(o.ClientOrderId!) == SigmaOrderKind.Entry)
+                .ToList();
 
-            // 1) TP bez SL => traktujemy jako osierocone – kasujemy wszystko i wracamy
+            var sls = sigmaOrders
+                .Where(o => SigmaClientOrderId.TryParseKind(o.ClientOrderId!) == SigmaOrderKind.StopLoss)
+                .ToList();
+
+            var tp1s = sigmaOrders
+                .Where(o => SigmaClientOrderId.TryParseKind(o.ClientOrderId!) == SigmaOrderKind.TakeProfit1)
+                .ToList();
+
+            var tp2s = sigmaOrders
+                .Where(o => SigmaClientOrderId.TryParseKind(o.ClientOrderId!) == SigmaOrderKind.TakeProfit2)
+                .ToList();
+
             if (!sls.Any() && (tp1s.Any() || tp2s.Any()))
             {
                 foreach (var o in sigmaOrders)
@@ -1107,7 +962,6 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
             }
 
-            // 2) ENTRY bez SL => waiting for fill
             if (!sls.Any() && entries.Any())
             {
                 var entry = entries.OrderByDescending(o => o.CreateTime).First();
@@ -1115,7 +969,6 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
             }
 
-            // 3) Mamy SL => trade jest aktywny
             if (sls.Any())
             {
                 var sl = sls.OrderByDescending(o => o.CreateTime).First();
@@ -1126,7 +979,6 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
             }
 
-            // fallback – jakby coś poszło nie tak, czyścimy
             _session.Reset();
         }
 
@@ -1136,7 +988,8 @@ namespace CryptoBlade.Strategies.Sigma
             if (scale is < 0 or > 18)
                 scale = 4;
 
-            return StatisticsHelpers.TrimDecimal(Math.Round(price, scale, MidpointRounding.AwayFromZero), scale);
+            var rounded = Math.Round(price, scale, MidpointRounding.AwayFromZero);
+            return StatisticsHelpers.TrimDecimal(rounded, scale);
         }
 
         private static decimal RoundQty(SymbolInfo symbolInfo, decimal qty)
@@ -1145,7 +998,6 @@ namespace CryptoBlade.Strategies.Sigma
             if (qty <= 0m || !s.HasValue || s.Value <= 0m)
                 return qty;
 
-            // zawsze w dół, żeby nie przekroczyć rzeczywistej pozycji
             qty -= qty % s.Value;
             qty = StatisticsHelpers.TrimDecimal(qty, symbolInfo.QtyStep.Value);
             return qty;
@@ -1159,95 +1011,6 @@ namespace CryptoBlade.Strategies.Sigma
 
             decimal tick = (decimal)Math.Pow(10, -scale);
             return tick * 2m;
-        }
-
-        private static string BuildClientOrderId(string symbol, Mode mode, string directionTag, string kind, DateTime nowUtc)
-        {
-            var ts = nowUtc.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
-            return $"SIGMA|{symbol}|{mode}|{directionTag}|{kind}|{ts}";
-        }
-
-        private const string ClientIdPrefix = "SIGMA";
-        private const char ClientIdSeparator = '|';
-
-        private record ParsedClientOrderId(
-            string Symbol,
-            Mode Mode,
-            string DirectionTag,
-            SigmaOrderKind Kind,
-            DateTime? TimestampUtc);
-
-        private static SigmaOrderKind TryParseKind(string clientOrderId)
-        {
-            return TryParseClientOrderId(clientOrderId, out var parsed)
-                ? parsed.Kind
-                : SigmaOrderKind.Unknown;
-        }
-
-        private static Mode TryParseMode(string clientOrderId)
-        {
-            return TryParseClientOrderId(clientOrderId, out var parsed)
-                ? parsed.Mode
-                : Mode.None;
-        }
-
-        private static bool TryParseClientOrderId(
-            string clientOrderId,
-            out ParsedClientOrderId parsed)
-        {
-            parsed = null!;
-
-            if (string.IsNullOrWhiteSpace(clientOrderId))
-                return false;
-
-            var parts = clientOrderId.Split(ClientIdSeparator);
-            if (parts.Length < 6)
-                return false;
-
-            if (!string.Equals(parts[0], ClientIdPrefix, StringComparison.Ordinal))
-                return false;
-
-            var symbol = parts[1];
-
-            if (!Enum.TryParse<Mode>(parts[2], ignoreCase: true, out var mode))
-                mode = Mode.None; // albo false i return
-
-            var directionTag = parts[3];
-
-            var kind = parts[4] switch
-            {
-                "ENTRY" => SigmaOrderKind.Entry,
-                "SL" => SigmaOrderKind.StopLoss,
-                "SLBE" => SigmaOrderKind.StopLoss,    // albo osobne enumy
-                "SLTRAIL" => SigmaOrderKind.StopLoss,
-                "TP1" => SigmaOrderKind.TakeProfit1,
-                "TP2" => SigmaOrderKind.TakeProfit2,
-                _ => SigmaOrderKind.Unknown
-            };
-
-            DateTime? ts = null;
-            if (DateTime.TryParseExact(
-                    parts[5],
-                    "yyyyMMddHHmmssfff",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                    out var parsedTs))
-            {
-                ts = parsedTs;
-            }
-
-            parsed = new ParsedClientOrderId(symbol, mode, directionTag, kind, ts);
-            return true;
-        }
-
-
-        private enum SigmaOrderKind
-        {
-            Unknown = 0,
-            Entry = 1,
-            StopLoss = 2,
-            TakeProfit1 = 3,
-            TakeProfit2 = 4
         }
 
         #endregion

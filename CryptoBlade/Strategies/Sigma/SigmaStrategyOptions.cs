@@ -17,9 +17,9 @@
         public decimal BbWidthExitBreakoutPct { get; init; } = 45m;
         public decimal ZVwapEnableMR { get; init; } = 1.6m;
         public decimal ZVwapExitMR { get; init; } = 0.8m;
-        public decimal MinScore { get; init; } = 20m;
-        public decimal MinScoreStay { get; init; } = 15m;
-        public decimal MinMargin { get; init; } = 3m;
+        public int MinScore { get; init; } = 20;
+        public int MinScoreStay { get; init; } = 15;
+        public int MinMargin { get; init; } = 3;
 
         // Dynamiczny spread gate (pair-aware)
         public decimal MaxSpreadBps { get; init; } = 6m;

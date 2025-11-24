@@ -10,14 +10,9 @@ namespace CryptoBlade.Strategies.Sigma
 {
     public class SigmaStrategy : TradingStrategyBase
     {
-        private readonly IOptions<SigmaStrategyOptions> _options;
-
-        private readonly IMode _mm;
-        private readonly IMode _mr;
-        private readonly IMode _bo;
+        private readonly SigmaStrategyOptions _options;
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
-        private ModeState _modeState = new(Mode.None, DateTime.MinValue, ModeScores.Zero);
         private readonly SigmaPositionManager _positionManager;
 
         protected override bool UseMarketOrdersForEntries => false;
@@ -25,17 +20,14 @@ namespace CryptoBlade.Strategies.Sigma
         public SigmaStrategy(IOptions<SigmaStrategyOptions> options, IOptions<TradingBotOptions> botOptions, string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient)
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _mm = new MomentumMode(options.Value);
-            _mr = new MeanReversionMode(options.Value);
-            _bo = new BreakoutMode(options.Value);
+            _options = options.Value;
 
             var relDir = Path.Combine("Data", "Strategies", "Sigma", "Audit", symbol);
             var relFile = Path.Combine(relDir, $"sigma_audit_{DateTime.UtcNow:yyyyMMdd}.csv");
 
             _audit = new SigmaAuditSink(relFile);
-            _modeEngine = new ModeEngine(options.Value, _mm, _mr, _bo, _audit);
-            _positionManager = new SigmaPositionManager(options.Value);
+            _modeEngine = new ModeEngine(options.Value);
+            _positionManager = new SigmaPositionManager(options.Value, restClient);
         }
 
         private static TimeFrameWindow[] GetRequiredTimeFrames(SigmaStrategyOptions o) =>
@@ -51,20 +43,28 @@ namespace CryptoBlade.Strategies.Sigma
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
             var nowUtc = DateTime.UtcNow;
+            var modeSignal = ModeSignal.None;
+
             var sigmaData = new SigmaData(Symbol);
-            var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.Value.FifteenMinuteWindow, cancel);
+            var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.FifteenMinuteWindow, cancel);
             var oiPoints = await GetOpenInterestAsync(TimeFrame.FiveMinutes, 60, cancel);
             var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(Symbol,nowUtc - TimeSpan.FromDays(1), nowUtc, cancel);
 
             sigmaData.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
+            _positionManager.BeforeSingalExecutionAsync(nowUtc, SymbolInfo, sigmaData, cancel);
 
-            var prevState = _modeState;
-            var (mode, modeDecision, gateReason) = _modeEngine.Evaluate(sigmaData, nowUtc, cancel);
-            _modeState = modeDecision.State;
+            (bool gateOk, string gateReason) = _modeEngine.CheckGlobalGates(sigmaData, nowUtc);
+            if (gateOk)
+            {
+                (IMode? mode, ModeScores scores) = _modeEngine.SelectModeAndScores(nowUtc, sigmaData);
+                if(mode != null)
+                    modeSignal = mode.GenerateSignal(sigmaData, nowUtc, cancel);
+            }
 
-            var modeSignal = mode?.Execute(sigmaData, nowUtc, cancel) ?? ModeSignal.None;
-            var tradable = mode is not null;
-            _audit.Add(SigmaAudit.MakeRecord(sigmaData, prevState, nowUtc, _options.Value, tradable, gateReason, modeDecision, nowUtc));
+
+            _audit.Add(SigmaAudit.MakeRecord(sigmaData, nowUtc, _options, tradable, gateReason, modeDecision, nowUtc));
+
+            
 
             await _positionManager.OnSignalAsync(Symbol, SymbolInfo, sigmaData, modeDecision.ProposedMode, modeSignal, tradable,nowUtc, m_cbFuturesRestClient, WalletManager, cancel);
             return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
