@@ -15,7 +15,17 @@ namespace CryptoBlade.Strategies.Sigma
         public SigmaTradeState State { get; set; } = SigmaTradeState.Flat;
         public OrderSide? Side { get; set; }
         public SigmaOrderKind? Kind { get; set; }
+
+        /// <summary>
+        /// Docelowa ilość kontraktów dla tej sesji (pełny size ENTRY).
+        /// </summary>
         public decimal? Quantity { get; set; }
+
+        /// <summary>
+        /// Aktualnie otwarta ilość pozycji zarządzanej przez Sigmę.
+        /// </summary>
+        public decimal? ActiveQuantity { get; set; }
+
         public string? EntryClientOrderId { get; set; }
         public string? EntryOrderId { get; set; }
         public DateTime? EntryCreatedUtc { get; set; }
@@ -36,11 +46,17 @@ namespace CryptoBlade.Strategies.Sigma
         public string? Tp2OrderId { get; set; }
         public decimal? Tp2Price { get; set; }
 
+        /// <summary>
+        /// Ilość przypisana do TP1 / TP2 / runnera.
+        /// </summary>
+        public decimal? Tp1Quantity { get; set; }
+        public decimal? Tp2Quantity { get; set; }
+        public decimal? RunnerQuantity { get; set; }
+
         public double? Tp1R { get; set; }
         public double? Tp2R { get; set; }
         public TargetKind Tp1Kind { get; set; }
         public TargetKind Tp2Kind { get; set; }
-
 
         public void Reset()
         {
@@ -48,6 +64,7 @@ namespace CryptoBlade.Strategies.Sigma
             Side = null;
             Kind = null;
             Quantity = null;
+            ActiveQuantity = null;
 
             EntryClientOrderId = null;
             EntryOrderId = null;
@@ -68,11 +85,27 @@ namespace CryptoBlade.Strategies.Sigma
             Tp2ClientOrderId = null;
             Tp2OrderId = null;
             Tp2Price = null;
+
+            Tp1Quantity = null;
+            Tp2Quantity = null;
+            RunnerQuantity = null;
+
+            Tp1R = null;
+            Tp2R = null;
+            Tp1Kind = TargetKind.None;
+            Tp2Kind = TargetKind.None;
         }
 
-        public bool HasPendingEntry => State == SigmaTradeState.WaitingForEntryFill && EntryClientOrderId is not null;
+        public bool HasPendingEntry =>
+            State == SigmaTradeState.WaitingForEntryFill &&
+            EntryClientOrderId is not null;
 
         public bool IsActive => State == SigmaTradeState.Active;
+
+        public bool HasActivePosition =>
+            IsActive &&
+            ActiveQuantity.HasValue &&
+            ActiveQuantity.Value > 0m;
 
         public void InitPendingEntry(
             OrderSide side,
@@ -88,10 +121,12 @@ namespace CryptoBlade.Strategies.Sigma
             decimal tp2Price)
         {
             Reset();
+
             State = SigmaTradeState.WaitingForEntryFill;
             Side = side;
             Kind = kind;
             Quantity = quantity;
+            ActiveQuantity = null; // jeszcze nic nie jest zafillowane
 
             EntryClientOrderId = entryClientOrderId;
             EntryOrderId = entryOrderId;
@@ -100,6 +135,7 @@ namespace CryptoBlade.Strategies.Sigma
             EntryMode = entryMode;
 
             SlPrice = slPrice;
+
             Tp1Price = tp1Price;
             Tp2Price = tp2Price;
         }

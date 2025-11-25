@@ -353,7 +353,6 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         public static int GetDecimalPlaces(decimal d)
         {
             var bits = decimal.GetBits(d);
-            // scale = liczba cyfr po przecinku
             var scale = (bits[3] >> 16) & 0x7F;
             return scale;
         }

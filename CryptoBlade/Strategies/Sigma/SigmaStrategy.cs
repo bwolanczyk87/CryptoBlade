@@ -56,7 +56,7 @@ namespace CryptoBlade.Strategies.Sigma
             var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(Symbol,nowUtc - TimeSpan.FromDays(1), nowUtc, cancel);
 
             Data.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
-            await _positionManager.BeforeSingalExecutionAsync(nowUtc, SymbolInfo, Data, cancel);
+            await _positionManager.BeforeSignalExecutionAsync(nowUtc, SymbolInfo, Data, cancel);
 
             (bool gateOk, string gateReason) = _modeEngine.CheckGlobalGates(Data, nowUtc);
             if (gateOk)
@@ -74,7 +74,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         public override async Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
         {
-            await _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, Data, orderUpdate, m_cbFuturesRestClient, cancel);
+            await _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, Data, orderUpdate, cancel);
         }
 
         public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel) => Task.CompletedTask;
