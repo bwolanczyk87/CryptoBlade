@@ -1,12 +1,15 @@
-﻿using Bybit.Net.Enums;
+﻿using CryptoBlade.Models;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
     public interface IMode
     {
         ModeKind Kind { get; }
+
         ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel);
-        List<(decimal Price, double RMultiple)> AddTakeProfitTargets(SigmaData data, OrderSide side, decimal entryPrice, decimal risk);
+        decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side);
+        decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice);
+        (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, decimal risk);   
     }
 
     public enum ModeKind { 
@@ -72,7 +75,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                         _currentScore = (bestScore.Key, bestScore.Value);
                         _lastModeChangeUtc = nowUtc;
                     }
-                    _lastModeChangeUtc = nowUtc;
                 }
             }
 

@@ -55,7 +55,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                     .Select(z => (double)((z.High + z.Low + z.Close) / 3m))
                     .ToArray();
 
-                return StatisticsHelpers.ComputeSampleStdDev(tp);
+                return MathHelpers.ComputeSampleStdDev(tp);
             }
 
             // --- 1) Anchored daily VWAP (priorytet)
@@ -94,7 +94,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             }
 
             // --- 2) Fallback: Rolling VWAP (np. 60×1m)
-            var (rvwap, rlast) = StatisticsHelpers.ComputeRollingVwap(
+            var (rvwap, rlast) = MathHelpers.ComputeRollingVwap(
                 q1m,
                 Math.Max(10, rollingWindow));
 
@@ -130,7 +130,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                 return double.NaN;
 
             double z = ((double)lastPrice.Value - lastVwap) / tpStdDay;
-            return StatisticsHelpers.ClampSymmetric(z, 10.0);
+            return MathHelpers.ClampSymmetric(z, 10.0);
         }
 
         /// <summary>

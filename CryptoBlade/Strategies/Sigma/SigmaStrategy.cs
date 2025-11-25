@@ -2,9 +2,11 @@
 using CryptoBlade.Exchanges;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
+using CryptoBlade.Strategies.Sigma.Audit;
 using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
+using SharpToken;
 
 namespace CryptoBlade.Strategies.Sigma
 {
@@ -14,6 +16,7 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
         private readonly SigmaPositionManager _positionManager;
+        public SigmaData Data { get; set; } = new();
 
         protected override bool UseMarketOrdersForEntries => false;
 
@@ -42,42 +45,36 @@ namespace CryptoBlade.Strategies.Sigma
 
         protected override async Task<SignalEvaluation> EvaluateSignalsInnerAsync(CancellationToken cancel)
         {
-            var nowUtc = DateTime.UtcNow;
-            var modeSignal = ModeSignal.None;
+            DateTime nowUtc = DateTime.UtcNow;
+            ModeSignal modeSignal = ModeSignal.None;
+            IMode? mode = null;
+            ModeScores scores = new(0, 0, 0);
 
-            var sigmaData = new SigmaData(Symbol);
+            Data = new SigmaData();
             var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.FifteenMinuteWindow, cancel);
             var oiPoints = await GetOpenInterestAsync(TimeFrame.FiveMinutes, 60, cancel);
             var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(Symbol,nowUtc - TimeSpan.FromDays(1), nowUtc, cancel);
 
-            sigmaData.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
-            _positionManager.BeforeSingalExecutionAsync(nowUtc, SymbolInfo, sigmaData, cancel);
+            Data.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
+            await _positionManager.BeforeSingalExecutionAsync(nowUtc, SymbolInfo, Data, cancel);
 
-            (bool gateOk, string gateReason) = _modeEngine.CheckGlobalGates(sigmaData, nowUtc);
+            (bool gateOk, string gateReason) = _modeEngine.CheckGlobalGates(Data, nowUtc);
             if (gateOk)
             {
-                (IMode? mode, ModeScores scores) = _modeEngine.SelectModeAndScores(nowUtc, sigmaData);
+                (mode, scores) = _modeEngine.SelectModeAndScores(nowUtc, Data);
                 if(mode != null)
-                    modeSignal = mode.GenerateSignal(sigmaData, nowUtc, cancel);
+                    modeSignal = mode.GenerateSignal(Data, nowUtc, cancel);
             }
 
+            _audit.Add(SigmaAudit.MakeRecord(nowUtc, Symbol, Data, _options, gateReason, mode, scores));
 
-            _audit.Add(SigmaAudit.MakeRecord(sigmaData, nowUtc, _options, tradable, gateReason, modeDecision, nowUtc));
-
-            
-
-            await _positionManager.OnSignalAsync(Symbol, SymbolInfo, sigmaData, modeDecision.ProposedMode, modeSignal, tradable,nowUtc, m_cbFuturesRestClient, WalletManager, cancel);
+            await _positionManager.OnSignalAsync(nowUtc, SymbolInfo, Data, mode, modeSignal, WalletManager, cancel);
             return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
         }
 
         public override async Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
         {
-            await _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, orderUpdate, m_cbFuturesRestClient, cancel);
-        }
-
-        public async Task RecoverSigmaStateAsync(CancellationToken cancel)
-        {
-            await _positionManager.RecoverFromOpenOrdersAsync([.. BuyOrders, .. SellOrders], Symbol, SymbolInfo, m_cbFuturesRestClient, DateTime.UtcNow, cancel);
+            await _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, Data, orderUpdate, m_cbFuturesRestClient, cancel);
         }
 
         public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel) => Task.CompletedTask;

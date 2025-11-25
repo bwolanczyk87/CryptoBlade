@@ -1,33 +1,11 @@
-﻿using CryptoBlade.Strategies.Sigma.Helpers;
-using System;
-using System.Threading;
+﻿using CryptoBlade.Models;
+using CryptoBlade.Strategies.Sigma.Helpers;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    /// <summary>
-    /// BreakoutMode v3 – KO-mode na wybicia z kompresji:
-    ///
-    /// Założenia:
-    /// - globalne gate'y (spread, ATR dla BO) są wspólne dla wszystkich tierów,
-    /// - tiery różnicują:
-    ///   * jak "mocna" musi być ekspansja zmienności (BBW),
-    ///   * czy dopuszczamy Donchian jako fallback, czy wymagamy stricte OR+retest,
-    ///   * czy wymagamy silnego retestu (głębokości) dla A+,
-    ///   * jak duża musi być zmiana OI,
-    ///   * czy wymagamy ΔCVD w stronę wybicia.
-    ///
-    /// Hard  – A+ wybicia: OR+retest, mocne BBW, silny flow (OI + CVD), retest z sensowną głębokością.
-    /// Medium – bazowe BO: środowisko breakoutowe, OR/Donchian, OI + CVD w stronę wybicia.
-    /// Soft   – luźniejsze BO: to samo środowisko, OR/Donchian, OI w stronę wybicia, CVD opcjonalne.
-    /// </summary>
-    public sealed class BreakoutMode : IMode
+    public sealed class BreakoutMode(SigmaStrategyOptions options) : IMode
     {
-        private readonly SigmaStrategyOptions _options;
-
-        public BreakoutMode(SigmaStrategyOptions options)
-        {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-        }
+        private readonly SigmaStrategyOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
         public ModeKind Kind => ModeKind.BO;
 
@@ -47,24 +25,24 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double oi = data.OiDelta1hPct;
 
             // 1) Szerokie pasma BB – breakout z kompresji → ekspansja (0..40)
-            double bbwNorm = StatisticsHelpers.Normalize01(
+            double bbwNorm = MathHelpers.Normalize01(
                 bbwP,
                 (double)options.BbWidthBreakoutPct,
                 (double)options.BbWidthExitBreakoutPct);
 
-            bbwNorm = StatisticsHelpers.Clamp01(bbwNorm);
+            bbwNorm = MathHelpers.Clamp01(bbwNorm);
             bo += 40.0 * bbwNorm;                   // 0..40
 
             // 2) ATR – breakout lubi wyższe ATR, ale z limitem (0..15)
             if (double.IsFinite(atr))
             {
                 // brak dolnego progu – rosnący score do BoAtrMaxPct
-                double atrNorm = StatisticsHelpers.Normalize01(
+                double atrNorm = MathHelpers.Normalize01(
                     atr,
                     0.0,
                     (double)options.BoAtrMaxPct);
 
-                atrNorm = StatisticsHelpers.Clamp01(atrNorm);
+                atrNorm = MathHelpers.Clamp01(atrNorm);
                 bo += 15.0 * atrNorm;               // 0..15
             }
 
@@ -191,38 +169,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return ModeSignal.None;
         }
 
-        /// <summary>
-        /// Generyczne liczenie sygnału Breakout dla danego tieru.
-        ///
-        /// Parametry:
-        /// - bbwMinOffset:
-        ///     bazowy próg BBW to options.BbWidthBreakoutPct (percentyl 0..100),
-        ///     rzeczywisty próg środowiska BO: base + bbwMinOffset.
-        ///
-        /// - requireBbwExpanding:
-        ///     jeśli true, wymagamy aby Bbw15mExpanding == true.
-        ///
-        /// - allowDonchianFallback:
-        ///     jeśli true, dopuszczamy DonchianBreak jako fallback, gdy OR+retest nie jest aktywny
-        ///     po danej stronie.
-        ///
-        /// - strongRetestDepthMinOffset / strongRetestDepthMaxOffset:
-        ///     jeśli któryś != null, wymagamy "silnego retestu" dla OR breakout:
-        ///       depth ∈ [baseMin + minOffset, baseMax + maxOffset],
-        ///     gdzie baseMin = 3 bps, baseMax = 50 bps.
-        ///
-        /// - oiThresholdOffset:
-        ///     bazowy próg dla |ΔOI_1h| to 0.5,
-        ///     rzeczywisty próg = base + oiThresholdOffset.
-        ///
-        /// - requireCvd:
-        ///     jeśli true, wymagamy aby ΔCVD wspierał breakout (tak jak w v2: trend/flush).
-        ///     jeśli false, ΔCVD jest ignorowane przy filtracji – ważny jest tylko OI.
-        ///
-        /// - allowFlush:
-        ///     jeśli true, dopuszczamy zarówno "trend flow" (OI↑ + CVD w stronę wybicia),
-        ///     jak i "flush" (OI↓ + CVD w stronę wybicia).
-        /// </summary>
         private ModeSignal CalculateSignal(
             SigmaData data,
             ModeTier tier,
@@ -419,6 +365,165 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.BreakoutEntryTier = (int)tier;
 
             return new ModeSignal(longTrigger, shortTrigger, tier);
+        }
+
+        public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            decimal entry;
+
+            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
+            {
+                // klasyczny retest OR
+                entry = side == OrderSide.Buy
+                    ? data.OpeningRangeHigh.Value
+                    : data.OpeningRangeLow.Value;
+            }
+            else
+            {
+                // fallback – ta sama geometria co momentum (pullback)
+                decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
+                decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
+
+                if (side == OrderSide.Buy)
+                {
+                    var pullbackRange = refPrice.Value - lo;
+                    if (pullbackRange <= 0m)
+                        return null;
+
+                    entry = refPrice.Value - 0.5m * pullbackRange;
+                    if (entry >= refPrice.Value)
+                        return null;
+                }
+                else
+                {
+                    var pullbackRange = hi - refPrice.Value;
+                    if (pullbackRange <= 0m)
+                        return null;
+
+                    entry = refPrice.Value + 0.5m * pullbackRange;
+                    if (entry <= refPrice.Value)
+                        return null;
+                }
+            }
+
+            entry = MathHelpers.RoundPrice(symbolInfo.PriceScale, entry);
+            return entry > 0m ? entry : null;
+        }
+
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            var riskUnit = SessionHelpers.ComputeRiskUnit(data, refPrice.Value, _options.MinAtr5mFloor);
+            if (riskUnit <= 0m)
+                return null;
+
+            decimal sl;
+
+            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
+            {
+                var orHigh = data.OpeningRangeHigh.Value;
+                var orLow = data.OpeningRangeLow.Value;
+                var orRange = orHigh - orLow;
+                if (orRange <= 0m)
+                    return null;
+
+                var margin = Math.Max(riskUnit * 0.5m, orRange * 0.2m);
+
+                if (side == OrderSide.Buy)
+                    sl = orLow - margin;
+                else
+                    sl = orHigh + margin;
+            }
+            else
+            {
+                // fallback – jak momentum
+                decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
+                decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
+
+                if (side == OrderSide.Buy)
+                    sl = lo - riskUnit;
+                else
+                    sl = hi + riskUnit;
+            }
+
+            sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
+
+            if (sl <= 0m)
+                return null;
+
+            if (side == OrderSide.Buy && sl >= entryPrice)
+                return null;
+            if (side == OrderSide.Sell && sl <= entryPrice)
+                return null;
+
+            return sl;
+        }
+
+        public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
+            SigmaData data,
+            SymbolInfo symbolInfo,
+            OrderSide side,
+            decimal entryPrice,
+            decimal risk)
+        {
+            if (risk <= 0m)
+                return (null, null);
+
+            var targets = new List<(decimal Price, double RMultiple)>();
+
+            // Opening range jako naturalny target wybicia
+            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
+            {
+                var orHigh = data.OpeningRangeHigh.Value;
+                var orLow = data.OpeningRangeLow.Value;
+
+                if (side == OrderSide.Buy && orHigh > entryPrice)
+                {
+                    var r = (double)((orHigh - entryPrice) / risk);
+                    targets.Add((orHigh, r));
+                }
+                else if (side == OrderSide.Sell && orLow < entryPrice)
+                {
+                    var r = (double)((entryPrice - orLow) / risk);
+                    targets.Add((orLow, r));
+                }
+            }
+
+            // Donchian jako extension target po wybiciu
+            if (data.DonchianResult is { } don)
+            {
+                if (side == OrderSide.Buy && don.UpperBand > entryPrice)
+                {
+                    var r = (double)((don.UpperBand - entryPrice) / risk);
+                    targets.Add((don.UpperBand.Value, r));
+                }
+                else if (side == OrderSide.Sell && don.LowerBand < entryPrice)
+                {
+                    var r = (double)((entryPrice - don.LowerBand) / risk);
+                    targets.Add((don.LowerBand.Value, r));
+                }
+            }
+
+            // bazowe 1R / 2R dla breakout
+            if (side == OrderSide.Buy)
+            {
+                targets.Add((entryPrice + risk, 1.0));
+                targets.Add((entryPrice + 2m * risk, 2.0));
+            }
+            else
+            {
+                targets.Add((entryPrice - risk, 1.0));
+                targets.Add((entryPrice - 2m * risk, 2.0));
+            }
+
+            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading;
+﻿using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
@@ -43,12 +42,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double bbwP = data.Bbw15mPct;
 
             // 1) Niski ADX – im niższy, tym lepiej dla MR (0..30)
-            double adxLow = 1.0 - StatisticsHelpers.Normalize01(
+            double adxLow = 1.0 - MathHelpers.Normalize01(
                 adx,
                 (double)options.AdxDisableMomentum,
                 (double)options.AdxEnableMomentum);
 
-            adxLow = StatisticsHelpers.Clamp01(adxLow);
+            adxLow = MathHelpers.Clamp01(adxLow);
             mr += 30.0 * adxLow;                    // 0..30
 
             // 2) Bliskość DVWAP – preferujemy |zDev| blisko 0 (0..35)
@@ -61,7 +60,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 if (absDev <= 3.0)
                     devScore = 1.0 - (absDev / 3.0);
 
-                devScore = StatisticsHelpers.Clamp01(devScore);
+                devScore = MathHelpers.Clamp01(devScore);
                 mr += 35.0 * devScore;              // 0..35
             }
 
@@ -92,12 +91,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // 5) Wąskie BB – kompresja (0..15)
             if (double.IsFinite(bbwP))
             {
-                double bbwNorm = StatisticsHelpers.Normalize01(
+                double bbwNorm = MathHelpers.Normalize01(
                     bbwP,
                     0.0,
                     (double)options.BbWidthExitBreakoutPct);
 
-                double bbwScore = 1.0 - StatisticsHelpers.Clamp01(bbwNorm);
+                double bbwScore = 1.0 - MathHelpers.Clamp01(bbwNorm);
                 mr += 15.0 * bbwScore;              // 0..15
             }
 
@@ -393,6 +392,105 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.MeanReversionEntryTier = (int)tier;
 
             return new ModeSignal(longTrigger, shortTrigger, tier);
+        }
+
+        public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            decimal baseEntry;
+
+            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
+                baseEntry = data.LastDvwap.Value;
+            else
+                baseEntry = refPrice.Value;
+
+            // lekkie odchylenie od DVWAP – chcemy mean reversion do DVWAP
+            decimal entry = side == OrderSide.Buy
+                ? baseEntry * 0.997m
+                : baseEntry * 1.003m;
+
+            entry = MathHelpers.RoundPrice(symbolInfo.PriceScale, entry);
+            return entry > 0m ? entry : null;
+        }
+
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            var riskUnit = SessionHelpers.ComputeRiskUnit(data, refPrice.Value, _options.MinAtr5mFloor);
+            if (riskUnit <= 0m)
+                return null;
+
+            decimal baseEntry;
+
+            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
+                baseEntry = data.LastDvwap.Value;
+            else
+                baseEntry = refPrice.Value;
+
+            decimal sl = side == OrderSide.Buy
+                ? baseEntry - riskUnit * 0.8m
+                : baseEntry + riskUnit * 0.8m;
+
+            sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
+
+            if (sl <= 0m)
+                return null;
+
+            if (side == OrderSide.Buy && sl >= entryPrice)
+                return null;
+            if (side == OrderSide.Sell && sl <= entryPrice)
+                return null;
+
+            return sl;
+        }
+
+        public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
+            SigmaData data,
+            SymbolInfo symbolInfo,
+            OrderSide side,
+            decimal entryPrice,
+            decimal risk)
+        {
+            if (risk <= 0m)
+                return (null, null);
+
+            var targets = new List<(decimal Price, double RMultiple)>();
+
+            // DVWAP jako główny target mean-reversion
+            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
+            {
+                var dvwap = data.LastDvwap.Value;
+                if (side == OrderSide.Buy && dvwap > entryPrice)
+                {
+                    var r = (double)((dvwap - entryPrice) / risk);
+                    targets.Add((dvwap, r));
+                }
+                else if (side == OrderSide.Sell && dvwap < entryPrice)
+                {
+                    var r = (double)((entryPrice - dvwap) / risk);
+                    targets.Add((dvwap, r));
+                }
+            }
+
+            // fallback – czyste R-multiples
+            if (side == OrderSide.Buy)
+            {
+                targets.Add((entryPrice + risk, 1.0));          // 1R
+                targets.Add((entryPrice + 1.5m * risk, 1.5));   // 1.5R
+            }
+            else
+            {
+                targets.Add((entryPrice - risk, 1.0));
+                targets.Add((entryPrice - 1.5m * risk, 1.5));
+            }
+
+            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
         }
     }
 }

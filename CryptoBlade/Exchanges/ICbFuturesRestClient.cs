@@ -23,7 +23,7 @@ namespace CryptoBlade.Exchanges
             CancellationToken cancel = default);
 
         Task<BybitOrderId?> PlaceOrderAsync(
-            CbOrderRequest request,
+            OrderRequest request,
             CancellationToken cancel = default);
 
         Task<bool> PlaceLimitBuyOrderAsync(

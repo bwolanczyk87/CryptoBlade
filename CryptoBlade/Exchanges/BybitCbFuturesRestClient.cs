@@ -23,7 +23,7 @@ namespace CryptoBlade.Exchanges
         private readonly ILogger<BybitCbFuturesRestClient> m_logger;
         private readonly IOptions<BybitCbFuturesRestClientOptions> m_options;
         private readonly IOptions<TradingBotOptions> m_trading_bot_options;
-        public readonly record struct CbOrderRequest(
+        public readonly record struct OrderRequest(
             string Symbol,
             Category Category,
             OrderSide Side,
@@ -145,7 +145,7 @@ namespace CryptoBlade.Exchanges
         /// </summary>
         /// <summary>
         public async Task<BybitOrderId?> PlaceOrderAsync(
-            CbOrderRequest request,
+            OrderRequest request,
             CancellationToken cancel = default)
         {
             const string op = "Order.Place";

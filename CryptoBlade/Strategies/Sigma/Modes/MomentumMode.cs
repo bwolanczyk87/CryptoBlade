@@ -1,7 +1,5 @@
-﻿using Bybit.Net.Enums;
+﻿using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
-using System;
-using System.Threading;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
@@ -43,12 +41,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             double oi = data.OiDelta1hPct;
 
             // 1) ADX – im bliżej AdxEnableMomentum, tym wyższy score (0..40)
-            double adxNorm = StatisticsHelpers.Normalize01(
+            double adxNorm = MathHelpers.Normalize01(
                 adx,
                 (double)options.AdxDisableMomentum,
                 (double)options.AdxEnableMomentum);
 
-            adxNorm = StatisticsHelpers.Clamp01(adxNorm);
+            adxNorm = MathHelpers.Clamp01(adxNorm);
             mm += 40.0 * adxNorm;                  // 0..40
 
             // 2) Absolutne nachylenie DVWAP – "siła trendu" w obie strony (0..25)
@@ -74,7 +72,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                         devScore = (4.0 - absDev) / (4.0 - 2.0);   // spada 1→0
                 }
 
-                devScore = StatisticsHelpers.Clamp01(devScore);
+                devScore = MathHelpers.Clamp01(devScore);
                 mm += 15.0 * devScore;              // 0..15
             }
 
@@ -339,36 +337,115 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return new ModeSignal(buy, sell, tier);
         }
 
-        public List<(decimal Price, double RMultiple)> AddTakeProfitTargets(
+        public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
+            decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
+
+            decimal entry;
+
+            if (side == OrderSide.Buy)
+            {
+                var pullbackRange = refPrice.Value - lo;
+                if (pullbackRange <= 0m)
+                    return null;
+
+                // klasyczny momentum: wejście w połowie korekty
+                entry = refPrice.Value - 0.5m * pullbackRange;
+                if (entry >= refPrice.Value)
+                    return null;
+            }
+            else
+            {
+                var pullbackRange = hi - refPrice.Value;
+                if (pullbackRange <= 0m)
+                    return null;
+
+                entry = refPrice.Value + 0.5m * pullbackRange;
+                if (entry <= refPrice.Value)
+                    return null;
+            }
+
+            entry = MathHelpers.RoundPrice(symbolInfo.PriceScale, entry);
+            return entry > 0m ? entry : null;
+        }
+
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        {
+            var refPrice = SessionHelpers.GetRefPrice(data);
+            if (!refPrice.HasValue)
+                return null;
+
+            var riskUnit = SessionHelpers.ComputeRiskUnit(data, refPrice.Value, _options.MinAtr5mFloor);
+            if (riskUnit <= 0m)
+                return null;
+
+            decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
+            decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
+
+            decimal sl;
+
+            if (side == OrderSide.Buy)
+            {
+                sl = lo - riskUnit;
+                if (sl >= entryPrice)
+                    return null;
+            }
+            else
+            {
+                sl = hi + riskUnit;
+                if (sl <= entryPrice)
+                    return null;
+            }
+
+            sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
+            return sl > 0m ? sl : null;
+        }
+
+        public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
+            SymbolInfo symbolInfo,
             OrderSide side,
             decimal entryPrice,
             decimal risk)
         {
+            if (risk <= 0m)
+                return (null, null);
+
             var targets = new List<(decimal Price, double RMultiple)>();
 
-            if (risk <= 0m)
-                return targets;
-
-            var don = data.DonchianResult;
-            if (don is null)
-                return targets;
-
-            decimal donHigh = don.UpperBand ?? 0m;
-            decimal donLow = don.LowerBand ?? 0m;
-
-            if (side == OrderSide.Buy && donHigh > entryPrice)
+            // bazowe 1R / 2R w kierunku momentum
+            if (side == OrderSide.Buy)
             {
-                var rDon = (double)((donHigh - entryPrice) / risk);
-                targets.Add((donHigh, rDon));
+                targets.Add((entryPrice + risk, 1.0));
+                targets.Add((entryPrice + 2m * risk, 2.0));
             }
-            else if (side == OrderSide.Sell && donLow < entryPrice)
+            else
             {
-                var rDon = (double)((entryPrice - donLow) / risk);
-                targets.Add((donLow, rDon));
+                targets.Add((entryPrice - risk, 1.0));
+                targets.Add((entryPrice - 2m * risk, 2.0));
             }
 
-            return targets;
+            // Donchian 15m jako naturalny pivot trendowy
+            if (data.DonchianResult is { } don)
+            {
+                if (side == OrderSide.Buy && don.UpperBand > entryPrice)
+                {
+                    var r = (double)((don.UpperBand - entryPrice) / risk);
+                    targets.Add((don.UpperBand.Value, r));
+                }
+                else if (side == OrderSide.Sell && don.LowerBand < entryPrice)
+                {
+                    var r = (double)((entryPrice - don.LowerBand) / risk);
+                    targets.Add((don.LowerBand.Value, r));
+                }
+            }
+
+            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
         }
     }
 }

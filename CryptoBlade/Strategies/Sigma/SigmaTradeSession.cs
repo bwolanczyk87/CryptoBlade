@@ -14,7 +14,7 @@ namespace CryptoBlade.Strategies.Sigma
     {
         public SigmaTradeState State { get; set; } = SigmaTradeState.Flat;
         public OrderSide? Side { get; set; }
-        public string? DirectionTag { get; set; }     // "LONG"/"SHORT"
+        public SigmaOrderKind? Kind { get; set; }
         public decimal? Quantity { get; set; }
         public string? EntryClientOrderId { get; set; }
         public string? EntryOrderId { get; set; }
@@ -46,7 +46,7 @@ namespace CryptoBlade.Strategies.Sigma
         {
             State = SigmaTradeState.Flat;
             Side = null;
-            DirectionTag = null;
+            Kind = null;
             Quantity = null;
 
             EntryClientOrderId = null;
@@ -74,10 +74,9 @@ namespace CryptoBlade.Strategies.Sigma
 
         public bool IsActive => State == SigmaTradeState.Active;
 
-        /// <summary>Ustawia sesję w stan oczekiwania na fill nowego ENTRY.</summary>
         public void InitPendingEntry(
             OrderSide side,
-            string directionTag,
+            SigmaOrderKind kind,
             decimal quantity,
             string entryClientOrderId,
             string entryOrderId,
@@ -91,7 +90,7 @@ namespace CryptoBlade.Strategies.Sigma
             Reset();
             State = SigmaTradeState.WaitingForEntryFill;
             Side = side;
-            DirectionTag = directionTag;
+            Kind = kind;
             Quantity = quantity;
 
             EntryClientOrderId = entryClientOrderId;
@@ -103,61 +102,6 @@ namespace CryptoBlade.Strategies.Sigma
             SlPrice = slPrice;
             Tp1Price = tp1Price;
             Tp2Price = tp2Price;
-        }
-
-        /// <summary>Odtwarza stan oczekującego ENTRY z istniejącego zlecenia.</summary>
-        public void InitPendingEntryFromRecovery(Order entry)
-        {
-            Reset();
-            State = SigmaTradeState.WaitingForEntryFill;
-            Side = entry.Side;
-            DirectionTag = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
-            EntryMode = null;
-            Quantity = entry.Quantity;
-            EntryClientOrderId = entry.ClientOrderId;
-            EntryOrderId = entry.OrderId;
-            EntryCreatedUtc = entry.CreateTime;
-            EntryPrice = entry.Price > 0m ? entry.Price : null;
-        }
-
-        /// <summary>Odtwarza stan aktywnego trade'u z istniejącego SL i opcjonalnie TP1/TP2.</summary>
-        public void InitActiveFromRecovery(Order sl, Order? tp1, Order? tp2)
-        {
-            Reset();
-
-            var side = sl.Side == OrderSide.Sell ? OrderSide.Buy : OrderSide.Sell;
-            State = SigmaTradeState.Active;
-            Side = side;
-            DirectionTag = side == OrderSide.Buy ? "LONG" : "SHORT";
-            EntryMode = null;
-            Quantity = sl.Quantity;
-
-            SlClientOrderId = sl.ClientOrderId;
-            SlOrderId = sl.OrderId;
-            SlPrice = sl.Price;
-
-            if (tp1 is not null)
-            {
-                Tp1ClientOrderId = tp1.ClientOrderId;
-                Tp1OrderId = tp1.OrderId;
-                Tp1Price = tp1.Price;
-            }
-
-            if (tp2 is not null)
-            {
-                Tp2ClientOrderId = tp2.ClientOrderId;
-                Tp2OrderId = tp2.OrderId;
-                Tp2Price = tp2.Price;
-            }
-
-            decimal? guessEntry = null;
-            if (Tp1Price.HasValue && SlPrice.HasValue)
-                guessEntry = (Tp1Price.Value + SlPrice.Value) / 2m;
-            else if (Tp2Price.HasValue && SlPrice.HasValue)
-                guessEntry = (Tp2Price.Value + SlPrice.Value) / 2m;
-
-            EntryPrice = guessEntry;
-            EntryFilledUtc = sl.CreateTime;
         }
     }
 }

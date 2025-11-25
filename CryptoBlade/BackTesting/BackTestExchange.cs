@@ -956,7 +956,7 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
-        public Task<BybitOrderId?> PlaceOrderAsync(BybitCbFuturesRestClient.CbOrderRequest request, CancellationToken cancel = default)
+        public Task<BybitOrderId?> PlaceOrderAsync(BybitCbFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }

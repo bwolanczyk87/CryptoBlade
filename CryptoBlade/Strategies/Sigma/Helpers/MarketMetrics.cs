@@ -273,8 +273,8 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             if (window <= 0)
                 return (double.NaN, double.NaN);
 
-            var rX = StatisticsHelpers.ComputeLogReturns(xPrices);
-            var rY = StatisticsHelpers.ComputeLogReturns(yPrices);
+            var rX = MathHelpers.ComputeLogReturns(xPrices);
+            var rY = MathHelpers.ComputeLogReturns(yPrices);
 
             int m = Math.Min(rX.Length, rY.Length);
             if (m < 3)
@@ -289,7 +289,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             Array.Copy(rX, rX.Length - win, segX, 0, win);
             Array.Copy(rY, rY.Length - win, segY, 0, win);
 
-            var corr = StatisticsHelpers.ComputePearsonCorrelation(segX, segY);
+            var corr = MathHelpers.ComputePearsonCorrelation(segX, segY);
             var lastY = rY[^1];
 
             if (!double.IsFinite(corr) || !double.IsFinite(lastY))
@@ -324,10 +324,10 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                 return false;
 
             // kierunek Y (BTC)
-            int sY = StatisticsHelpers.SignWithDeadZone(lastYLogReturn, epsRet);
+            int sY = MathHelpers.SignWithDeadZone(lastYLogReturn, epsRet);
 
             // kierunek X (symbol, np. ETH)
-            int sX = StatisticsHelpers.SignWithDeadZone(lastXLogReturn, epsRet);
+            int sX = MathHelpers.SignWithDeadZone(lastXLogReturn, epsRet);
 
             // Fallback: jeśli X ≈ 0, użyj znaku nachylenia DVWAP, ale tylko przy istotnym t-stat
             if (sX == 0 && double.IsFinite(zSlopeDvwap) && Math.Abs(zSlopeDvwap) >= zMin)
@@ -545,12 +545,12 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             for (int i = 0; i < n; i++)
                 px[i] = (double)quotes[i].Close;
 
-            var r = StatisticsHelpers.ComputeLogReturns(px);
+            var r = MathHelpers.ComputeLogReturns(px);
             int m = r.Length;
             if (m < 3)
                 return double.NaN;
 
-            double mean = StatisticsHelpers.ComputeMean(r);
+            double mean = MathHelpers.ComputeMean(r);
             double num = 0.0, den = 0.0;
 
             for (int i = 1; i < m; i++)
@@ -707,7 +707,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                 .OrderBy(v => v)
                 .ToArray();
 
-            double p = StatisticsHelpers.ComputePercentile(vols, pctl);
+            double p = MathHelpers.ComputePercentile(vols, pctl);
 
             decimal total = bins.Values.Aggregate(0m, (acc, v) => acc + v);
             decimal minShare = total * (decimal)(minSharePct / 100.0);

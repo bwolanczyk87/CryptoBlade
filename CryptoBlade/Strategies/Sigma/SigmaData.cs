@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using CryptoBlade.Models;
+﻿using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
-using CryptoExchange.Net.CommonObjects;
 using Skender.Stock.Indicators;
 using Ticker = CryptoBlade.Models.Ticker;
 
@@ -20,11 +16,8 @@ namespace CryptoBlade.Strategies.Sigma
     /// Wszystkie dane wejściowe pochodzą z SigmaStrategy (która pobiera je z giełdy
     /// i innych źródeł), a SigmaData zajmuje się wyłącznie obliczeniami i agregacją.
     /// </summary>
-    public sealed class SigmaData(string symbol)
+    public sealed class SigmaData()
     {
-        // ====== Identyfikacja ======
-        public string Symbol { get; } = symbol ?? throw new ArgumentNullException(nameof(symbol));
-
         // ====== Cechy surowe (NaN oznacza "brak/niepoliczalne") ======
 
         // Trend / zmienność / value (głównie 1h / 5m / 15m)
@@ -471,42 +464,42 @@ namespace CryptoBlade.Strategies.Sigma
         private void Sanitize()
         {
             // --- Trend / value / vol ---
-            Adx1h = StatisticsHelpers.ClampFinite(Adx1h, 0, 100, allowNaN: true);
-            AtrPct1h = StatisticsHelpers.ClampFinite(AtrPct1h, 0, 100, allowNaN: true);
-            Atr1hAbs = StatisticsHelpers.ClampFinite(Atr1hAbs, 0, 1e12, allowNaN: true);
-            ZDvwap = StatisticsHelpers.ClampFinite(ZDvwap, -10, 10, allowNaN: true);
-            ZDvwapPrev = StatisticsHelpers.ClampFinite(ZDvwapPrev, -10, 10, allowNaN: true);
-            ZSlopeDvwap = StatisticsHelpers.ClampFinite(ZSlopeDvwap, -25, 25, allowNaN: true);
-            AutoCorr5m = StatisticsHelpers.ClampFinite(AutoCorr5m, -1, 1, allowNaN: true);
-            Bbw15mPct = StatisticsHelpers.ClampFinite(Bbw15mPct, 0, 100, allowNaN: true);
-            Bbw15mRaw = StatisticsHelpers.ClampFinite(Bbw15mRaw, 0, 1e6, allowNaN: true);
+            Adx1h = MathHelpers.ClampFinite(Adx1h, 0, 100, allowNaN: true);
+            AtrPct1h = MathHelpers.ClampFinite(AtrPct1h, 0, 100, allowNaN: true);
+            Atr1hAbs = MathHelpers.ClampFinite(Atr1hAbs, 0, 1e12, allowNaN: true);
+            ZDvwap = MathHelpers.ClampFinite(ZDvwap, -10, 10, allowNaN: true);
+            ZDvwapPrev = MathHelpers.ClampFinite(ZDvwapPrev, -10, 10, allowNaN: true);
+            ZSlopeDvwap = MathHelpers.ClampFinite(ZSlopeDvwap, -25, 25, allowNaN: true);
+            AutoCorr5m = MathHelpers.ClampFinite(AutoCorr5m, -1, 1, allowNaN: true);
+            Bbw15mPct = MathHelpers.ClampFinite(Bbw15mPct, 0, 100, allowNaN: true);
+            Bbw15mRaw = MathHelpers.ClampFinite(Bbw15mRaw, 0, 1e6, allowNaN: true);
 
             // --- Mikrostruktura ---
             SpreadBps = double.IsFinite(SpreadBps) && SpreadBps >= 0
-                ? StatisticsHelpers.ClampFinite(SpreadBps, 0, 1e4, allowNaN: true)   // 10 000 bps = 100%
+                ? MathHelpers.ClampFinite(SpreadBps, 0, 1e4, allowNaN: true)   // 10 000 bps = 100%
                 : double.NaN;
 
             // --- Derywaty / flow ---
-            OiDelta1hPct = StatisticsHelpers.ClampFinite(OiDelta1hPct, -500, 500, allowNaN: true);
-            BasisPct = StatisticsHelpers.ClampFinite(BasisPct, -100, 100, allowNaN: true);
-            DeltaCvd5m = StatisticsHelpers.ClampFinite(DeltaCvd5m, -1e12, 1e12, allowNaN: true);
-            DeltaCvdPrev5m = StatisticsHelpers.ClampFinite(DeltaCvdPrev5m, -1e12, 1e12, allowNaN: true);
+            OiDelta1hPct = MathHelpers.ClampFinite(OiDelta1hPct, -500, 500, allowNaN: true);
+            BasisPct = MathHelpers.ClampFinite(BasisPct, -100, 100, allowNaN: true);
+            DeltaCvd5m = MathHelpers.ClampFinite(DeltaCvd5m, -1e12, 1e12, allowNaN: true);
+            DeltaCvdPrev5m = MathHelpers.ClampFinite(DeltaCvdPrev5m, -1e12, 1e12, allowNaN: true);
 
-            FundingPredictedPct = StatisticsHelpers.ClampFinite(FundingPredictedPct, -5, 5, allowNaN: true);
-            FundingLastSettledPct = StatisticsHelpers.ClampFinite(FundingLastSettledPct, -5, 5, allowNaN: true);
+            FundingPredictedPct = MathHelpers.ClampFinite(FundingPredictedPct, -5, 5, allowNaN: true);
+            FundingLastSettledPct = MathHelpers.ClampFinite(FundingLastSettledPct, -5, 5, allowNaN: true);
             // NextFundingUtc – DateTime? nie clampujemy
 
             // Dystans do likwidacji: musi być ≥0; jeśli ujemny/bez sensu → NaN
             if (!double.IsFinite(DistToLiqPct) || DistToLiqPct < 0)
                 DistToLiqPct = double.NaN;
             else
-                DistToLiqPct = StatisticsHelpers.ClampFinite(DistToLiqPct, 0, 1e6, allowNaN: true);
+                DistToLiqPct = MathHelpers.ClampFinite(DistToLiqPct, 0, 1e6, allowNaN: true);
 
             // --- Korelacja BTC ---
-            CorrToBtc15m = StatisticsHelpers.ClampFinite(CorrToBtc15m, -1, 1, allowNaN: true);
+            CorrToBtc15m = MathHelpers.ClampFinite(CorrToBtc15m, -1, 1, allowNaN: true);
 
-            OrRetestDepthBpsUp5m = StatisticsHelpers.ClampFinite(OrRetestDepthBpsUp5m, 0, 1e4, allowNaN: true);
-            OrRetestDepthBpsDown5m = StatisticsHelpers.ClampFinite(OrRetestDepthBpsDown5m, 0, 1e4, allowNaN: true);
+            OrRetestDepthBpsUp5m = MathHelpers.ClampFinite(OrRetestDepthBpsUp5m, 0, 1e4, allowNaN: true);
+            OrRetestDepthBpsDown5m = MathHelpers.ClampFinite(OrRetestDepthBpsDown5m, 0, 1e4, allowNaN: true);
         }
     }
 }

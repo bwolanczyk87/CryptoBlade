@@ -1,9 +1,6 @@
 ﻿using MathNet.Numerics.Statistics;
 using Skender.Stock.Indicators;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 
 namespace CryptoBlade.Strategies.Sigma.Helpers
 {
@@ -13,7 +10,7 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
     /// Konwencja: brak danych / niepoliczalne => double.NaN
     /// (z wyjątkiem log-stóp zwrotu, gdzie używamy 0.0 jako neutralny placeholder).
     /// </summary>
-    public static class StatisticsHelpers
+    public static class MathHelpers
     {
         // ===== ŚREDNIA =====
 
@@ -323,17 +320,42 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             return 0;
         }
 
+        public static decimal RoundPrice(decimal scale, decimal price)
+        {
+            if (scale is < 0 or > 18)
+                scale = 4;
+
+            var rounded = Math.Round(price, (int)scale, MidpointRounding.AwayFromZero);
+            return TrimDecimal(rounded, scale);
+        }
+
+        public static decimal RoundQuantity(decimal step, decimal quantity)
+        {
+            if (quantity <= 0m || step <= 0m)
+                return quantity;
+
+            quantity -= quantity % step;
+            var scale = GetDecimalPlaces(step);
+            return TrimDecimal(quantity, scale);
+        }
+
         public static decimal TrimDecimal(decimal value, decimal scale)
         {
-            if (scale <= 0m)
-                return value;
+            if (scale < 0m) scale = 0m;
+            if (scale > 18m) scale = 18m;
 
-            var units = value / scale;
-            var roundedUnits = Math.Round(units, 0, MidpointRounding.AwayFromZero);
-            var result = roundedUnits * scale;
-
-            var s = result.ToString("G29", CultureInfo.InvariantCulture);
+            int decimals = (int)scale;
+            var rounded = Math.Round(value, decimals, MidpointRounding.AwayFromZero);
+            var s = rounded.ToString("G29", CultureInfo.InvariantCulture);
             return decimal.Parse(s, CultureInfo.InvariantCulture);
+        }
+
+        public static int GetDecimalPlaces(decimal d)
+        {
+            var bits = decimal.GetBits(d);
+            // scale = liczba cyfr po przecinku
+            var scale = (bits[3] >> 16) & 0x7F;
+            return scale;
         }
     }
 }
