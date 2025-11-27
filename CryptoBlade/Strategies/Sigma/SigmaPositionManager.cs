@@ -248,7 +248,7 @@ namespace CryptoBlade.Strategies.Sigma
                     break;
 
                 case SigmaOrderKind.TakeProfit1:
-                    await HandleTp1FilledAsync(symbol, symbolInfo, update, data, cancel);
+                    await HandleTp1FilledAsync(symbol, update, cancel);
                     break;
 
                 case SigmaOrderKind.TakeProfit2:
@@ -259,7 +259,8 @@ namespace CryptoBlade.Strategies.Sigma
                 case SigmaOrderKind.StopLossBreakEven:
                 case SigmaOrderKind.TrailingStopLoss:
                 case SigmaOrderKind.MRTimeStop:
-                    await HandleStopLossFilledAsync(symbol, clientOrderId, cancel);
+                    //await HandleStopLossFilledAsync(symbol, clientOrderId, cancel);
+                    _session.Reset();
                     break;
             }
         }
@@ -509,9 +510,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         private async Task HandleTp1FilledAsync(
             string symbol,
-            SymbolInfo symbolInfo,
             OrderUpdate update,
-            SigmaData data,
             CancellationToken cancel)
         {
             if (!_session.IsActive ||
@@ -565,7 +564,7 @@ namespace CryptoBlade.Strategies.Sigma
                 TriggerBy: TriggerType.MarkPrice,
                 ClientOrderId: slClientOrderId);
 
-            var slOrderId = await _restClient.PlaceOrderAsync(slReq, cancel);
+            var slOrderId = await _restClient.AmendOrderAsync(slReq, cancel);
             if (slOrderId is not null)
             {
                 _session.SlClientOrderId = slClientOrderId;

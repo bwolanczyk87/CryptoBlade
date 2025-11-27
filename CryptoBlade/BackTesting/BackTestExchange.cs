@@ -961,6 +961,11 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
+        public Task<BybitOrderId?> AmendOrderAsync(BybitCbFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
+
         #region Subscriptions
         private class CandleUpdateSubscription : IUpdateSubscription
         {

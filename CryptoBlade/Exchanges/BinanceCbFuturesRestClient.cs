@@ -168,5 +168,10 @@ namespace CryptoBlade.Exchanges
         {
             throw new NotImplementedException();
         }
+
+        public Task<BybitOrderId?> AmendOrderAsync(BybitCbFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

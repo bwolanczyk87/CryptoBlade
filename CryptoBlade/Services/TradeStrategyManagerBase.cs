@@ -392,8 +392,8 @@ namespace CryptoBlade.Services
                 bool isPrimaryCandle = strategy.RequiredTimeFrameWindows.Any(x => x.TimeFrame == candle.TimeFrame);
                 if (isPrimaryCandle)
                 {
-                    m_logger.LogDebug(
-                        $"Strategy {strategy.Name}:{strategy.Symbol} received primary candle. Scheduling trade execution.");
+                    //m_logger.LogDebug(
+                    //    $"Strategy {strategy.Name}:{strategy.Symbol} received primary candle. Scheduling trade execution.");
                     await m_strategyExecutionChannel.Writer.WriteAsync(strategy.Symbol, CancellationToken.None);
                 }
             }
