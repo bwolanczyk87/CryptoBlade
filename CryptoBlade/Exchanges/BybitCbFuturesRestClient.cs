@@ -107,12 +107,6 @@ namespace CryptoBlade.Exchanges
         {
             const string op = "Order.Cancel";
 
-            m_logger.LogDebug(
-                "sym={Symbol} | op={Operation} | stage=Start | orderId={OrderId}",
-                symbol,
-                op,
-                orderId);
-
             var cancelOrder = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                 .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading
                     .CancelOrderAsync(m_category, symbol, orderId, null, null, cancel));
@@ -153,23 +147,6 @@ namespace CryptoBlade.Exchanges
             {
                 try
                 {
-                    m_logger.LogDebug(
-                        "sym={Symbol} | op={Operation} | stage=Start | " +
-                        "orderId={OrderId} side={Side} type={Type} " +
-                        "qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
-                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
-                        request.Symbol,
-                        op,
-                        request.OrderId,
-                        request.Side,
-                        request.Type,
-                        request.Quantity,
-                        request.Price,
-                        request.TriggerPrice,
-                        request.ClientOrderId,
-                        attempt + 1,
-                        m_options.Value.PlaceOrderAttempts);
-
                     var res = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                         .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.EditOrderAsync(
                             category: request.Category,
@@ -273,24 +250,6 @@ namespace CryptoBlade.Exchanges
             {
                 try
                 {
-                    m_logger.LogDebug(
-                        "sym={Symbol} | op={Operation} | stage=Start | " +
-                        "side={Side} type={Type} qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
-                        "reduceOnly={ReduceOnly} closeOnTrigger={CloseOnTrigger} " +
-                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
-                        request.Symbol,
-                        op,
-                        request.Side,
-                        request.Type,
-                        request.Quantity,
-                        request.Price,
-                        request.TriggerPrice,
-                        request.ReduceOnly,
-                        request.CloseOnTrigger,
-                        request.ClientOrderId,
-                        attempt + 1,
-                        m_options.Value.PlaceOrderAttempts);
-
                     var res = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
                         .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.PlaceOrderAsync(
                             category: request.Category,

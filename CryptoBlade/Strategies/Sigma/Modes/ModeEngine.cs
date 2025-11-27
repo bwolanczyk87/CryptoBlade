@@ -6,7 +6,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
     {
         ModeKind Kind { get; }
 
-        ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel);
+        ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal);
         decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side);
         decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice);
         (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, decimal risk);   

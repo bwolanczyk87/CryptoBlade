@@ -55,8 +55,6 @@ namespace CryptoBlade.Strategies.Sigma
 
         public double? Tp1R { get; set; }
         public double? Tp2R { get; set; }
-        public TargetKind Tp1Kind { get; set; }
-        public TargetKind Tp2Kind { get; set; }
 
         public void Reset()
         {
@@ -92,8 +90,6 @@ namespace CryptoBlade.Strategies.Sigma
 
             Tp1R = null;
             Tp2R = null;
-            Tp1Kind = TargetKind.None;
-            Tp2Kind = TargetKind.None;
         }
 
         public bool HasPendingEntry =>
@@ -139,5 +135,7 @@ namespace CryptoBlade.Strategies.Sigma
             Tp1Price = tp1Price;
             Tp2Price = tp2Price;
         }
+
+
     }
 }

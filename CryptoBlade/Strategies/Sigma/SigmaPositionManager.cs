@@ -1,25 +1,17 @@
-﻿using Bybit.Net.Enums;
+﻿using Azure.Core;
+using Bybit.Net.Enums;
 using CryptoBlade.Exchanges;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Wallet;
+using System.Drawing;
 using OrderSide = CryptoBlade.Models.OrderSide;
+using OrderStatus = CryptoBlade.Models.OrderStatus;
 
 namespace CryptoBlade.Strategies.Sigma
 {
-    public enum TargetKind
-    {
-        None = 0,
-        RMultiple = 1,
-        Donchian = 2,
-        OpeningRange = 3,
-        Dvwap = 4,
-        Swing = 5,
-        LiqCluster = 6
-    }
-
     /// <summary>
     /// SigmaPositionManager – zarządza cyklem życia pojedynczej pozycji:
     /// - beforeSignal: timeout pending entry + trailing po TP1/TP2,
@@ -70,10 +62,10 @@ namespace CryptoBlade.Strategies.Sigma
             }
 
             // 2) Trailing stop – po TP1 / TP2, gdy pozycja nadal jest aktywna
-            if (_session.HasActivePosition && _session.Tp1Hit)
-            {
-                await UpdateTrailingStopAsync(nowUtc, symbolInfo, data, cancel);
-            }
+            //if (_session.HasActivePosition && _session.Tp1Hit)
+            //{
+            //    await UpdateTrailingStopAsync(nowUtc, symbolInfo, data, cancel);
+            //}
         }
 
         // =====================================================================
@@ -87,8 +79,22 @@ namespace CryptoBlade.Strategies.Sigma
             IMode? mode,
             ModeSignal signal,
             IWalletManager walletManager,
+            ILogger logger,
             CancellationToken cancel)
         {
+            logger.LogInformation("sym={Symbol} | state={State} | side={Side} | entryPrice={EntryPrice} | entryMode={EntryMode} | kind={Kind} | activeQty={ActiveQty} slPrice={SlPrice} > {s} | tp1Price={Tp1Price} > {t} \n",
+                symbolInfo.Name,
+                _session.State,
+                _session.Side,
+                _session.EntryPrice,
+                _session.EntryMode,
+                 _session.Kind,
+                _session.ActiveQuantity,
+                _session.SlPrice,
+                string.IsNullOrEmpty(_session.SlOrderId) ? "Not set" : "SET",
+                _session.Tp1Price,
+                string.IsNullOrEmpty(_session.Tp1OrderId) ? "Not set" : "SET");
+
             // Nie otwieramy nowej pozycji, jeśli coś już zarządzamy.
             if (_session.State != SigmaTradeState.Flat)
                 return;
@@ -229,51 +235,72 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
 
             var kind = SigmaClientOrderId.TryParseKind(clientOrderId);
+            var status = update.Status; 
 
-            // 1) Cancel – nie resetujemy ślepo całej sesji, tylko aktualizujemy odpowiedni slot
-            if (update.Status == Models.OrderStatus.Cancelled)
+             switch (status)
             {
-                await HandleOrderCancelledAsync(symbol, kind, clientOrderId, cancel);
-                return;
+                case OrderStatus.Created:
+                case OrderStatus.New:
+                case OrderStatus.Active:
+                case OrderStatus.Pending:
+                case OrderStatus.Triggered:
+                case OrderStatus.Untriggered:
+                case OrderStatus.PartiallyFilled:
+                case OrderStatus.PartiallyFilledCanceled:
+                    return;
+
+                case OrderStatus.Filled:
+                    await HandleFilledAsync(symbol, symbolInfo, data, kind, update, cancel);
+                    return;
+
+                case OrderStatus.Cancelled:
+                    await HandleOrderCancelledAsync(symbol, kind, clientOrderId, cancel);
+                    return;
+
+                // Rejected / Deactivated – traktujemy jak nieudane wejście
+                case OrderStatus.Rejected:
+                case OrderStatus.Deactivated:
+                    if (kind == SigmaOrderKind.Entry)
+                        _session.Reset();
+                    return;
+
+                // Inne (na wszelki wypadek)
+                default:
+                    return;
             }
+        }
 
-            // Interesują nas tylko pełne filly
-            if (update.Status != Models.OrderStatus.Filled)
-                return;
-
+        private async Task HandleFilledAsync(string symbol, SymbolInfo symbolInfo, SigmaData data, SigmaOrderKind kind, OrderUpdate update, CancellationToken cancel)
+        {
             switch (kind)
             {
                 case SigmaOrderKind.Entry:
-                    await HandleEntryFilledAsync(symbol, symbolInfo, update, cancel);
+                    await HandleEntryFilledAsync(symbolInfo, update, cancel);
                     break;
 
                 case SigmaOrderKind.TakeProfit1:
-                    await HandleTp1FilledAsync(symbol, update, cancel);
+                    // Na ten moment: TP1 = finalny exit (trailing/TP2 wyłączone)
+                    _session.Reset();
                     break;
 
                 case SigmaOrderKind.TakeProfit2:
-                    await HandleTp2FilledAsync(symbol, symbolInfo, update, data, cancel);
+                    // Trailing/TP2 chwilowo off – traktujemy jak pełne wyjście
+                    _session.Reset();
                     break;
 
                 case SigmaOrderKind.StopLoss:
                 case SigmaOrderKind.StopLossBreakEven:
                 case SigmaOrderKind.TrailingStopLoss:
                 case SigmaOrderKind.MRTimeStop:
-                    //await HandleStopLossFilledAsync(symbol, clientOrderId, cancel);
                     _session.Reset();
+                    break;
+
+                default:
                     break;
             }
         }
 
-        // =====================================================================
-        // 3.1. Cancel handling
-        // =====================================================================
-
-        private async Task HandleOrderCancelledAsync(
-            string symbol,
-            SigmaOrderKind kind,
-            string clientOrderId,
-            CancellationToken cancel)
+        private async Task HandleOrderCancelledAsync(string symbol, SigmaOrderKind kind, string clientOrderId, CancellationToken cancel)
         {
             switch (kind)
             {
@@ -323,16 +350,10 @@ namespace CryptoBlade.Strategies.Sigma
             }
         }
 
-        // =====================================================================
-        // 3.2. Entry fill -> zakładanie SL/TP
-        // =====================================================================
-
-        private async Task HandleEntryFilledAsync(
-            string symbol,
-            SymbolInfo symbolInfo,
-            OrderUpdate update,
-            CancellationToken cancel)
+        private async Task HandleEntryFilledAsync(SymbolInfo symbolInfo, OrderUpdate update, CancellationToken cancel)
         {
+            var symbol = symbolInfo.Name;
+
             if (!_session.HasPendingEntry ||
                 !string.Equals(update.ClientOrderId, _session.EntryClientOrderId, StringComparison.Ordinal))
                 return;
@@ -348,7 +369,7 @@ namespace CryptoBlade.Strategies.Sigma
             if (_session.EntryPrice is null ||
                 _session.SlPrice is null ||
                 _session.Tp1Price is null ||
-                _session.Tp2Price is null ||
+                //_session.Tp2Price is null ||
                 _session.Quantity is null ||
                 _session.Side is null ||
                 _session.EntryMode is null)
@@ -403,7 +424,8 @@ namespace CryptoBlade.Strategies.Sigma
 
             // --- TP1 / TP2 – 50% / 25% / 25% (reszta runner) ---
 
-            decimal tp1QtyRaw = totalQty * 0.5m;
+            decimal tp1QtyRaw = totalQty;
+            //decimal tp1QtyRaw = totalQty * 0.5m;
             decimal tp2QtyRaw = totalQty * 0.25m;
 
             var step = symbolInfo.QtyStep ?? 0m;
@@ -504,14 +526,7 @@ namespace CryptoBlade.Strategies.Sigma
             }
         }
 
-        // =====================================================================
-        // 3.3. TP1 fill -> SL na BE
-        // =====================================================================
-
-        private async Task HandleTp1FilledAsync(
-            string symbol,
-            OrderUpdate update,
-            CancellationToken cancel)
+        private async Task HandleTp1FilledAsync(string symbol, OrderUpdate update, CancellationToken cancel)
         {
             if (!_session.IsActive ||
                 _session.Tp1ClientOrderId is null ||
@@ -573,16 +588,7 @@ namespace CryptoBlade.Strategies.Sigma
             }
         }
 
-        // =====================================================================
-        // 3.4. TP2 fill -> runner + trailing / full exit
-        // =====================================================================
-
-        private async Task HandleTp2FilledAsync(
-            string symbol,
-            SymbolInfo symbolInfo,
-            OrderUpdate update,
-            SigmaData data,
-            CancellationToken cancel)
+        private async Task HandleTp2FilledAsync(string symbol, SymbolInfo symbolInfo, OrderUpdate update, SigmaData data, CancellationToken cancel)
         {
             if (!_session.IsActive ||
                 _session.Tp2ClientOrderId is null ||
@@ -607,14 +613,7 @@ namespace CryptoBlade.Strategies.Sigma
             await UpdateTrailingStopAsync(now, symbolInfo, data, cancel);
         }
 
-        // =====================================================================
-        // 3.5. SL / SLBE / TSL / MRTimeStop fill -> pełny exit
-        // =====================================================================
-
-        private async Task HandleStopLossFilledAsync(
-            string symbol,
-            string clientOrderId,
-            CancellationToken cancel)
+        private async Task HandleStopLossFilledAsync(string symbol, string clientOrderId, CancellationToken cancel)
         {
             if (!_session.IsActive)
                 return;
@@ -627,15 +626,7 @@ namespace CryptoBlade.Strategies.Sigma
             await ForceFlatAsync(symbol, cancel);
         }
 
-        // =====================================================================
-        // TRAILING
-        // =====================================================================
-
-        private async Task UpdateTrailingStopAsync(
-            DateTime nowUtc,
-            SymbolInfo symbolInfo,
-            SigmaData data,
-            CancellationToken cancel)
+        private async Task UpdateTrailingStopAsync(DateTime nowUtc, SymbolInfo symbolInfo, SigmaData data, CancellationToken cancel)
         {
             if (!_session.HasActivePosition ||
                 _session.Side is null ||
@@ -720,14 +711,7 @@ namespace CryptoBlade.Strategies.Sigma
             _session.SlPrice = newSl;
         }
 
-        // =====================================================================
-        // RISK
-        // =====================================================================
-
-        public decimal ComputeRiskPerTradeUsd(
-            SigmaData sigmaData,
-            ModeSignal modeSignal,
-            decimal? equity)
+        public decimal ComputeRiskPerTradeUsd(SigmaData sigmaData, ModeSignal modeSignal, decimal? equity)
         {
             // 1) Equity strategii w USDT.
             if (equity.HasValue && equity <= 0m)
@@ -774,13 +758,7 @@ namespace CryptoBlade.Strategies.Sigma
             return risk;
         }
 
-        // =====================================================================
-        // HELPERY
-        // =====================================================================
-
-        private async Task ForceFlatAsync(
-            string symbol,
-            CancellationToken cancel)
+        private async Task ForceFlatAsync(string symbol, CancellationToken cancel)
         {
             var ids = new[]
                 {
@@ -827,10 +805,7 @@ namespace CryptoBlade.Strategies.Sigma
             }
         }
 
-        private static decimal CalculateQuantityInContracts(
-            SymbolInfo symbolInfo,
-            decimal entryPrice,
-            decimal usdNotional)
+        private static decimal CalculateQuantityInContracts(SymbolInfo symbolInfo, decimal entryPrice, decimal usdNotional)
         {
             if (entryPrice <= 0m || usdNotional <= 0m)
                 return 0m;

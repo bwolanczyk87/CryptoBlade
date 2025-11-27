@@ -6,7 +6,6 @@ using CryptoBlade.Strategies.Sigma.Audit;
 using CryptoBlade.Strategies.Sigma.Modes;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
-using SharpToken;
 
 namespace CryptoBlade.Strategies.Sigma
 {
@@ -16,6 +15,7 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
         private readonly SigmaPositionManager _positionManager;
+        private readonly bool _enableTestSignal = false;
         public SigmaData Data { get; set; } = new();
 
         protected override bool UseMarketOrdersForEntries => false;
@@ -63,12 +63,12 @@ namespace CryptoBlade.Strategies.Sigma
             {
                 (mode, scores) = _modeEngine.SelectModeAndScores(nowUtc, Data);
                 if(mode != null)
-                    modeSignal = mode.GenerateSignal(Data, nowUtc, cancel);
+                    modeSignal = mode.GenerateSignal(Data, _enableTestSignal);
             }
 
             _audit.Add(SigmaAudit.MakeRecord(nowUtc, Symbol, Data, _options, gateReason, mode, scores));
 
-            await _positionManager.OnSignalAsync(nowUtc, SymbolInfo, Data, mode, modeSignal, WalletManager, cancel);
+            await _positionManager.OnSignalAsync(nowUtc, SymbolInfo, Data, mode, modeSignal, WalletManager, m_logger, cancel);
             return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
         }
 

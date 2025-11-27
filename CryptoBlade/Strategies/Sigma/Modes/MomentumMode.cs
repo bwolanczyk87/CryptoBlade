@@ -102,8 +102,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return Math.Min(Math.Max(mm, 0.0), 100.0);
         }
 
-        public ModeSignal GenerateSignal(SigmaData data, DateTime nowUtc, CancellationToken cancel)
+        public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
         {
+            //None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
+            if (enableTestSignal)
+                return new ModeSignal(true, false, ModeTier.None);
+
             ArgumentNullException.ThrowIfNull(data);
 
             // Reset per-bar debug
@@ -172,11 +176,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             if (soft.HasBuy || soft.HasSell)
                 return soft;
-
-            // -----------------------------------------------------------------
-            //4.None – testoswy sygnał bez żadnych wymagań(do testów i debugu)
-            //var none = new ModeSignal(true, false, ModeTier.None);
-            //return none;
 
             // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;
