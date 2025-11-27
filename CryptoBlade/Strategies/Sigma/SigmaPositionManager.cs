@@ -544,15 +544,6 @@ namespace CryptoBlade.Strategies.Sigma
             var entry = _session.EntryPrice.Value;
             var side = _session.Side.Value;
             var bePrice = entry;
-
-            // kasujemy stary SL i stawiamy nowy na BE
-            if (!string.IsNullOrEmpty(_session.SlOrderId))
-            {
-                await SafeCancelAsync(symbol, _session.SlOrderId!, cancel);
-                _session.SlOrderId = null;
-                _session.SlClientOrderId = null;
-            }
-
             var mode = _session.EntryMode ?? ModeKind.None;
 
             string slClientOrderId = SigmaClientOrderId.Build(
@@ -563,6 +554,7 @@ namespace CryptoBlade.Strategies.Sigma
                 update.UpdateTime ?? DateTime.UtcNow);
 
             var slReq = new BybitCbFuturesRestClient.OrderRequest(
+                OrderId: _session.SlOrderId,
                 Symbol: symbol,
                 Category: Category.Linear,
                 Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
@@ -571,11 +563,6 @@ namespace CryptoBlade.Strategies.Sigma
                 Price: null,
                 TriggerPrice: bePrice,
                 TriggerBy: TriggerType.MarkPrice,
-                TriggerDirection: side == OrderSide.Buy ? TriggerDirection.Fall : TriggerDirection.Rise,
-                ReduceOnly: true,
-                CloseOnTrigger: true,
-                TimeInForce: TimeInForce.GoodTillCanceled,
-                PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
                 ClientOrderId: slClientOrderId);
 
             var slOrderId = await _restClient.PlaceOrderAsync(slReq, cancel);
@@ -702,14 +689,6 @@ namespace CryptoBlade.Strategies.Sigma
             if (Math.Abs(newSl - currentSl) < ComputeMinSlMove(symbolInfo, entry))
                 return;
 
-            // Kasujemy stary SL
-            if (!string.IsNullOrEmpty(_session.SlOrderId))
-            {
-                await SafeCancelAsync(symbolInfo.Name, _session.SlOrderId!, cancel);
-                _session.SlOrderId = null;
-                _session.SlClientOrderId = null;
-            }
-
             var qty = _session.ActiveQuantity.Value;
             if (qty <= 0m)
                 return;
@@ -722,6 +701,7 @@ namespace CryptoBlade.Strategies.Sigma
                 nowUtc);
 
             var slReq = new BybitCbFuturesRestClient.OrderRequest(
+                OrderId: _session.SlOrderId,
                 Symbol: symbolInfo.Name,
                 Category: Category.Linear,
                 Side: (side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy).ToOrderSide(),
@@ -730,14 +710,9 @@ namespace CryptoBlade.Strategies.Sigma
                 Price: null,
                 TriggerPrice: newSl,
                 TriggerBy: TriggerType.MarkPrice,
-                TriggerDirection: side == OrderSide.Buy ? TriggerDirection.Fall : TriggerDirection.Rise,
-                ReduceOnly: true,
-                CloseOnTrigger: true,
-                TimeInForce: TimeInForce.GoodTillCanceled,
-                PositionIdx: side == OrderSide.Buy ? PositionIdx.BuyHedgeMode : PositionIdx.SellHedgeMode,
                 ClientOrderId: slClientOrderId);
 
-            var slOrderId = await _restClient.PlaceOrderAsync(slReq, cancel);
+            var slOrderId = await _restClient.AmendOrderAsync(slReq, cancel);
             if (slOrderId is null)
                 return;
 

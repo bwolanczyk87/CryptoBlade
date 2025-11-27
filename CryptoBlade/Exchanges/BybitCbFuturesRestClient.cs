@@ -37,7 +37,8 @@ namespace CryptoBlade.Exchanges
             bool CloseOnTrigger = false,
             TimeInForce? TimeInForce = null,
             PositionIdx? PositionIdx = null,
-            string? ClientOrderId = null
+            string? ClientOrderId = null,
+            string? OrderId = null
         );
 
         public BybitCbFuturesRestClient(IOptions<BybitCbFuturesRestClientOptions> options,
@@ -138,6 +139,124 @@ namespace CryptoBlade.Exchanges
             return false;
         }
 
+        /// <summary>
+        /// Uniwersalne amendowanie istniejących zleceń dla Sigmy i innych strategii.
+        /// Semantyka jak PlaceOrderAsync, ale identyfikacja po BybitOrderId.
+        /// </summary>
+        public async Task<BybitOrderId?> AmendOrderAsync(
+            OrderRequest request,
+            CancellationToken cancel = default)
+        {
+            const string op = "Order.Amend";
+
+            for (int attempt = 0; attempt < m_options.Value.PlaceOrderAttempts; attempt++)
+            {
+                try
+                {
+                    m_logger.LogDebug(
+                        "sym={Symbol} | op={Operation} | stage=Start | " +
+                        "orderId={OrderId} side={Side} type={Type} " +
+                        "qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
+                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
+                        request.Symbol,
+                        op,
+                        request.OrderId,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.TriggerPrice,
+                        request.ClientOrderId,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts);
+
+                    var res = await ExchangePolicies<BybitOrderId>.RetryTooManyVisits
+                        .ExecuteAsync(async () => await m_bybitRestClient.V5Api.Trading.EditOrderAsync(
+                            category: request.Category,
+                            symbol: request.Symbol,
+                            orderId: request.OrderId,
+                            quantity: request.Quantity,
+                            price: request.Price,
+                            triggerPrice: request.TriggerPrice,
+                            triggerBy: request.TriggerBy,
+                            clientOrderId: request.ClientOrderId,
+                            ct: cancel));
+
+                    if (res.GetResultOrError(out var data, out var error))
+                    {
+                        m_logger.LogInformation(
+                            "sym={Symbol} | op={Operation} | stage=Success | " +
+                            "orderId={OrderId} side={Side} type={Type} " +
+                            "qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
+                            "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
+                            request.Symbol,
+                            op,
+                            data.OrderId,
+                            request.Side,
+                            request.Type,
+                            request.Quantity,
+                            request.Price,
+                            request.TriggerPrice,
+                            request.ClientOrderId,
+                            attempt + 1,
+                            m_options.Value.PlaceOrderAttempts);
+
+                        return data;
+                    }
+
+                    m_logger.LogWarning(
+                        "sym={Symbol} | op={Operation} | stage=Fail | " +
+                        "orderId={OrderId} side={Side} type={Type} " +
+                        "qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
+                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts} " +
+                        "errorCode={ErrorCode} errorMsg={ErrorMessage}",
+                        request.Symbol,
+                        op,
+                        request.OrderId,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.TriggerPrice,
+                        request.ClientOrderId,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts,
+                        error?.Code,
+                        error?.Message);
+                }
+                catch (Exception ex) when (!cancel.IsCancellationRequested)
+                {
+                    m_logger.LogError(
+                        ex,
+                        "sym={Symbol} | op={Operation} | stage=Exception | " +
+                        "orderId={OrderId} side={Side} type={Type} " +
+                        "qty={Qty} price={Price} triggerPrice={TriggerPrice} " +
+                        "clientOrderId={ClientOrderId} attempt={Attempt}/{MaxAttempts}",
+                        request.Symbol,
+                        op,
+                        request.OrderId,
+                        request.Side,
+                        request.Type,
+                        request.Quantity,
+                        request.Price,
+                        request.TriggerPrice,
+                        request.ClientOrderId,
+                        attempt + 1,
+                        m_options.Value.PlaceOrderAttempts);
+                }
+            }
+
+            m_logger.LogError(
+                "sym={Symbol} | op={Operation} | stage=Exhausted | " +
+                "orderId={OrderId} attempts={Attempts} clientOrderId={ClientOrderId}",
+                request.Symbol,
+                op,
+                request.OrderId,
+                m_options.Value.PlaceOrderAttempts,
+                request.ClientOrderId);
+
+            return null;
+        }
 
         /// <summary>
         /// Uniwersalne składanie zleceń dla Sigmy i innych zaawansowanych strategii.
