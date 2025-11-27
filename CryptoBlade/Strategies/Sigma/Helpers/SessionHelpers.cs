@@ -203,18 +203,35 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
             return lastClose.Value;
         }
 
-        public static decimal ComputeRiskUnit(SigmaData data, decimal refPrice, decimal minAtr5mFloor)
+        public static decimal ComputeRiskUnit(
+            SigmaData data,
+            decimal refPrice,
+            decimal floorPct,
+            decimal capPct,
+            decimal fallbackPct)
         {
+            if (refPrice <= 0m)
+                return 0m;
+
             var atr5m = double.IsFinite(data.Atr5mAbs) ? (decimal)data.Atr5mAbs : 0m;
-            var atr1h = double.IsFinite(data.Atr1hAbs) ? (decimal)data.Atr1hAbs : 0m;
+            var floor = floorPct > 0m ? refPrice * floorPct / 100m : 0m;
+            var cap = capPct > 0m ? refPrice * capPct / 100m : 0m;
 
             if (atr5m > 0m)
-                return Math.Max(atr5m, minAtr5mFloor);
+            {
+                var risk = atr5m;
 
-            if (atr1h > 0m)
-                return atr1h * 0.5m;
+                if (floor > 0m)
+                    risk = Math.Max(risk, floor);
 
-            return refPrice * 0.005m;
+                if (cap > 0m)
+                    risk = Math.Min(risk, cap);
+
+                return risk;
+            }
+
+            return refPrice * fallbackPct / 100m;
         }
+
     }
 }

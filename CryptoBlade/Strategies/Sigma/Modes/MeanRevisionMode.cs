@@ -422,7 +422,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (!refPrice.HasValue)
                 return null;
 
-            var riskUnit = SessionHelpers.ComputeRiskUnit(data, refPrice.Value, _options.MinAtr5mFloor);
+            var riskUnit = SessionHelpers.ComputeRiskUnit(
+                data,
+                refPrice.Value,
+                _options.RiskFloorPct,
+                _options.RiskCapPct,
+                _options.RiskFallbackPct);
             if (riskUnit <= 0m)
                 return null;
 

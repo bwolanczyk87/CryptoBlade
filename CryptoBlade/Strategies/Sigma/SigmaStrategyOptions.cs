@@ -36,7 +36,9 @@
 
         // Egzekucja
         public decimal DefaultQuoteSize { get; init; } = 500m;
-        public decimal MinAtr5mFloor { get; init; } = 0.5m;
+        public decimal RiskFloorPct { get; init; } = 0.05m;
+        public decimal RiskCapPct { get; init; } = 1.00m;
+        public decimal RiskFallbackPct { get; init; } = 0.10m;
 
         // Makro
         public int MacroFreezeMinutesBefore { get; init; } = 10;
