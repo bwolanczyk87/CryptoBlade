@@ -15,7 +15,7 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
         private readonly SigmaPositionManager _positionManager;
-        private readonly bool _enableTestSignal = false;
+        private readonly bool _enableTestSignal = true;
         public SigmaData Data { get; set; } = new();
 
         protected override bool UseMarketOrdersForEntries => false;
@@ -54,9 +54,9 @@ namespace CryptoBlade.Strategies.Sigma
             var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.FifteenMinuteWindow, cancel);
             var oiPoints = await GetOpenInterestAsync(TimeFrame.FiveMinutes, 60, cancel);
             var fundingRates = await m_cbFuturesRestClient.GetFundingRatesAsync(Symbol,nowUtc - TimeSpan.FromDays(1), nowUtc, cancel);
+            var fullTicker = await m_cbFuturesRestClient.GetTickerAsync(Symbol, cancel);
 
-            Data.Build(nowUtc, QuoteQueues, btcQuotes15m, Ticker, PublicTrades, Liquidations, oiPoints, fundingRates);
-            await _positionManager.BeforeSignalExecutionAsync(nowUtc, SymbolInfo, Data, cancel);
+            Data.Build(nowUtc, QuoteQueues, btcQuotes15m, fullTicker, PublicTrades, Liquidations, oiPoints, fundingRates);
 
             (bool gateOk, string gateReason) = _modeEngine.CheckGlobalGates(Data, nowUtc);
             if (gateOk)
@@ -68,13 +68,10 @@ namespace CryptoBlade.Strategies.Sigma
 
             _audit.Add(SigmaAudit.MakeRecord(nowUtc, Symbol, Data, _options, gateReason, mode, scores));
 
-            await _positionManager.OnSignalAsync(nowUtc, SymbolInfo, Data, mode, modeSignal, WalletManager, m_logger, cancel);
+            if(!IsInTrade)
+                await _positionManager.OnSignalAsync(nowUtc, SymbolInfo, Data, mode, modeSignal, WalletManager, m_logger, cancel);
+            
             return new SignalEvaluation(modeSignal.HasBuy, modeSignal.HasSell, false, false, []);
-        }
-
-        public override async Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
-        {
-            await _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, Data, orderUpdate, cancel);
         }
 
         public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel) => Task.CompletedTask;

@@ -1,4 +1,6 @@
-﻿using CryptoBlade.Models;
+﻿using System;
+using System.Collections.Generic;
+using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
@@ -12,6 +14,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
     ///   * jak niski musi być ADX (jak bardzo "nietrendowy" jest rynek),
     ///   * jak wymagający jest pattern close-back-in do DVWAP (outer/inner z-score + siła wcześniejszego odchylenia),
     ///   * czy wymagamy wsparcia ΔCVD.
+    ///
+    /// Wejście / SL / TP:
+    /// - ENTRY: limit przy DVWAP z lekkim dyskontem/premią zależnym od riskUnit (ATR5m),
+    /// - SL: ~1× riskUnit za entry (czyste 1R),
+    /// - TP: DVWAP jako główny target mean-reversion + 1R/1.5R,
+    ///        z finalnym wyborem przez SessionHelpers.ChooseTakeProfits.
     /// </summary>
     public sealed class MeanReversionMode : IMode
     {
@@ -24,6 +32,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeKind Kind => ModeKind.MR;
 
+        /// <summary>
+        /// Scoring reżimu MR – używany przez ModeEngine do wyboru trybu.
+        /// </summary>
         public static double Score(SigmaData data, SigmaStrategyOptions options)
         {
             double mr = 0.0;
@@ -33,7 +44,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                            atr <= (double)options.MrAtrMaxPct;
 
             if (!mmAtrOk)
-                return mr;
+                return 0.0;
 
             double adx = data.Adx1h;
             double zDev = data.ZDvwap;
@@ -100,16 +111,15 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 mr += 15.0 * bbwScore;              // 0..15
             }
 
-            // Ograniczenie do [0..100] – dodatkowy safety poza globalnym clampem
             if (mr < 0.0) mr = 0.0;
             if (mr > 100.0) mr = 100.0;
 
-            return Math.Min(Math.Max(mr, 0.0), 100.0);
+            return mr;
         }
 
         public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
         {
-            //None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
+            // Testowy sygnał bez wymagań
             if (enableTestSignal)
                 return new ModeSignal(true, false, ModeTier.None);
 
@@ -121,9 +131,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.MeanReversionShortCandidate = false;
 
             // -----------------------------------------------------------------
-            // 0. Globalne gate’y: spread + ATR dla MR (nie skalujemy ich tierem)
+            // 0. Globalne gate’y: ATR dla MR (spread gate jest globalnie w strategii)
             // -----------------------------------------------------------------
-
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h < (double)_options.MrAtrMinPct ||
                 data.AtrPct1h > (double)_options.MrAtrMaxPct)
@@ -138,7 +147,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             //    - wymagany strict close-back-in + duże wcześniejsze |z|,
             //    - wymagane wsparcie ΔCVD.
             // -----------------------------------------------------------------
-
             var hard = CalculateSignal(
                 data,
                 tier: ModeTier.Hard,
@@ -158,7 +166,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             //    - back-in: strict lub fallback "relaxed",
             //    - wymagane wsparcie ΔCVD.
             // -----------------------------------------------------------------
-
             var medium = CalculateSignal(
                 data,
                 tier: ModeTier.Medium,
@@ -178,7 +185,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             //    - back-in: strict lub fallback "relaxed" z nieco miększymi progami,
             //    - ΔCVD tylko jako informacja (nie blokuje wejść).
             // -----------------------------------------------------------------
-
             var soft = CalculateSignal(
                 data,
                 tier: ModeTier.Soft,
@@ -192,7 +198,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (soft.HasBuy || soft.HasSell)
                 return soft;
 
-            // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;
         }
 
@@ -232,7 +237,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 1. ADX – rynek nie może być w silnym trendzie
             // -----------------------------------------------------------------
-
             double adxMaxBase = (double)_options.AdxDisableMomentum;
             double adxMax = adxMaxBase + adxMaxOffset;
             if (adxMax < 10.0) adxMax = 10.0;
@@ -247,7 +251,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 2. Close-back-in do DVWAP – pattern mean-reversion
             // -----------------------------------------------------------------
-
             double zPrev = data.ZDvwapPrev;
             double zCurr = data.ZDvwap;
 
@@ -320,9 +323,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 3. Momentum / nachylenie – upewniamy się, że to nie jest breakout
             // -----------------------------------------------------------------
-
             double ac = data.AutoCorr5m;
-            bool weakMomentum = !double.IsFinite(ac) || ac <= 0.20;   // brak silnej autokorelacji w przód
+            bool weakMomentum = !double.IsFinite(ac) || ac <= 0.20;   // brak silnej autokorelacji
 
             double slope = data.ZSlopeDvwap;
             bool slopeOkLong = !double.IsFinite(slope) || slope >= -0.5;  // DVWAP nie "pikuje" mocno w dół
@@ -331,7 +333,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 4. Orderflow – CVD i OI
             // -----------------------------------------------------------------
-
             double dcvd = data.DeltaCvd5m;
             bool cvdSupportsLong = !requireCvdSupport || (double.IsFinite(dcvd) && dcvd > 0.0);
             bool cvdSupportsShort = !requireCvdSupport || (double.IsFinite(dcvd) && dcvd < 0.0);
@@ -343,7 +344,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 5. Składanie triggerów long/short
             // -----------------------------------------------------------------
-
             bool longTrigger =
                 backInLong &&
                 weakMomentum &&
@@ -373,10 +373,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 6. Sanity + debug
             // -----------------------------------------------------------------
-
             if (longTrigger && shortTrigger)
             {
-                // Konfilkt – nie otwieramy żadnej strony dla tego tieru
+                // Konflikt – nie otwieramy żadnej strony dla tego tieru
                 return ModeSignal.None;
             }
 
@@ -393,32 +392,59 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return new ModeSignal(longTrigger, shortTrigger, tier);
         }
 
+        /// <summary>
+        /// ENTRY dla mean-reversion:
+        /// - bazą jest DVWAP (jeśli dostępny), w przeciwnym razie refPrice,
+        /// - przesuwamy się o niewielki offset w stronę "value":
+        ///   long: poniżej DVWAP, short: powyżej DVWAP,
+        /// - offset zależy od riskUnit (ATR5m) z capem w bps.
+        /// </summary>
         public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
-            if (!refPrice.HasValue)
+            if (!refPrice.HasValue || refPrice.Value <= 0m)
                 return null;
 
-            decimal baseEntry;
+            decimal basis = data.LastDvwap.HasValue && data.LastDvwap.Value > 0m
+                ? data.LastDvwap.Value
+                : refPrice.Value;
 
-            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
-                baseEntry = data.LastDvwap.Value;
-            else
-                baseEntry = refPrice.Value;
+            if (basis <= 0m)
+                return null;
 
-            // lekkie odchylenie od DVWAP – chcemy mean reversion do DVWAP
+            var riskUnit = SessionHelpers.ComputeRiskUnit(
+                data,
+                basis,
+                _options.RiskFloorPct,
+                _options.RiskCapPct,
+                _options.RiskFallbackPct);
+
+            // offset: min(0.5×riskUnit, 0.3% ceny)
+            decimal offsetMaxPct = 0.3m / 100m; // 30 bps
+            decimal offsetByAtr = riskUnit > 0m ? riskUnit * 0.5m : 0m;
+            decimal offsetByPct = basis * offsetMaxPct;
+            decimal offset = offsetByAtr > 0m ? Math.Min(offsetByAtr, offsetByPct) : offsetByPct;
+
+            if (offset <= 0m)
+                offset = basis * 0.001m; // minimalne 10 bps
+
             decimal entry = side == OrderSide.Buy
-                ? baseEntry * 0.997m
-                : baseEntry * 1.003m;
+                ? basis - offset
+                : basis + offset;
 
             entry = MathHelpers.RoundPrice(symbolInfo.PriceScale, entry);
             return entry > 0m ? entry : null;
         }
 
+        /// <summary>
+        /// SL dla MR:
+        /// - ~1× riskUnit za entry:
+        ///   long: entry - riskUnit, short: entry + riskUnit.
+        /// </summary>
         public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
-            if (!refPrice.HasValue)
+            if (!refPrice.HasValue || refPrice.Value <= 0m)
                 return null;
 
             var riskUnit = SessionHelpers.ComputeRiskUnit(
@@ -427,19 +453,13 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 _options.RiskFloorPct,
                 _options.RiskCapPct,
                 _options.RiskFallbackPct);
+
             if (riskUnit <= 0m)
                 return null;
 
-            decimal baseEntry;
-
-            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
-                baseEntry = data.LastDvwap.Value;
-            else
-                baseEntry = refPrice.Value;
-
             decimal sl = side == OrderSide.Buy
-                ? baseEntry - riskUnit * 0.8m
-                : baseEntry + riskUnit * 0.8m;
+                ? entryPrice - riskUnit
+                : entryPrice + riskUnit;
 
             sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
 
@@ -454,6 +474,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return sl;
         }
 
+        /// <summary>
+        /// TP dla MR:
+        /// - DVWAP jako target mean-reversion,
+        /// - fallback: 1R i 1.5R,
+        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (filtrowanie R i spacing).
+        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
             SymbolInfo symbolInfo,
@@ -467,7 +493,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             var targets = new List<(decimal Price, double RMultiple)>();
 
             // DVWAP jako główny target mean-reversion
-            if (data.LastDvwap.HasValue && data.LastDvwap > 0.0m)
+            if (data.LastDvwap.HasValue && data.LastDvwap.Value > 0.0m)
             {
                 var dvwap = data.LastDvwap.Value;
                 if (side == OrderSide.Buy && dvwap > entryPrice)
@@ -482,11 +508,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 }
             }
 
-            // fallback – czyste R-multiples
+            // Fallback – czyste R-multiples
             if (side == OrderSide.Buy)
             {
                 targets.Add((entryPrice + risk, 1.0));          // 1R
-                targets.Add((entryPrice + 1.5m * risk, 1.5));   // 1.5R
+                targets.Add((entryPrice + 1.5m * risk, 1.5));  // 1.5R
             }
             else
             {
@@ -494,7 +520,33 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 targets.Add((entryPrice - 1.5m * risk, 1.5));
             }
 
-            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+
+            // TP1 – musi być >0 i po właściwej stronie względem entry
+            if (tp1.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp1 = invalid ? null : p;
+            }
+
+            // TP2 – to samo
+            if (tp2.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp2 = invalid ? null : p;
+            }
+
+            return (tp1, tp2);
         }
     }
 }

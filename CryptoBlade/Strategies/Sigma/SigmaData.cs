@@ -66,17 +66,7 @@ namespace CryptoBlade.Strategies.Sigma
         public bool DonchianBreakUp { get; private set; }
         public bool DonchianBreakDown { get; private set; }
         public bool DonchianBreak => DonchianBreakUp || DonchianBreakDown;
-
-        // Breakout OR + retest na 5m (dla BreakoutMode)
-        public bool OrBreakoutRetestUp5m { get; private set; }
-        public bool OrBreakoutRetestDown5m { get; private set; }
-        public double OrRetestDepthBpsUp5m { get; private set; }
-        public double OrRetestDepthBpsDown5m { get; private set; }
-
-        // Sygnały pomocnicze
         public bool Bbw15mExpanding { get; private set; }     // ekspansja BBW vs kilka barów wstecz
-        public decimal? OpeningRangeHigh { get; private set; }
-        public decimal? OpeningRangeLow { get; private set; }
 
         // Korelacja z BTC (NaN = brak)
         public double CorrToBtc15m { get; private set; }      // Pearson r z BTC na 15m
@@ -309,12 +299,6 @@ namespace CryptoBlade.Strategies.Sigma
                 stdDevMultiplier: 2.0,
                 back: 2);
 
-            // Opening Range (np. ORB) z pierwszych 30 minut sesji (na 1m)
-            SessionState.SessionAnchorUtc = anchor;
-            PatternDetectors.EnsureOpeningRangeComputed(q1m, nowUtc, anchor, 30);
-            OpeningRangeHigh = SessionState.OpeningRangeHigh;
-            OpeningRangeLow = SessionState.OpeningRangeLow;
-
             // Inside / NR7 na 5m – lokalna kompresja
             HasInsideOrNr7 = PatternDetectors.HasInsideBarOrNr7Pattern(q5m);
 
@@ -331,18 +315,6 @@ namespace CryptoBlade.Strategies.Sigma
             // Donchian breakout na 15m – pod reżim BO
             (DonchianResult, DonchianBreakUp, DonchianBreakDown) =
                 PatternDetectors.DetectDonchianBreakout(q15m, period: 20);
-
-            // OR breakout + retest na 5m – kluczowy pattern dla BreakoutMode
-            (OrBreakoutRetestUp5m,
-             OrBreakoutRetestDown5m,
-             OrRetestDepthBpsUp5m,
-             OrRetestDepthBpsDown5m) =
-                PatternDetectors.DetectOpeningRangeBreakoutWithRetestOnLastBars(
-                    q5m,
-                    OpeningRangeHigh,
-                    OpeningRangeLow,
-                    breakoutEpsPct: 0.05,
-                    retestDepthPct: 0.15);
 
             // =====================================================================
             // 4. Mikrostruktura (spread, ΔCVD, likwidacje)
@@ -497,9 +469,6 @@ namespace CryptoBlade.Strategies.Sigma
 
             // --- Korelacja BTC ---
             CorrToBtc15m = MathHelpers.ClampFinite(CorrToBtc15m, -1, 1, allowNaN: true);
-
-            OrRetestDepthBpsUp5m = MathHelpers.ClampFinite(OrRetestDepthBpsUp5m, 0, 1e4, allowNaN: true);
-            OrRetestDepthBpsDown5m = MathHelpers.ClampFinite(OrRetestDepthBpsDown5m, 0, 1e4, allowNaN: true);
         }
     }
 }

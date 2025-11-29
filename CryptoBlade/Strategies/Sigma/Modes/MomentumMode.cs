@@ -1,16 +1,20 @@
-﻿using CryptoBlade.Models;
+﻿using System;
+using System.Collections.Generic;
+using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
     /// <summary>
     /// MomentumMode v3 – trigger-only z tierami:
-    /// - reżim Momentum (MM) wybierany jest wcześniej przez ModeEngine na podstawie ATR / spread / globalnych gate'ów,
+    /// - reżim Momentum (MM) wybierany jest wcześniej przez ModeEngine
+    ///   na podstawie ATR / spread / globalnych gate'ów,
     /// - tutaj decydujemy tylko o TRIGGERZE wejścia, w trzech tierach jakości:
     ///   * Soft   – luźniejsze progi trendu/pullbacku, bez wymogu sweepe'a ani CVD flipu,
     ///   * Medium – bazowe progi, wymagany flip CVD, bez twardego wymogu sweepe'a,
     ///   * Hard   – ostrzejsze progi, wymagany sweep + overshoot oraz CVD flip.
-    /// - cała metodologia jest jedna (CalculateSignal), tiery jedynie modulują progi i użyte komponenty patternu.
+    /// - cała metodologia jest jedna (CalculateSignal), tiery jedynie modulują progi
+    ///   i użyte komponenty patternu.
     /// </summary>
     public sealed class MomentumMode : IMode
     {
@@ -23,16 +27,20 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeKind Kind => ModeKind.MM;
 
+        /// <summary>
+        /// Scoring reżimu Momentum – używany przez ModeEngine.
+        /// </summary>
         public static double Score(SigmaData data, SigmaStrategyOptions options)
         {
             double mm = 0.0;
             double atr = data.AtrPct1h;
+
             bool mmAtrOk = double.IsFinite(atr) && atr > 0.0 &&
                            atr >= (double)options.MmAtrMinPct &&
                            atr <= (double)options.MmAtrMaxPct;
 
             if (!mmAtrOk)
-                return mm;
+                return 0.0;
 
             double adx = data.Adx1h;
             double zSlope = data.ZSlopeDvwap;
@@ -104,7 +112,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
         {
-            //None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
+            // Testowy sygnał bez wymagań
             if (enableTestSignal)
                 return new ModeSignal(true, false, ModeTier.None);
 
@@ -115,26 +123,26 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.MomentumLongCandidate = false;
             data.MomentumShortCandidate = false;
 
+            // Globalny gate ATR dla Momentum
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h < (double)_options.MmAtrMinPct ||
                 data.AtrPct1h > (double)_options.MmAtrMaxPct)
             {
-                // Zmienność poza "zdrowym" zakresem dla Momentum.
                 return ModeSignal.None;
             }
 
             // -----------------------------------------------------------------
-            // 1. Hard – najbardziej selektywny tier
+            // 1. Hard – najbardziej selektywny tier:
+            //    - ostrzejsze wymagania na trend/pullback,
+            //    - sweep + overshoot + CVD flip obowiązkowe.
             // -----------------------------------------------------------------
-            // - ostrzejsze wymagania na trend/pullback,
-            // - sweep + overshoot + CVD flip obowiązkowe.
             var hard = CalculateSignal(
                 data,
                 tier: ModeTier.Hard,
-                slopeThresholdOffset: +0.15,   // DVWAP musi być wyraźniej nachylony
-                adxMinOffset: +2.0,     // ADX wyższy niż bazowy próg momentum
-                zDevMinMagOffset: +0.2,     // głębszy pullback od DVWAP
-                overshootOffset: +0.5,     // większy overshoot przy sweepie
+                slopeThresholdOffset: +0.15,   // DVWAP mocniej nachylony
+                adxMinOffset: +2.0,            // ADX wyższy niż bazowy próg momentum
+                zDevMinMagOffset: +0.2,        // głębszy pullback
+                overshootOffset: +0.5,         // większy overshoot przy sweepie
                 useSweep: true,
                 useCvdFlip: true);
 
@@ -142,10 +150,10 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 return hard;
 
             // -----------------------------------------------------------------
-            // 2. Medium – bazowy tier Momentum
+            // 2. Medium – bazowy tier Momentum:
+            //    - progi trendu/pullbacku jak w v2,
+            //    - wymagamy CVD flipu, ale nie wymuszamy sweepe'a.
             // -----------------------------------------------------------------
-            // - progi trendu/pullbacku jak w v2,
-            // - wymagamy CVD flipu, ale nie wymuszamy sweepe'a.
             var medium = CalculateSignal(
                 data,
                 tier: ModeTier.Medium,
@@ -153,17 +161,17 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 adxMinOffset: 0.0,
                 zDevMinMagOffset: 0.0,
                 overshootOffset: null,   // brak wymogu overshootu
-                useSweep: false,  // nie wymagamy sweepe'a
-                useCvdFlip: true);  // ale wymagamy flipu takerów
+                useSweep: false,         // nie wymagamy sweepa
+                useCvdFlip: true);       // ale wymagamy flipu takerów
 
             if (medium.HasBuy || medium.HasSell)
                 return medium;
 
             // -----------------------------------------------------------------
-            // 3. Soft – najluźniejszy tier
+            // 3. Soft – najluźniejszy tier:
+            //    - lekko obniżone progi trendu/pullbacku,
+            //    - brak wymogu sweepe'a i CVD flipu – proto-momentum.
             // -----------------------------------------------------------------
-            // - lekko obniżone progi trendu/pullbacku,
-            // - brak wymogu sweepe'a i CVD flipu – czyste proto-momentum.
             var soft = CalculateSignal(
                 data,
                 tier: ModeTier.Soft,
@@ -177,19 +185,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (soft.HasBuy || soft.HasSell)
                 return soft;
 
-            // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;
         }
 
         /// <summary>
         /// Generyczne liczenie sygnału Momentum dla danego tieru.
-        /// Jeden algorytm, różne progi:
-        /// - slopeThresholdOffset  – korekta bazowego progu nachylenia D-VWAP,
-        /// - adxMinOffset          – korekta minimalnego ADX dla trendu,
-        /// - zDevMinMagOffset      – korekta minimalnego |zDVWAP| dla pullbacku,
-        /// - overshootOffset       – korekta minimalnego overshootu przy sweepie (jeśli useSweep == true),
-        /// - useSweep              – czy wymagamy sweepe'a (Reclaim + ewentualny overshoot),
-        /// - useCvdFlip            – czy wymagamy flipu CVD w stronę setupu.
+        /// Jeden algorytm, różne progi.
         /// </summary>
         private ModeSignal CalculateSignal(
             SigmaData data,
@@ -211,7 +212,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 1) Trend: nachylenie DVWAP + ADX
             // -----------------------------------------------------------------
-
             const double baseSlopeThreshold = 0.5; // bazowo: "wyraźny" trend D-VWAP
             double slopeThreshold = baseSlopeThreshold + slopeThresholdOffset;
             if (slopeThreshold < 0.2) slopeThreshold = 0.2;
@@ -230,7 +230,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 2) Pullback do DVWAP – jak daleko od "value" chcemy wejść
             // -----------------------------------------------------------------
-
             const double baseZDevMinMag = 0.5; // bazowo: 0.5 sigma od DVWAP
             double zDevMinMag = baseZDevMinMag + zDevMinMagOffset;
             if (zDevMinMag < 0.2) zDevMinMag = 0.2;
@@ -242,7 +241,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 3) Flow wspierający kontynuację (AC + OI)
             // -----------------------------------------------------------------
-
             const double acMin = -0.10;
             bool acSupportsTrend = !double.IsFinite(ac) || ac >= acMin;
 
@@ -269,7 +267,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 4) Pattern: sweep -> reclaim + CVD flip (opcjonalnie)
             // -----------------------------------------------------------------
-
             bool patternLongOk = true;
             bool patternShortOk = true;
 
@@ -302,9 +299,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 patternShortOk &= cvdFlipShort;
             }
 
-            // jeśli wyłączyliśmy oba (useSweep == false && useCvdFlip == false),
-            // patternLongOk / patternShortOk pozostają true i nie filtrują proto-momentum.
-
             bool buy =
                 protoLong &&
                 patternLongOk;
@@ -316,7 +310,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 5) Sanity + debug
             // -----------------------------------------------------------------
-
             if (buy && sell)
             {
                 // konflikt – nie otwieramy w żadną stronę dla tego tieru
@@ -336,6 +329,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return new ModeSignal(buy, sell, tier);
         }
 
+        /// <summary>
+        /// ENTRY: 50% pullback 1/5m w kierunku trendu.
+        /// - long: wejście poniżej refPrice (po częściowej korekcie w dół),
+        /// - short: wejście powyżej refPrice (po częściowej korekcie w górę).
+        /// </summary>
         public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
@@ -353,7 +351,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 if (pullbackRange <= 0m)
                     return null;
 
-                // klasyczny momentum: wejście w połowie korekty
                 entry = refPrice.Value - 0.5m * pullbackRange;
                 if (entry >= refPrice.Value)
                     return null;
@@ -373,6 +370,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return entry > 0m ? entry : null;
         }
 
+        /// <summary>
+        /// SL: wyjście za lokalny swing (5m/1m) plus riskUnit z ATR5m.
+        /// </summary>
         public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
@@ -410,6 +410,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return sl > 0m ? sl : null;
         }
 
+        /// <summary>
+        /// TP dla Momentum:
+        /// - bazowe 1R / 2R w kierunku momentum,
+        /// - Donchian 15m jako extension target,
+        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (R-okno i spacing).
+        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
             SymbolInfo symbolInfo,
@@ -422,7 +428,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             var targets = new List<(decimal Price, double RMultiple)>();
 
-            // bazowe 1R / 2R w kierunku momentum
+            // Bazowe 1R / 2R w kierunku momentum
             if (side == OrderSide.Buy)
             {
                 targets.Add((entryPrice + risk, 1.0));
@@ -437,19 +443,45 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // Donchian 15m jako naturalny pivot trendowy
             if (data.DonchianResult is { } don)
             {
-                if (side == OrderSide.Buy && don.UpperBand > entryPrice)
+                if (side == OrderSide.Buy && don.UpperBand.HasValue && don.UpperBand.Value > entryPrice)
                 {
-                    var r = (double)((don.UpperBand - entryPrice) / risk);
+                    var r = (double)((don.UpperBand.Value - entryPrice) / risk);
                     targets.Add((don.UpperBand.Value, r));
                 }
-                else if (side == OrderSide.Sell && don.LowerBand < entryPrice)
+                else if (side == OrderSide.Sell && don.LowerBand.HasValue && don.LowerBand.Value < entryPrice)
                 {
-                    var r = (double)((entryPrice - don.LowerBand) / risk);
+                    var r = (double)((entryPrice - don.LowerBand.Value) / risk);
                     targets.Add((don.LowerBand.Value, r));
                 }
             }
 
-            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+
+            // TP1 – musi być >0 i po właściwej stronie względem entry
+            if (tp1.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp1 = invalid ? null : p;
+            }
+
+            // TP2 – to samo
+            if (tp2.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp2 = invalid ? null : p;
+            }
+
+            return (tp1, tp2);
         }
     }
 }

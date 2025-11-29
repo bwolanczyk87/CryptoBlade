@@ -303,14 +303,6 @@ namespace CryptoBlade.Strategies.Sigma.Audit
                 DonchianUpper15m = data.DonchianResult?.UpperBand,
                 DonchianLower15m = data.DonchianResult?.LowerBand,
 
-                OpeningRangeHigh = data.OpeningRangeHigh,
-                OpeningRangeLow = data.OpeningRangeLow,
-
-                OrBreakoutRetestUp5m = data.OrBreakoutRetestUp5m,
-                OrBreakoutRetestDown5m = data.OrBreakoutRetestDown5m,
-                OrRetestDepthBpsUp5m = data.OrRetestDepthBpsUp5m,
-                OrRetestDepthBpsDown5m = data.OrRetestDepthBpsDown5m,
-
                 SweepReclaimUp5m = data.SweepReclaimUp5m,
                 SweepReclaimDown5m = data.SweepReclaimDown5m,
                 SweepUpOvershootBps5m = data.SweepUpOvershootBps5m,

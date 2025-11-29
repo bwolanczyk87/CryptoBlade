@@ -1,23 +1,49 @@
-﻿using CryptoBlade.Models;
+﻿using System;
+using System.Collections.Generic;
+using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
 
 namespace CryptoBlade.Strategies.Sigma.Modes
 {
-    public sealed class BreakoutMode(SigmaStrategyOptions options) : IMode
+    /// <summary>
+    /// BreakoutMode v3 – lokalny breakout z kompresji, bez Opening Range.
+    ///
+    /// Założenia:
+    /// - Reżim BO wybierany przez ModeEngine na podstawie ATR / spread.
+    /// - Tutaj decydujemy tylko o TRIGGERZE wejścia (Hard / Medium / Soft)
+    ///   oraz o ENTRY/SL/TP dla sygnałów breakoutowych.
+    /// - Breakout jest zdefiniowany lokalnie:
+    ///   * kompresja na 5m (inside/NR7),
+    ///   * wybicie Donchianem (15m) w górę lub dół,
+    ///   * wsparcie orderflow (ΔOI_1h, ΔCVD_5m).
+    /// - ENTRY jest limitem na pullbacku względem ostatniej świecy 5m/1m,
+    ///   SL oparty na lokalnym swing high/low ± ATR (ComputeRiskUnit),
+    ///   TP dobierane z 1–2R + pasm Donchiana.
+    /// </summary>
+    public sealed class BreakoutMode : IMode
     {
-        private readonly SigmaStrategyOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+        private readonly SigmaStrategyOptions _options;
+
+        public BreakoutMode(SigmaStrategyOptions options)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+        }
 
         public ModeKind Kind => ModeKind.BO;
 
+        /// <summary>
+        /// Scoring reżimu BO – używany przez ModeEngine do wyboru trybu.
+        /// </summary>
         public static double Score(SigmaData data, SigmaStrategyOptions options)
         {
             double bo = 0.0;
             double atr = data.AtrPct1h;
-            bool mmAtrOk = double.IsFinite(atr) && atr > 0.0 &&
-                           atr <= (double)options.BoAtrMaxPct;
 
-            if (!mmAtrOk)
-                return bo;
+            bool atrOk = double.IsFinite(atr) && atr > 0.0 &&
+                         atr <= (double)options.BoAtrMaxPct;
+
+            if (!atrOk)
+                return 0.0;
 
             double bbwP = data.Bbw15mPct;
             double zSlope = data.ZSlopeDvwap;
@@ -36,7 +62,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // 2) ATR – breakout lubi wyższe ATR, ale z limitem (0..15)
             if (double.IsFinite(atr))
             {
-                // brak dolnego progu – rosnący score do BoAtrMaxPct
                 double atrNorm = MathHelpers.Normalize01(
                     atr,
                     0.0,
@@ -49,7 +74,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // 3) Absolutny slope DVWAP – siła jednokierunkowego ruchu (0..25)
             if (double.IsFinite(zSlope))
             {
-                // 4 sigma nachylenia → pełna premia
                 double slopeMag = Math.Min(Math.Abs(zSlope) / 4.0, 1.0);
                 bo += 25.0 * slopeMag;              // 0..25
             }
@@ -57,9 +81,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // 4) ΔOI>0 – napływ kapitału na wybiciu (0..10)
             if (double.IsFinite(oi) && oi > 0.0)
             {
-                // saturacja przy ~10% zmiany OI
-                double oiMag = Math.Min(oi / 10.0, 1.0);
-                bo += 10.0 * oiMag;                 // 0..10
+                double oiMag = Math.Min(oi / 10.0, 1.0); // ~10% OI -> full
+                bo += 10.0 * oiMag;                     // 0..10
             }
 
             // 5) Dodatnia autokorelacja – kontynuacja po wybiciu (0..10)
@@ -74,7 +97,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
         public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
         {
-            //None – testoswy sygnał bez żadnych wymagań (do testów i debugu)
+            // Testowy sygnał bez wymagań
             if (enableTestSignal)
                 return new ModeSignal(true, false, ModeTier.None);
 
@@ -85,30 +108,25 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             data.BreakoutLongCandidate = false;
             data.BreakoutShortCandidate = false;
 
+            // Globalny gate ATR dla BO – bardzo wysokie ATR blokują tryb
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h > (double)_options.BoAtrMaxPct)
             {
-                // Zbyt duża zmienność dzienna – BO z retestem jest niebezpieczne.
                 return ModeSignal.None;
             }
 
             // -----------------------------------------------------------------
             // 1. Hard – najbardziej selektywny tier:
-            //    - BBW powyżej bazowego progu,
+            //    - BBW powyżej bazowego progu +5,
             //    - wymagamy BBW expanding,
-            //    - NIE dopuszczamy Donchian bez OR+retest,
-            //    - wymagamy silnego retestu (głębokość 3–50 bps),
+            //    - wymagamy kompresji inside/NR7,
             //    - wymagamy OI + CVD w stronę wybicia (trend lub flush).
             // -----------------------------------------------------------------
-
             var hard = CalculateSignal(
                 data,
                 tier: ModeTier.Hard,
-                bbwMinOffset: +5.0,   // np. 35-percentyl jeśli baza to 30
+                bbwMinOffset: +5.0,
                 requireBbwExpanding: true,
-                allowDonchianFallback: false,
-                strongRetestDepthMinOffset: 0.0,   // 3 bps
-                strongRetestDepthMaxOffset: 0.0,   // 50 bps
                 oiThresholdOffset: +0.3,   // OI próg ~0.8
                 requireCvd: true,
                 allowFlush: true);
@@ -120,19 +138,14 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // 2. Medium – bazowy tier BO:
             //    - BBW wg bazowego progu,
             //    - wymagamy BBW expanding,
-            //    - dopuszczamy Donchian jako fallback,
-            //    - nie wymagamy silnego retestu (wystarczy OR+retest lub Donchian),
+            //    - wymagamy kompresji inside/NR7,
             //    - wymagamy OI + CVD w stronę wybicia (trend lub flush).
             // -----------------------------------------------------------------
-
             var medium = CalculateSignal(
                 data,
                 tier: ModeTier.Medium,
                 bbwMinOffset: 0.0,
                 requireBbwExpanding: true,
-                allowDonchianFallback: true,
-                strongRetestDepthMinOffset: null,
-                strongRetestDepthMaxOffset: null,
                 oiThresholdOffset: 0.0,   // OI próg ~0.5
                 requireCvd: true,
                 allowFlush: true);
@@ -143,20 +156,15 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 3. Soft – najluźniejszy tier:
             //    - BBW lekko poniżej bazowego progu (ale nadal sensowne),
-            //    - wymagamy BBW expanding (nie łapiemy totalnej flauty),
-            //    - dopuszczamy Donchian jako fallback,
-            //    - bez wymogu silnego retestu,
-            //    - OI musi wspierać breakout, CVD tylko jako dodatkowy plus (nie blokuje wejść).
+            //    - wymagamy BBW expanding,
+            //    - kompresja optional (łapiemy też wybicia z luźniejszych range'y),
+            //    - OI musi wspierać breakout, CVD tylko jako dodatkowy plus.
             // -----------------------------------------------------------------
-
             var soft = CalculateSignal(
                 data,
                 tier: ModeTier.Soft,
-                bbwMinOffset: -5.0,   // np. 25-percentyl, ale clamped
+                bbwMinOffset: -5.0,
                 requireBbwExpanding: true,
-                allowDonchianFallback: true,
-                strongRetestDepthMinOffset: null,
-                strongRetestDepthMaxOffset: null,
                 oiThresholdOffset: -0.2,   // OI próg ~0.3
                 requireCvd: false,
                 allowFlush: true);
@@ -164,7 +172,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (soft.HasBuy || soft.HasSell)
                 return soft;
 
-            // Brak sygnału w którymkolwiek tierze
             return ModeSignal.None;
         }
 
@@ -173,9 +180,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             ModeTier tier,
             double bbwMinOffset,
             bool requireBbwExpanding,
-            bool allowDonchianFallback,
-            double? strongRetestDepthMinOffset,
-            double? strongRetestDepthMaxOffset,
             double oiThresholdOffset,
             bool requireCvd,
             bool allowFlush)
@@ -183,7 +187,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             // -----------------------------------------------------------------
             // 1. Środowisko breakoutowe: BBWidth + inside/NR7/Donchian
             // -----------------------------------------------------------------
-
             double bbwPct = data.Bbw15mPct;
             bool bbwFinite = double.IsFinite(bbwPct);
 
@@ -192,102 +195,60 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (bbwMin < 5.0) bbwMin = 5.0;
             if (bbwMin > 90.0) bbwMin = 90.0;
 
-            bool bbwEnough =
-                bbwFinite &&
-                bbwPct >= bbwMin;
+            bool bbwEnough = bbwFinite && bbwPct >= bbwMin;
 
             bool bbwExploding =
                 !requireBbwExpanding ||
                 (bbwFinite && data.Bbw15mExpanding);
 
+            // Kompresja: ostatnia świeca 5m jako inside/NR7
+            bool hasCompression = data.HasInsideOrNr7;
+
+            // Dla Hard/Medium wymagamy kompresji, dla Soft traktujemy ją jako plus,
+            // ale nie twardy warunek (tier soft ma łapać szersze range'y).
+            bool compressionRequired = tier is ModeTier.Hard or ModeTier.Medium;
+
             bool preCompression =
-                data.HasInsideOrNr7 || data.DonchianBreak;
+                !compressionRequired ||
+                hasCompression ||
+                data.DonchianBreak; // fallback: breakout z lokalnego range'u nawet bez idealnej inside/NR7
 
             bool envOk = bbwEnough && bbwExploding && preCompression;
 
             if (!envOk)
             {
-                // Brak środowiska breakoutowego – nie szukamy BO.
                 return ModeSignal.None;
             }
 
             // -----------------------------------------------------------------
-            // 2. Struktura: OR breakout + retest / Donchian breakout
+            // 2. Struktura: Donchian breakout w górę / dół
             // -----------------------------------------------------------------
-
-            bool orRetestUp = data.OrBreakoutRetestUp5m;
-            bool orRetestDown = data.OrBreakoutRetestDown5m;
-
             bool donchianUp = data.DonchianBreakUp;
             bool donchianDown = data.DonchianBreakDown;
 
-            bool structureUp = orRetestUp;
-            bool structureDown = orRetestDown;
+            // Hard/Medium: wymagamy jednocześnie kompresji 5m i wybicia Donchian
+            // Soft: wystarczy sam Donchian breakout.
+            bool structureUp =
+                donchianUp &&
+                (!compressionRequired || hasCompression);
 
-            if (allowDonchianFallback)
-            {
-                structureUp |= (!orRetestDown && donchianUp);
-                structureDown |= (!orRetestUp && donchianDown);
-            }
+            bool structureDown =
+                donchianDown &&
+                (!compressionRequired || hasCompression);
 
             if (!structureUp && !structureDown)
             {
-                // Ani OR breakout+retest, ani Donchian – brak triggera strukturalnego.
                 return ModeSignal.None;
             }
 
-            // -----------------------------------------------------------------
-            // 3. Silny retest (opcjonalnie, dla A+ / Hard)
-            // -----------------------------------------------------------------
-
-            if (strongRetestDepthMinOffset is not null || strongRetestDepthMaxOffset is not null)
-            {
-                double depthUp = data.OrRetestDepthBpsUp5m;
-                double depthDown = data.OrRetestDepthBpsDown5m;
-
-                const double baseDepthMin = 3.0;
-                const double baseDepthMax = 50.0;
-
-                double depthMin = baseDepthMin + (strongRetestDepthMinOffset ?? 0.0);
-                double depthMax = baseDepthMax + (strongRetestDepthMaxOffset ?? 0.0);
-
-                if (depthMin < 1.0) depthMin = 1.0;
-                if (depthMax < depthMin + 1.0) depthMax = depthMin + 1.0;
-                if (depthMax > 80.0) depthMax = 80.0;
-
-                if (structureUp)
-                {
-                    bool ok =
-                        orRetestUp &&
-                        double.IsFinite(depthUp) &&
-                        depthUp >= depthMin &&
-                        depthUp <= depthMax;
-
-                    structureUp = ok;
-                }
-
-                if (structureDown)
-                {
-                    bool ok =
-                        orRetestDown &&
-                        double.IsFinite(depthDown) &&
-                        depthDown >= depthMin &&
-                        depthDown <= depthMax;
-
-                    structureDown = ok;
-                }
-
-                if (!structureUp && !structureDown)
-                {
-                    // Zostaliśmy bez żadnej strony po narzuceniu wymogu strong retestu.
-                    return ModeSignal.None;
-                }
-            }
+            // Dodatkowy sanity check: BB musi faktycznie się rozszerzać,
+            // niezależnie od requireBbwExpanding (szczególnie istotne dla Soft).
+            if (!data.Bbw15mExpanding)
+                return ModeSignal.None;
 
             // -----------------------------------------------------------------
-            // 4. Flow: ΔOI_1h, ΔCVD_5m
+            // 3. Flow: ΔOI_1h, ΔCVD_5m
             // -----------------------------------------------------------------
-
             double oi = data.OiDelta1hPct;
             double cvd = data.DeltaCvd5m;
 
@@ -306,9 +267,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             if (requireCvd)
             {
-                // v2-style:
-                // - trend: OI↑ + CVD w stronę wybicia,
-                // - flush: OI↓ + CVD w stronę wybicia (kapitulacja)
+                // trend: OI↑ + CVD w stronę wybicia,
+                // flush: OI↓ + CVD w stronę wybicia (kapitulacja)
                 bool trendLongFlow = oiUp && cvdUp;
                 bool trendShortFlow = oiUp && cvdDown;
 
@@ -327,14 +287,12 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             if (!longFlowOk && !shortFlowOk)
             {
-                // Flow nie wspiera wybicia w żadną stronę
                 return ModeSignal.None;
             }
 
             // -----------------------------------------------------------------
-            // 5. Składanie triggerów long/short
+            // 4. Składanie triggerów long/short
             // -----------------------------------------------------------------
-
             bool longTrigger =
                 structureUp &&
                 longFlowOk;
@@ -344,9 +302,8 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 shortFlowOk;
 
             // -----------------------------------------------------------------
-            // 6. Sanity + debug
+            // 5. Sanity + debug
             // -----------------------------------------------------------------
-
             if (longTrigger && shortTrigger)
             {
                 // Konflikt – nie otwieramy pozycji w żadną stronę dla tego tieru
@@ -355,7 +312,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             if (!longTrigger && !shortTrigger)
             {
-                // Brak sygnału dla tego tieru
                 return ModeSignal.None;
             }
 
@@ -366,90 +322,98 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return new ModeSignal(longTrigger, shortTrigger, tier);
         }
 
+        /// <summary>
+        /// Entry price dla breakoutów: limit na pullbacku względem ostatniego
+        /// ruchu 5m/1m, tak aby:
+        /// - dla long wejść poniżej bieżącej ceny (po częściowym cofnięciu),
+        /// - dla short wejść powyżej bieżącej ceny.
+        /// </summary>
         public decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
-            if (!refPrice.HasValue)
+            if (!refPrice.HasValue || refPrice.Value <= 0m)
                 return null;
+
+            decimal basis = refPrice.Value;
+
+            decimal lo = data.Last5mLow
+                         ?? data.Last1mLow
+                         ?? basis;
+
+            decimal hi = data.Last5mHigh
+                         ?? data.Last1mHigh
+                         ?? basis;
 
             decimal entry;
 
-            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
+            if (side == OrderSide.Buy)
             {
-                // klasyczny retest OR
-                entry = side == OrderSide.Buy
-                    ? data.OpeningRangeHigh.Value
-                    : data.OpeningRangeLow.Value;
+                // Pullback z góry w dół: 50% cofnięcia od basis do lokalnego low.
+                var pullbackRange = basis - lo;
+                if (pullbackRange <= 0m)
+                    return null;
+
+                entry = basis - 0.5m * pullbackRange;
+                if (entry >= basis)
+                    return null;
             }
             else
             {
-                // fallback – ta sama geometria co momentum (pullback)
-                decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
-                decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
+                // Pullback z dołu w górę: 50% cofnięcia od basis do lokalnego high.
+                var pullbackRange = hi - basis;
+                if (pullbackRange <= 0m)
+                    return null;
 
-                if (side == OrderSide.Buy)
-                {
-                    var pullbackRange = refPrice.Value - lo;
-                    if (pullbackRange <= 0m)
-                        return null;
-
-                    entry = refPrice.Value - 0.5m * pullbackRange;
-                    if (entry >= refPrice.Value)
-                        return null;
-                }
-                else
-                {
-                    var pullbackRange = hi - refPrice.Value;
-                    if (pullbackRange <= 0m)
-                        return null;
-
-                    entry = refPrice.Value + 0.5m * pullbackRange;
-                    if (entry <= refPrice.Value)
-                        return null;
-                }
+                entry = basis + 0.5m * pullbackRange;
+                if (entry <= basis)
+                    return null;
             }
 
             entry = MathHelpers.RoundPrice(symbolInfo.PriceScale, entry);
-            return entry > 0m ? entry : null;
+            return entry > 0m ? entry : (decimal?)null;
         }
 
+        /// <summary>
+        /// Stop-loss dla breakoutów:
+        /// - długie: lokalny swing low (5m/1m) - riskUnit,
+        /// - krótkie: lokalny swing high (5m/1m) + riskUnit.
+        /// riskUnit pochodzi z ATR5m z podłogą/capem (SessionHelpers.ComputeRiskUnit).
+        /// </summary>
         public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
-            if (!refPrice.HasValue)
+            if (!refPrice.HasValue || refPrice.Value <= 0m)
                 return null;
 
-            var riskUnit = SessionHelpers.ComputeRiskUnit(data, refPrice.Value, _options.RiskFloorPct, _options.RiskCapPct, _options.RiskFallbackPct);
+            var riskUnit = SessionHelpers.ComputeRiskUnit(
+                data,
+                refPrice.Value,
+                _options.RiskFloorPct,
+                _options.RiskCapPct,
+                _options.RiskFallbackPct);
+
             if (riskUnit <= 0m)
                 return null;
 
+            decimal basis = refPrice.Value;
+
+            decimal lo = data.Last5mLow
+                         ?? data.Last1mLow
+                         ?? basis;
+
+            decimal hi = data.Last5mHigh
+                         ?? data.Last1mHigh
+                         ?? basis;
+
             decimal sl;
 
-            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
+            if (side == OrderSide.Buy)
             {
-                var orHigh = data.OpeningRangeHigh.Value;
-                var orLow = data.OpeningRangeLow.Value;
-                var orRange = orHigh - orLow;
-                if (orRange <= 0m)
-                    return null;
-
-                var margin = Math.Max(riskUnit * 0.5m, orRange * 0.2m);
-
-                if (side == OrderSide.Buy)
-                    sl = orLow - margin;
-                else
-                    sl = orHigh + margin;
+                sl = lo - riskUnit;
             }
             else
             {
-                // fallback – jak momentum
-                decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
-                decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
-
-                if (side == OrderSide.Buy)
-                    sl = lo - riskUnit;
-                else
-                    sl = hi + riskUnit;
+                sl = hi + riskUnit;
             }
 
             sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
@@ -459,12 +423,18 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             if (side == OrderSide.Buy && sl >= entryPrice)
                 return null;
+
             if (side == OrderSide.Sell && sl <= entryPrice)
                 return null;
 
             return sl;
         }
 
+        /// <summary>
+        /// Take-profit dla breakoutów:
+        /// - kandydaci: 1R, 2R, oraz pasmo Donchiana po stronie wybicia,
+        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (filtr R i spacing).
+        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
             SymbolInfo symbolInfo,
@@ -477,40 +447,22 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             var targets = new List<(decimal Price, double RMultiple)>();
 
-            // Opening range jako naturalny target wybicia
-            if (data.OpeningRangeHigh.HasValue && data.OpeningRangeLow.HasValue)
-            {
-                var orHigh = data.OpeningRangeHigh.Value;
-                var orLow = data.OpeningRangeLow.Value;
-
-                if (side == OrderSide.Buy && orHigh > entryPrice)
-                {
-                    var r = (double)((orHigh - entryPrice) / risk);
-                    targets.Add((orHigh, r));
-                }
-                else if (side == OrderSide.Sell && orLow < entryPrice)
-                {
-                    var r = (double)((entryPrice - orLow) / risk);
-                    targets.Add((orLow, r));
-                }
-            }
-
-            // Donchian jako extension target po wybiciu
+            // Donchian jako naturalny extension target po wybiciu
             if (data.DonchianResult is { } don)
             {
-                if (side == OrderSide.Buy && don.UpperBand > entryPrice)
+                if (side == OrderSide.Buy && don.UpperBand.HasValue && don.UpperBand.Value > entryPrice)
                 {
-                    var r = (double)((don.UpperBand - entryPrice) / risk);
+                    var r = (double)((don.UpperBand.Value - entryPrice) / risk);
                     targets.Add((don.UpperBand.Value, r));
                 }
-                else if (side == OrderSide.Sell && don.LowerBand < entryPrice)
+                else if (side == OrderSide.Sell && don.LowerBand.HasValue && don.LowerBand.Value < entryPrice)
                 {
-                    var r = (double)((entryPrice - don.LowerBand) / risk);
+                    var r = (double)((entryPrice - don.LowerBand.Value) / risk);
                     targets.Add((don.LowerBand.Value, r));
                 }
             }
 
-            // bazowe 1R / 2R dla breakout
+            // Bazowe 1R / 2R dla breakout
             if (side == OrderSide.Buy)
             {
                 targets.Add((entryPrice + risk, 1.0));
@@ -522,7 +474,33 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 targets.Add((entryPrice - 2m * risk, 2.0));
             }
 
-            return SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+
+            // TP1 – musi być >0 i po właściwej stronie względem entry
+            if (tp1.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp1 = invalid ? null : p;
+            }
+
+            // TP2 – to samo
+            if (tp2.HasValue)
+            {
+                var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
+                bool invalid =
+                    p <= 0m ||
+                    (side == OrderSide.Buy && p <= entryPrice) ||
+                    (side == OrderSide.Sell && p >= entryPrice);
+
+                tp2 = invalid ? null : p;
+            }
+
+            return (tp1, tp2);
         }
     }
 }
