@@ -391,23 +391,45 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
             decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
 
+            // Domyślnie 1×ATR5m za lokalnym swingiem.
+            // Dla Hard + sweep zaciskamy bufor ATR, żeby SL lepiej odzwierciedlał pattern sweep→reclaim.
+            var tier = (ModeTier)data.MomentumEntryTier;
+
+            decimal atrMultiplier = 1.0m;
+
+            if (tier == ModeTier.Hard)
+            {
+                bool hasSweepLong = data.SweepReclaimDown5m;
+                bool hasSweepShort = data.SweepReclaimUp5m;
+
+                if ((side == OrderSide.Buy && hasSweepLong) ||
+                    (side == OrderSide.Sell && hasSweepShort))
+                {
+                    atrMultiplier = 0.4m;
+                }
+            }
+
             decimal sl;
 
             if (side == OrderSide.Buy)
             {
-                sl = lo - riskUnit;
+                sl = lo - atrMultiplier * riskUnit;
                 if (sl >= entryPrice)
+                    return null;
+            }
+            else if (side == OrderSide.Sell)
+            {
+                sl = hi + atrMultiplier * riskUnit;
+                if (sl <= entryPrice)
                     return null;
             }
             else
             {
-                sl = hi + riskUnit;
-                if (sl <= entryPrice)
-                    return null;
+                return null;
             }
 
             sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
-            return sl > 0m ? sl : null;
+            return sl > 0m ? sl : (decimal?)null;
         }
 
         /// <summary>

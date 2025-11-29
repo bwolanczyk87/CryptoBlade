@@ -373,12 +373,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return entry > 0m ? entry : (decimal?)null;
         }
 
-        /// <summary>
-        /// Stop-loss dla breakoutów:
-        /// - długie: lokalny swing low (5m/1m) - riskUnit,
-        /// - krótkie: lokalny swing high (5m/1m) + riskUnit.
-        /// riskUnit pochodzi z ATR5m z podłogą/capem (SessionHelpers.ComputeRiskUnit).
-        /// </summary>
         public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
@@ -405,15 +399,29 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                          ?? data.Last1mHigh
                          ?? basis;
 
+            // Domyślnie 1×ATR5m za lokalnym zakresem.
+            // Dla twardszych tierów (Medium/Hard) zaciskamy bufor ATR.
+            var tier = (ModeTier)data.BreakoutEntryTier;
+
+            decimal atrMultiplier = 1.0m;
+            if (tier == ModeTier.Hard)
+                atrMultiplier = 0.5m;
+            else if (tier == ModeTier.Medium)
+                atrMultiplier = 0.75m;
+
             decimal sl;
 
             if (side == OrderSide.Buy)
             {
-                sl = lo - riskUnit;
+                sl = lo - atrMultiplier * riskUnit;
+            }
+            else if (side == OrderSide.Sell)
+            {
+                sl = hi + atrMultiplier * riskUnit;
             }
             else
             {
-                sl = hi + riskUnit;
+                return null;
             }
 
             sl = MathHelpers.RoundPrice(symbolInfo.PriceScale, sl);
@@ -421,14 +429,15 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             if (sl <= 0m)
                 return null;
 
+            // sanity: SL musi leżeć po właściwej stronie względem entry
             if (side == OrderSide.Buy && sl >= entryPrice)
                 return null;
-
             if (side == OrderSide.Sell && sl <= entryPrice)
                 return null;
 
             return sl;
         }
+
 
         /// <summary>
         /// Take-profit dla breakoutów:

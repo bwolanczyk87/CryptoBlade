@@ -78,23 +78,46 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
         }
 
         public static (decimal? Tp1, decimal? Tp2) ChooseTakeProfits(
-            IReadOnlyList<(decimal Price, double RMultiple)> targets, OrderSide side, decimal entryPrice, decimal priceScale)
+    System.Collections.Generic.IReadOnlyList<(decimal Price, double RMultiple)> targets,
+    OrderSide side,
+    decimal entryPrice,
+    decimal priceScale)
+        {
+            // Domyślne okno R dla trybów, które nie potrzebują osobnych progów.
+            const double defaultMinR = 0.6;
+            const double defaultMaxR = 3.0;
+            const double defaultMinSpacing = 0.3;
+
+            return ChooseTakeProfits(
+                targets,
+                side,
+                entryPrice,
+                priceScale,
+                defaultMinR,
+                defaultMaxR,
+                defaultMinSpacing);
+        }
+
+        /// <summary>
+        /// Wybór TP1/TP2 na podstawie listy kandydatów (Price, RMultiple).
+        /// Parametry minR / maxR / minSpacing są podawane per-tryb (MM/MR/BO),
+        /// tak aby dopasować okno zysku do charakteru reżimu.
+        /// </summary>
+        public static (decimal? Tp1, decimal? Tp2) ChooseTakeProfits(
+            System.Collections.Generic.IReadOnlyList<(decimal Price, double RMultiple)> targets,
+            OrderSide side,
+            decimal entryPrice,
+            decimal priceScale,
+            double minR,
+            double maxR,
+            double minSpacing)
         {
             if (targets == null || targets.Count == 0)
                 return (null, null);
 
-            const double minR = 0.6;
-            const double maxR = 3.0;
-
             bool IsValid((decimal Price, double RMultiple) t)
             {
                 if (t.Price <= 0m)
-                    return false;
-
-                if (side == OrderSide.Buy && t.Price <= entryPrice)
-                    return false;
-
-                if (side == OrderSide.Sell && t.Price >= entryPrice)
                     return false;
 
                 if (!double.IsFinite(t.RMultiple))
@@ -103,43 +126,88 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
                 if (t.RMultiple < minR || t.RMultiple > maxR)
                     return false;
 
-                return true;
+                return side switch
+                {
+                    OrderSide.Buy => t.Price > entryPrice,
+                    OrderSide.Sell => t.Price < entryPrice,
+                    _ => false
+                };
             }
 
-            var valid = targets
-                .Where(IsValid)
-                .OrderBy(t => t.RMultiple)
-                .ToArray();
+            // Filtrowanie po stronie / oknie R
+            var buffer = new System.Collections.Generic.List<(decimal Price, double RMultiple)>(targets.Count);
+            foreach (var t in targets)
+            {
+                if (IsValid(t))
+                    buffer.Add(t);
+            }
 
-            if (valid.Length == 0)
+            if (buffer.Count == 0)
                 return (null, null);
 
-            decimal tp1 = valid[0].Price;
-            decimal? tp2 = null;
-            const double minSpacing = 0.3;
+            // Sortujemy rosnąco po RMultiple
+            buffer.Sort((a, b) => a.RMultiple.CompareTo(b.RMultiple));
 
-            for (int i = valid.Length - 1; i >= 0; i--)
-            {
-                var (Price, RMultiple) = valid[i];
-                if (RMultiple - valid[0].RMultiple >= minSpacing)
-                {
-                    tp2 = Price;
-                    break;
-                }
-            }
-
-            if (tp2 is null && valid.Length >= 2)
-                tp2 = valid[^1].Price;
-
-            tp1 = MathHelpers.RoundPrice(priceScale, tp1);
-            if (tp2.HasValue)
-                tp2 = MathHelpers.RoundPrice(priceScale, tp2.Value);
+            var tp1Candidate = buffer[0];
+            decimal tp1 = MathHelpers.RoundPrice(priceScale, tp1Candidate.Price);
 
             if (tp1 <= 0m)
                 return (null, null);
 
+            // Po zaokrągleniu jeszcze raz upewniamy się, że TP1 leży po dobrej stronie
+            if (side == OrderSide.Buy && tp1 <= entryPrice)
+                return (null, null);
+            if (side == OrderSide.Sell && tp1 >= entryPrice)
+                return (null, null);
+
+            decimal? tp2 = null;
+
+            if (buffer.Count >= 2)
+            {
+                // Szukamy TP2 możliwie najdalej, ale zachowując minimalny odstęp w R
+                for (int i = buffer.Count - 1; i >= 1; i--)
+                {
+                    var candidate = buffer[i];
+                    if (candidate.RMultiple - tp1Candidate.RMultiple >= minSpacing)
+                    {
+                        var p = MathHelpers.RoundPrice(priceScale, candidate.Price);
+                        if (p > 0m)
+                        {
+                            // Po zaokrągleniu kontrolujemy stronę względem entry
+                            if (side == OrderSide.Buy && p > entryPrice)
+                            {
+                                tp2 = p;
+                                break;
+                            }
+
+                            if (side == OrderSide.Sell && p < entryPrice)
+                            {
+                                tp2 = p;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Fallback – jeżeli nie znaleźliśmy kandydata spełniającego minSpacing,
+                // bierzemy po prostu najdalszy sensowny target.
+                if (tp2 is null)
+                {
+                    var last = buffer[^1];
+                    var p = MathHelpers.RoundPrice(priceScale, last.Price);
+                    if (p > 0m)
+                    {
+                        if (side == OrderSide.Buy && p > entryPrice)
+                            tp2 = p;
+                        else if (side == OrderSide.Sell && p < entryPrice)
+                            tp2 = p;
+                    }
+                }
+            }
+
             return (tp1, tp2);
         }
+
 
         public static decimal? GetRefPrice(SigmaData data)
         {

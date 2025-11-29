@@ -15,7 +15,7 @@ namespace CryptoBlade.Strategies.Sigma
         private readonly SigmaAuditSink _audit;
         private readonly ModeEngine _modeEngine;
         private readonly SigmaPositionManager _positionManager;
-        private readonly bool _enableTestSignal = true;
+        private readonly bool _enableTestSignal = false;
         public SigmaData Data { get; set; } = new();
 
         protected override bool UseMarketOrdersForEntries => false;
