@@ -474,78 +474,67 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return sl;
         }
 
-        /// <summary>
-        /// TP dla MR:
-        /// - DVWAP jako target mean-reversion,
-        /// - fallback: 1R i 1.5R,
-        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (filtrowanie R i spacing).
-        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
-            SigmaData data,
-            SymbolInfo symbolInfo,
-            OrderSide side,
-            decimal entryPrice,
-            decimal risk)
+    SigmaData data,
+    SymbolInfo symbolInfo,
+    OrderSide side,
+    decimal entryPrice,
+    decimal risk)
         {
-            if (risk <= 0m)
+            if (risk <= 0m || entryPrice <= 0m)
                 return (null, null);
 
-            // MR ma własne, ciaśniejsze okno R – chcemy częstsze, mniejsze take-profity.
-            const double mrMinR = 0.2;
-            const double mrMaxR = 2.0;
-            const double mrMinSpacing = 0.4;
+            var minMoveFraction = SessionHelpers.ComputeMinMoveFraction(_options);
+            var targets = new List<(decimal Price, double RMultiple)>();
 
-            var targets = new System.Collections.Generic.List<(decimal Price, double RMultiple)>();
+            void AddTarget(decimal price)
+            {
+                if (price <= 0m)
+                    return;
 
-            // DVWAP jako główny target mean-reversion.
-            // Jeżeli odległość DVWAP daje mniej niż mrMinR, podnosimy RMultiple do mrMinR,
-            // tak aby DVWAP nie wypadł z filtrów tylko dlatego, że jest bardzo blisko.
+                decimal move = side == OrderSide.Buy ? price - entryPrice : entryPrice - price;
+                if (move <= 0m)
+                    return;
+
+                if (minMoveFraction > 0m)
+                {
+                    var movePct = move / entryPrice;
+                    if (movePct < minMoveFraction)
+                        return;
+                }
+
+                var r = (double)(move / risk);
+                if (!double.IsFinite(r) || r <= 0.0)
+                    return;
+
+                targets.Add((price, r));
+            }
+
+            // DVWAP jako główny target mean-reversion
             if (data.LastDvwap.HasValue && data.LastDvwap.Value > 0.0m)
             {
                 var dvwap = data.LastDvwap.Value;
 
                 if (side == OrderSide.Buy && dvwap > entryPrice)
-                {
-                    var rRaw = (double)((dvwap - entryPrice) / risk);
-                    if (double.IsFinite(rRaw) && rRaw > 0.0)
-                    {
-                        var r = rRaw < mrMinR ? mrMinR : (rRaw > mrMaxR ? mrMaxR : rRaw);
-                        targets.Add((dvwap, r));
-                    }
-                }
+                    AddTarget(dvwap);
                 else if (side == OrderSide.Sell && dvwap < entryPrice)
-                {
-                    var rRaw = (double)((entryPrice - dvwap) / risk);
-                    if (double.IsFinite(rRaw) && rRaw > 0.0)
-                    {
-                        var r = rRaw < mrMinR ? mrMinR : (rRaw > mrMaxR ? mrMaxR : rRaw);
-                        targets.Add((dvwap, r));
-                    }
-                }
+                    AddTarget(dvwap);
             }
 
             // Fallback – czyste R-multiples
             if (side == OrderSide.Buy)
             {
-                targets.Add((entryPrice + risk, 1.0));          // 1R
-                targets.Add((entryPrice + 1.5m * risk, 1.5));  // 1.5R
+                AddTarget(entryPrice + risk);           // 1R
+                AddTarget(entryPrice + 1.5m * risk);    // 1.5R
             }
             else if (side == OrderSide.Sell)
             {
-                targets.Add((entryPrice - risk, 1.0));          // 1R
-                targets.Add((entryPrice - 1.5m * risk, 1.5));   // 1.5R
+                AddTarget(entryPrice - risk);           // 1R
+                AddTarget(entryPrice - 1.5m * risk);    // 1.5R
             }
 
-            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(
-                targets,
-                side,
-                entryPrice,
-                symbolInfo.PriceScale,
-                mrMinR,
-                mrMaxR,
-                mrMinSpacing);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
 
-            // TP1 – musi być >0 i po właściwej stronie względem entry
             if (tp1.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
@@ -557,7 +546,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 tp1 = invalid ? null : p;
             }
 
-            // TP2 – to samo
             if (tp2.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
@@ -571,5 +559,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             return (tp1, tp2);
         }
+
     }
 }

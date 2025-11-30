@@ -439,11 +439,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         }
 
 
-        /// <summary>
-        /// Take-profit dla breakoutów:
-        /// - kandydaci: 1R, 2R, oraz pasmo Donchiana po stronie wybicia,
-        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (filtr R i spacing).
-        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
             SymbolInfo symbolInfo,
@@ -451,41 +446,66 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             decimal entryPrice,
             decimal risk)
         {
-            if (risk <= 0m)
+            if (risk <= 0m || entryPrice <= 0m)
                 return (null, null);
 
+            var minMoveFraction = SessionHelpers.ComputeMinMoveFraction(_options);
             var targets = new List<(decimal Price, double RMultiple)>();
+
+            void AddTarget(decimal price)
+            {
+                if (price <= 0m)
+                    return;
+
+                decimal move = side == OrderSide.Buy ? price - entryPrice : entryPrice - price;
+                if (move <= 0m)
+                    return;
+
+                if (minMoveFraction > 0m)
+                {
+                    var movePct = move / entryPrice;
+                    if (movePct < minMoveFraction)
+                        return;
+                }
+
+                var r = (double)(move / risk);
+                if (!double.IsFinite(r) || r <= 0.0)
+                    return;
+
+                targets.Add((price, r));
+            }
 
             // Donchian jako naturalny extension target po wybiciu
             if (data.DonchianResult is { } don)
             {
                 if (side == OrderSide.Buy && don.UpperBand.HasValue && don.UpperBand.Value > entryPrice)
                 {
-                    var r = (double)((don.UpperBand.Value - entryPrice) / risk);
-                    targets.Add((don.UpperBand.Value, r));
+                    AddTarget(don.UpperBand.Value);
                 }
                 else if (side == OrderSide.Sell && don.LowerBand.HasValue && don.LowerBand.Value < entryPrice)
                 {
-                    var r = (double)((entryPrice - don.LowerBand.Value) / risk);
-                    targets.Add((don.LowerBand.Value, r));
+                    AddTarget(don.LowerBand.Value);
                 }
             }
 
             // Bazowe 1R / 2R dla breakout
             if (side == OrderSide.Buy)
             {
-                targets.Add((entryPrice + risk, 1.0));
-                targets.Add((entryPrice + 2m * risk, 2.0));
+                AddTarget(entryPrice + risk);       // 1R
+                AddTarget(entryPrice + 2m * risk);  // 2R
             }
-            else
+            else if (side == OrderSide.Sell)
             {
-                targets.Add((entryPrice - risk, 1.0));
-                targets.Add((entryPrice - 2m * risk, 2.0));
+                AddTarget(entryPrice - risk);       // 1R
+                AddTarget(entryPrice - 2m * risk);  // 2R
             }
 
-            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(
+                targets,
+                side,
+                entryPrice,
+                symbolInfo.PriceScale);
 
-            // TP1 – musi być >0 i po właściwej stronie względem entry
             if (tp1.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
@@ -497,7 +517,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 tp1 = invalid ? null : p;
             }
 
-            // TP2 – to samo
             if (tp2.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
@@ -511,5 +530,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             return (tp1, tp2);
         }
+
     }
 }

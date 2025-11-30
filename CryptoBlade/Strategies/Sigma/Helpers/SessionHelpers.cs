@@ -246,5 +246,39 @@ namespace CryptoBlade.Strategies.Sigma.Helpers
 
             return refPrice * fallbackPct / 100m;
         }
+
+        /// <summary>
+        /// Minimalny ruch ceny jako ułamek (0..1) wynikający z fee i ustawień strategii.
+        /// Zwraca np. 0.003m = 0.3% ceny.
+        /// </summary>
+        public static decimal ComputeMinMoveFraction(SigmaStrategyOptions options)
+        {
+            if (options is null)
+                throw new ArgumentNullException(nameof(options));
+
+            // Jawna podłoga z konfiguracji (w %)
+            decimal explicitPct = options.MinMovePct > 0m ? options.MinMovePct : 0m;
+
+            // Szacowany round-trip fee (maker + taker) w %
+            decimal makerPct = options.MakerFeePct > 0m ? options.MakerFeePct : 0m;
+            decimal takerPct = options.TakerFeePct > 0m ? options.TakerFeePct : 0m;
+            decimal roundTripPct = makerPct + takerPct;
+
+            // Minimalny ruch w % wynikający z wymaganego udziału fee w PnL
+            decimal feeFloorPct = 0m;
+            if (roundTripPct > 0m && options.MaxFeeShareOfTp > 0m)
+            {
+                // przykład: (0.075% / 0.2) = 0.375% minimalnego ruchu
+                feeFloorPct = roundTripPct / options.MaxFeeShareOfTp;
+            }
+
+            decimal resultPct = Math.Max(explicitPct, feeFloorPct);
+            if (resultPct <= 0m)
+                return 0m;
+
+            // Zamieniamy z % na ułamek ceny (np. 0.3% → 0.003)
+            return resultPct / 100m;
+        }
+
     }
 }

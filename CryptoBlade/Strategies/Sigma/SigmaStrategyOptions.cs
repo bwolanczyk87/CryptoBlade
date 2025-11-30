@@ -134,7 +134,27 @@
         /// Mnożnik ryzyka dla tieru None / fallback.
         /// </summary>
         public decimal TierNoneRiskMultiplier { get; init; } = 0.4m;
+        /// <summary>
+        /// Szacowane maker fee w procentach nominału (np. 0.02m = 0.02%).
+        /// Używane do wyliczenia minimalnego ruchu ceny względem kosztów transakcyjnych.
+        /// </summary>
+        public decimal MakerFeePct { get; init; } = 0.02m;
 
+        /// <summary>
+        /// Szacowane taker fee w procentach nominału (np. 0.055m = 0.055%).
+        /// </summary>
+        public decimal TakerFeePct { get; init; } = 0.055m;
 
+        /// <summary>
+        /// Maksymalny dopuszczalny udział fee w zysku na TP1 (0..1, np. 0.2m = 20%).
+        /// Z tego wyliczamy minimalny ruch ceny, żeby fee nie zjadały całego edge'a.
+        /// </summary>
+        public decimal MaxFeeShareOfTp { get; init; } = 0.2m;
+
+        /// <summary>
+        /// Minimalny ruch ceny między ENTRY a TP1/SL w procentach (np. 0.25m = 0.25%).
+        /// Jeżeli jest większy niż wynikający z fee, ma pierwszeństwo.
+        /// </summary>
+        public decimal MinMovePct { get; init; } = 0.25m;
     }
 }

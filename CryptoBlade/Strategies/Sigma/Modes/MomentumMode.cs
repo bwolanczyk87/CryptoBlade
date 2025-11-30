@@ -432,12 +432,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return sl > 0m ? sl : (decimal?)null;
         }
 
-        /// <summary>
-        /// TP dla Momentum:
-        /// - bazowe 1R / 2R w kierunku momentum,
-        /// - Donchian 15m jako extension target,
-        /// - finalny wybór: SessionHelpers.ChooseTakeProfits (R-okno i spacing).
-        /// </summary>
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
             SigmaData data,
             SymbolInfo symbolInfo,
@@ -445,41 +439,67 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             decimal entryPrice,
             decimal risk)
         {
-            if (risk <= 0m)
+            if (risk <= 0m || entryPrice <= 0m)
                 return (null, null);
 
+            var minMoveFraction = SessionHelpers.ComputeMinMoveFraction(_options);
             var targets = new List<(decimal Price, double RMultiple)>();
 
-            // Bazowe 1R / 2R w kierunku momentum
-            if (side == OrderSide.Buy)
+            void AddTarget(decimal price)
             {
-                targets.Add((entryPrice + risk, 1.0));
-                targets.Add((entryPrice + 2m * risk, 2.0));
-            }
-            else
-            {
-                targets.Add((entryPrice - risk, 1.0));
-                targets.Add((entryPrice - 2m * risk, 2.0));
+                if (price <= 0m)
+                    return;
+
+                decimal move = side == OrderSide.Buy ? price - entryPrice : entryPrice - price;
+                if (move <= 0m)
+                    return;
+
+                if (minMoveFraction > 0m)
+                {
+                    var movePct = move / entryPrice;
+                    if (movePct < minMoveFraction)
+                        return; // za blisko, fee zjadłyby zbyt duży % PnL
+                }
+
+                var r = (double)(move / risk);
+                if (!double.IsFinite(r) || r <= 0.0)
+                    return;
+
+                targets.Add((price, r));
             }
 
-            // Donchian 15m jako naturalny pivot trendowy
+            // Bazowe 1R / 2R
+            if (side == OrderSide.Buy)
+            {
+                AddTarget(entryPrice + risk);        // 1R
+                AddTarget(entryPrice + 2m * risk);   // 2R
+            }
+            else if (side == OrderSide.Sell)
+            {
+                AddTarget(entryPrice - risk);        // 1R
+                AddTarget(entryPrice - 2m * risk);   // 2R
+            }
+
+            // Donchian jako naturalny extension target po stronie trendu
             if (data.DonchianResult is { } don)
             {
                 if (side == OrderSide.Buy && don.UpperBand.HasValue && don.UpperBand.Value > entryPrice)
                 {
-                    var r = (double)((don.UpperBand.Value - entryPrice) / risk);
-                    targets.Add((don.UpperBand.Value, r));
+                    AddTarget(don.UpperBand.Value);
                 }
                 else if (side == OrderSide.Sell && don.LowerBand.HasValue && don.LowerBand.Value < entryPrice)
                 {
-                    var r = (double)((entryPrice - don.LowerBand.Value) / risk);
-                    targets.Add((don.LowerBand.Value, r));
+                    AddTarget(don.LowerBand.Value);
                 }
             }
 
-            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(targets, side, entryPrice, symbolInfo.PriceScale);
+            var (tp1, tp2) = SessionHelpers.ChooseTakeProfits(
+                targets,
+                side,
+                entryPrice,
+                symbolInfo.PriceScale);
 
-            // TP1 – musi być >0 i po właściwej stronie względem entry
+            // sanity + zaokrąglenie
             if (tp1.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp1.Value);
@@ -491,7 +511,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 tp1 = invalid ? null : p;
             }
 
-            // TP2 – to samo
             if (tp2.HasValue)
             {
                 var p = MathHelpers.RoundPrice(symbolInfo.PriceScale, tp2.Value);
@@ -505,5 +524,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             return (tp1, tp2);
         }
+
     }
 }

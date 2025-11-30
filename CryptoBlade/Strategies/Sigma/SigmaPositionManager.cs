@@ -52,7 +52,9 @@ namespace CryptoBlade.Strategies.Sigma
                 return;
 
             var slPrice = slPriceOpt.Value;
-            var minMove = ComputeMinSlMove(symbolInfo, entryPrice);
+            var refPrice = SessionHelpers.GetRefPrice(data) ?? data.LastPrice ?? entryPrice;
+            decimal minMove = ComputeMinSlMove(symbolInfo, refPrice, _options);
+
             if (side == OrderSide.Buy)
             {
                 if (entryPrice - slPrice < minMove)
@@ -164,14 +166,28 @@ namespace CryptoBlade.Strategies.Sigma
             return MathHelpers.RoundQuantity(symbolInfo.QtyStep ?? 0m, rawQty);
         }
 
-        private static decimal ComputeMinSlMove(SymbolInfo symbolInfo, decimal refPrice)
+        private static decimal ComputeMinSlMove(SymbolInfo symbolInfo, decimal refPrice, SigmaStrategyOptions options)
         {
             var scale = (int)symbolInfo.PriceScale;
             if (scale is < 0 or > 18)
                 scale = 4;
 
             decimal tick = (decimal)Math.Pow(10, -scale);
-            return tick * 2m;
+            decimal tickFloor = tick * 2m;
+
+            if (refPrice <= 0m || options is null)
+                return tickFloor;
+
+            // Minimalny ruch z fee (ułamek ceny, np. 0.003 = 0.3%)
+            decimal minMoveFraction = SessionHelpers.ComputeMinMoveFraction(options);
+            if (minMoveFraction <= 0m)
+                return tickFloor;
+
+            decimal pctFloor = refPrice * minMoveFraction;
+
+            // SL nie może być bliżej niż "2 ticki" ani bliżej niż wynika z fee
+            return Math.Max(tickFloor, pctFloor);
         }
+
     }
 }
