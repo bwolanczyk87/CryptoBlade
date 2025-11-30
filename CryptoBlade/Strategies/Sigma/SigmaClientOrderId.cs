@@ -86,7 +86,7 @@ namespace CryptoBlade.Strategies.Sigma
         /// Pełny parsing clientOrderId Sigmy.
         /// </summary>
         public static bool TryParse(
-            string clientOrderId,
+            string? clientOrderId,
             out ParsedSigmaClientOrderId parsed)
         {
             parsed = default!;
@@ -144,7 +144,7 @@ namespace CryptoBlade.Strategies.Sigma
             return true;
         }
 
-        public static SigmaOrderKind TryParseKind(string clientOrderId)
+        public static SigmaOrderKind TryParseKind(string? clientOrderId)
         {
             return TryParse(clientOrderId, out var parsed)
                 ? parsed.Kind

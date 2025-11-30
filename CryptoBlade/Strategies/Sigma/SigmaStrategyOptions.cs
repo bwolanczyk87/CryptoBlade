@@ -156,5 +156,13 @@
         /// Jeżeli jest większy niż wynikający z fee, ma pierwszeństwo.
         /// </summary>
         public decimal MinMovePct { get; init; } = 0.25m;
+
+        /// <summary>
+        /// Ile minut ważny jest setup dla wiszących zleceń ENTRY.
+        /// Po tym czasie nieprzyjęte zlecenia ENTRY są anulowane.
+        /// 10 minut = 2 świece 5m.
+        /// Ustaw 0 lub mniej, żeby wyłączyć ten mechanizm.
+        /// </summary>
+        public int PendingEntryTimeoutMinutes { get; init; } = 10;
     }
 }
