@@ -151,7 +151,7 @@ namespace CryptoBlade.Strategies.Sigma
                 : SigmaOrderKind.Unknown;
         }
 
-        public static ModeKind TryParseMode(string clientOrderId)
+        public static ModeKind TryParseMode(string? clientOrderId)
         {
             return TryParse(clientOrderId, out var parsed)
                 ? parsed.Mode
@@ -166,12 +166,20 @@ namespace CryptoBlade.Strategies.Sigma
         /// <summary>
         /// Zwraca LONG/SHORT na podstawie sparsowanego OrderSide.
         /// </summary>
-        public static string? TryGetDirectionTag(string clientOrderId)
+        public static string? TryGetDirectionTag(string? clientOrderId)
         {
             return TryParse(clientOrderId, out var parsed)
                 ? DirectionToToken(parsed.Side)
                 : null;
         }
+
+        public static OrderSide? TryGetSide(string? clientOrderId)
+        {
+            return TryParse(clientOrderId, out var parsed)
+                ? parsed.Side
+                : null;
+        }
+
 
         // ================== PRYWATNE HELPERY ==================
 

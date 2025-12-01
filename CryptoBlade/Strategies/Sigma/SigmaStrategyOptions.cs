@@ -163,6 +163,6 @@
         /// 10 minut = 2 świece 5m.
         /// Ustaw 0 lub mniej, żeby wyłączyć ten mechanizm.
         /// </summary>
-        public int PendingEntryTimeoutMinutes { get; init; } = 10;
+        public int PendingEntryTimeoutMinutes { get; init; } = 5;
     }
 }

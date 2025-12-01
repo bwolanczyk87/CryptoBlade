@@ -50,7 +50,8 @@ namespace CryptoBlade.Strategies.Sigma
             IMode? mode = null;
             ModeScores scores = new(0, 0, 0);
 
-            await CancelStaleEntryOrdersAsync(nowUtc, cancel);
+            if(LongPosition == null && ShortPosition != null)
+                await _positionManager.CancelStaleEntryOrdersAsync([.. BuyOrders, .. SellOrders], Symbol, m_logger, cancel);
 
             Data = new SigmaData();
             var btcQuotes15m = await GetQuotesAsync("BTCUSDT", TimeFrame.FifteenMinutes, _options.FifteenMinuteWindow, cancel);
@@ -78,45 +79,9 @@ namespace CryptoBlade.Strategies.Sigma
 
         public override Task ExecuteAsync(ExecuteParams executeParams, CancellationToken cancel) => Task.CompletedTask;
 
-        private async Task CancelStaleEntryOrdersAsync(DateTime nowUtc, CancellationToken cancel)
+        public override Task OrderUpdatedAsync(OrderUpdate orderUpdate, CancellationToken cancel)
         {
-            if (_options.PendingEntryTimeoutMinutes <= 0)
-                return;
-
-            if (IsInTrade)
-                return;
-
-            var maxAge = TimeSpan.FromMinutes(_options.PendingEntryTimeoutMinutes);
-            var allOrders = (BuyOrders ?? []).Concat(SellOrders ?? []);
-
-            foreach (var order in allOrders)
-            {
-                if (order is null)
-                    continue;
-
-                if (order.Status is OrderStatus.Filled or OrderStatus.Cancelled)
-                    continue;
-
-                if (!SigmaClientOrderId.IsSigmaOrderId(order.ClientOrderId))
-                    continue;
-
-                var kind = SigmaClientOrderId.TryParseKind(order.ClientOrderId);
-                if (kind != SigmaOrderKind.Entry)
-                    continue;
-
-                var age = nowUtc - order.CreateTime;
-                if (age < maxAge)
-                    continue;
-
-                m_logger.LogInformation(
-                    "Sigma time-stop ENTRY: cancel stale orderId={OrderId} clientOrderId={ClientOrderId} age={Age} sym={Symbol}",
-                    order.OrderId,
-                    order.ClientOrderId,
-                    age,
-                    Symbol);
-
-                await m_cbFuturesRestClient.CancelOrderAsync(Symbol, order.OrderId, cancel);
-            }
+            return _positionManager.OnOrderUpdateAsync(Symbol, SymbolInfo, Data, orderUpdate, cancel);
         }
     }
 }
