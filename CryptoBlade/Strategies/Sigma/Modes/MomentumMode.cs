@@ -110,88 +110,98 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return Math.Min(Math.Max(mm, 0.0), 100.0);
         }
 
-        public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
+        public IReadOnlyDictionary<ModeTier, ModeSignal> GenerateSignals(
+            SigmaData data,
+            ModeTier? requestedTier = null)
         {
-            // Testowy sygnał bez wymagań
-            if (enableTestSignal)
-                return new ModeSignal(true, false, ModeTier.None);
-
             ArgumentNullException.ThrowIfNull(data);
 
-            // Reset per-bar debug
-            data.MomentumEntryTier = 0;
-            data.MomentumLongCandidate = false;
-            data.MomentumShortCandidate = false;
+            // Domyślna mapa – na starcie wszystko None.
+            var result = new Dictionary<ModeTier, ModeSignal>
+            {
+                [ModeTier.Hard] = ModeSignal.None,
+                [ModeTier.Medium] = ModeSignal.None,
+                [ModeTier.Soft] = ModeSignal.None
+            };
+
+            // Testowy sygnał – poza normalną logiką Momentum.
+            if (requestedTier == ModeTier.Test)
+            {
+                result[ModeTier.Test] = new ModeSignal(true, false, ModeTier.Test);
+                return result;
+            }
 
             // Globalny gate ATR dla Momentum
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h < (double)_options.MmAtrMinPct ||
                 data.AtrPct1h > (double)_options.MmAtrMaxPct)
             {
-                return ModeSignal.None;
+                return result;
             }
 
-            // -----------------------------------------------------------------
-            // 1. Hard – najbardziej selektywny tier:
-            //    - ostrzejsze wymagania na trend/pullback,
-            //    - sweep + overshoot + CVD flip obowiązkowe.
-            // -----------------------------------------------------------------
-            var hard = CalculateSignal(
-                data,
-                tier: ModeTier.Hard,
-                slopeThresholdOffset: +0.15,   // DVWAP mocniej nachylony
-                adxMinOffset: +2.0,            // ADX wyższy niż bazowy próg momentum
-                zDevMinMagOffset: +0.2,        // głębszy pullback
-                overshootOffset: +0.5,         // większy overshoot przy sweepie
-                useSweep: true,
-                useCvdFlip: true);
+            // Jeśli jawnie podano tier (Hard/Medium/Soft) → licz tylko ten jeden.
+            if (requestedTier is ModeTier.Hard or ModeTier.Medium or ModeTier.Soft)
+            {
+                result[requestedTier.Value] = GenerateForTier(data, requestedTier.Value);
+                return result;
+            }
 
-            if (hard.HasBuy || hard.HasSell)
-                return hard;
+            // requestedTier == null / None → licz wszystkie 3 tiery.
+            result[ModeTier.Hard] = GenerateForTier(data, ModeTier.Hard);
+            result[ModeTier.Medium] = GenerateForTier(data, ModeTier.Medium);
+            result[ModeTier.Soft] = GenerateForTier(data, ModeTier.Soft);
 
-            // -----------------------------------------------------------------
-            // 2. Medium – bazowy tier Momentum:
-            //    - progi trendu/pullbacku jak w v2,
-            //    - wymagamy CVD flipu, ale nie wymuszamy sweepe'a.
-            // -----------------------------------------------------------------
-            var medium = CalculateSignal(
-                data,
-                tier: ModeTier.Medium,
-                slopeThresholdOffset: 0.0,
-                adxMinOffset: 0.0,
-                zDevMinMagOffset: 0.0,
-                overshootOffset: null,   // brak wymogu overshootu
-                useSweep: false,         // nie wymagamy sweepa
-                useCvdFlip: true);       // ale wymagamy flipu takerów
-
-            if (medium.HasBuy || medium.HasSell)
-                return medium;
-
-            // -----------------------------------------------------------------
-            // 3. Soft – najluźniejszy tier:
-            //    - lekko obniżone progi trendu/pullbacku,
-            //    - brak wymogu sweepe'a i CVD flipu – proto-momentum.
-            // -----------------------------------------------------------------
-            var soft = CalculateSignal(
-                data,
-                tier: ModeTier.Soft,
-                slopeThresholdOffset: -0.10,
-                adxMinOffset: -3.0,
-                zDevMinMagOffset: -0.10,
-                overshootOffset: null,
-                useSweep: false,
-                useCvdFlip: false);
-
-            if (soft.HasBuy || soft.HasSell)
-                return soft;
-
-            return ModeSignal.None;
+            return result;
         }
 
-        /// <summary>
-        /// Generyczne liczenie sygnału Momentum dla danego tieru.
-        /// Jeden algorytm, różne progi.
-        /// </summary>
+        private ModeSignal GenerateForTier(SigmaData data, ModeTier tier)
+        {
+            return tier switch
+            {
+                // 1. Hard – najbardziej selektywny:
+                //    - ostrzejsze wymagania na trend/pullback,
+                //    - sweep + overshoot + CVD flip obowiązkowe.
+                ModeTier.Hard => CalculateSignal(
+                    data,
+                    tier: ModeTier.Hard,
+                    slopeThresholdOffset: +0.15,   // DVWAP mocniej nachylony
+                    adxMinOffset: +2.0,            // ADX wyższy niż bazowy próg momentum
+                    zDevMinMagOffset: +0.2,        // głębszy pullback
+                    overshootOffset: +0.5,         // większy overshoot przy sweepie
+                    useSweep: true,
+                    useCvdFlip: true),
+
+                // 2. Medium – bazowy tier Momentum:
+                //    - progi trendu/pullbacku jak w v2,
+                //    - wymagamy CVD flipu, ale nie wymuszamy sweepe'a.
+                ModeTier.Medium => CalculateSignal(
+                    data,
+                    tier: ModeTier.Medium,
+                    slopeThresholdOffset: 0.0,
+                    adxMinOffset: 0.0,
+                    zDevMinMagOffset: 0.0,
+                    overshootOffset: null,   // brak wymogu overshootu
+                    useSweep: false,         // nie wymagamy sweepa
+                    useCvdFlip: true),       // ale wymagamy flipu takerów
+
+                // 3. Soft – najluźniejszy tier:
+                //    - lekko obniżone progi trendu/pullbacku,
+                //    - brak wymogu sweepe'a i CVD flipu – proto-momentum.
+                ModeTier.Soft => CalculateSignal(
+                    data,
+                    tier: ModeTier.Soft,
+                    slopeThresholdOffset: -0.10,
+                    adxMinOffset: -3.0,
+                    zDevMinMagOffset: -0.10,
+                    overshootOffset: null,
+                    useSweep: false,
+                    useCvdFlip: false),
+
+                _ => ModeSignal.None
+            };
+        }
+
+
         private ModeSignal CalculateSignal(
             SigmaData data,
             ModeTier tier,
@@ -321,11 +331,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 // brak sygnału dla tego tieru
                 return ModeSignal.None;
             }
-
-            data.MomentumLongCandidate = buy;
-            data.MomentumShortCandidate = sell;
-            data.MomentumEntryTier = (int)tier;
-
             return new ModeSignal(buy, sell, tier);
         }
 
@@ -373,7 +378,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         /// <summary>
         /// SL: wyjście za lokalny swing (5m/1m) plus riskUnit z ATR5m.
         /// </summary>
-        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, ModeTier tier)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
             if (!refPrice.HasValue)
@@ -390,11 +395,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             decimal lo = data.Last5mLow ?? data.Last1mLow ?? refPrice.Value;
             decimal hi = data.Last5mHigh ?? data.Last1mHigh ?? refPrice.Value;
-
-            // Domyślnie 1×ATR5m za lokalnym swingiem.
-            // Dla Hard + sweep zaciskamy bufor ATR, żeby SL lepiej odzwierciedlał pattern sweep→reclaim.
-            var tier = (ModeTier)data.MomentumEntryTier;
-
             decimal atrMultiplier = 1.0m;
 
             if (tier == ModeTier.Hard)

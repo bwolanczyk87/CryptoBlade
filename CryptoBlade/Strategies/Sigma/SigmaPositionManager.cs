@@ -29,10 +29,8 @@ namespace CryptoBlade.Strategies.Sigma
         {
             logger.LogInformation(
                 "sym={Symbol} | mode={Mode} | hasBuy={HasBuy} | hasSell={HasSell}",
-                symbolInfo.Name,
-                mode?.Kind.ToString() ?? "None",
-                signal.HasBuy,
-                signal.HasSell);
+                symbolInfo.Name, mode?.Kind.ToString() ?? "None",  signal.HasBuy,signal.HasSell
+            );
 
             if (mode is null)
                 return;
@@ -52,7 +50,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             var entryPrice = entryPriceOpt.Value;
 
-            var slPriceOpt = mode.ComputeStopLossPrice(data, symbolInfo, side, entryPrice);
+            var slPriceOpt = mode.ComputeStopLossPrice(data, symbolInfo, side, entryPrice, signal.Tier);
             if (!slPriceOpt.HasValue || slPriceOpt.Value <= 0m)
                 return;
 
@@ -80,9 +78,14 @@ namespace CryptoBlade.Strategies.Sigma
 
             _lastRiskPerUnit = riskPerUnit;
 
-            decimal equity = walletManager.Contract.Equity ?? 0m;
-            decimal riskPerTradeUsd = ComputeRiskPerTradeUsd(data, signal, equity);
-            if (riskPerTradeUsd <= 0m)
+            decimal riskUsd = walletManager.Contract.Equity.HasValue 
+                ? walletManager.Contract.Equity.Value * _options.RiskPerTradePct
+                : _options.MinRiskPerTradeUsd;
+
+            riskUsd = Math.Max(riskUsd, _options.MinRiskPerTradeUsd);
+            riskUsd = Math.Min(riskUsd, _options.MaxRiskPerTradeUsd);
+
+            if (riskUsd <= 0m)
                 return;
 
             decimal distance = side == OrderSide.Buy
@@ -92,18 +95,12 @@ namespace CryptoBlade.Strategies.Sigma
             if (distance <= 0m)
                 return;
 
-            decimal notionalUsd = riskPerTradeUsd * entryPrice / distance;
-
+            decimal notionalUsd = riskUsd * entryPrice / distance;
             decimal quantity = CalculateQuantityInContracts(symbolInfo, entryPrice, notionalUsd);
             if (quantity <= 0m)
                 return;
 
-            string clientOrderId = SigmaClientOrderId.Build(
-                symbolInfo.Name,
-                mode.Kind,
-                side,
-                SigmaOrderKind.Entry,
-                nowUtc);
+            string clientOrderId = SigmaClientOrderId.Build(symbolInfo.Name, mode.Kind, side, SigmaOrderKind.Entry, nowUtc);
 
             var request = new BybitCbFuturesRestClient.OrderRequest(
                 Symbol: symbolInfo.Name,
@@ -124,28 +121,10 @@ namespace CryptoBlade.Strategies.Sigma
 
             logger.LogInformation(
                 "sym={Symbol} | side={Side} | mode={Mode} | qty={Qty} | entry={Entry} | sl={Sl} | riskUsd={RiskUsd}",
-                symbolInfo.Name,
-                side,
-                mode.Kind,
-                quantity,
-                entryPrice,
-                slPrice,
-                riskPerTradeUsd);
+                symbolInfo.Name, side, mode.Kind, quantity, entryPrice, slPrice, riskUsd
+            );
 
             _ = await _restClient.PlaceOrderAsync(request, cancel);
-        }
-
-        public decimal ComputeRiskPerTradeUsd(SigmaData sigmaData, ModeSignal modeSignal, decimal? equity)
-        {
-            if (!equity.HasValue || equity.Value <= 0m)
-                return _options.MinRiskPerTradeUsd;
-
-            decimal risk = equity.Value * _options.RiskPerTradePct;
-
-            if (risk < _options.MinRiskPerTradeUsd) risk = _options.MinRiskPerTradeUsd;
-            if (risk > _options.MaxRiskPerTradeUsd) risk = _options.MaxRiskPerTradeUsd;
-
-            return risk;
         }
 
         public async Task CancelStaleEntryOrdersAsync(Order[] orders, string symbol, ILogger logger, CancellationToken cancel)

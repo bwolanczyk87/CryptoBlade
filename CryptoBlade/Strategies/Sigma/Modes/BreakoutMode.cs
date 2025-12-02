@@ -95,85 +95,85 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return Math.Min(Math.Max(bo, 0.0), 100.0);
         }
 
-        public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
+        public IReadOnlyDictionary<ModeTier, ModeSignal> GenerateSignals(
+            SigmaData data,
+            ModeTier? requestedTier = null)
         {
-            // Testowy sygnał bez wymagań
-            if (enableTestSignal)
-                return new ModeSignal(true, false, ModeTier.None);
-
             ArgumentNullException.ThrowIfNull(data);
 
-            // Reset per-bar debug
-            data.BreakoutEntryTier = 0;
-            data.BreakoutLongCandidate = false;
-            data.BreakoutShortCandidate = false;
+            var result = new Dictionary<ModeTier, ModeSignal>
+            {
+                [ModeTier.Hard] = ModeSignal.None,
+                [ModeTier.Medium] = ModeSignal.None,
+                [ModeTier.Soft] = ModeSignal.None
+            };
 
-            // Globalny gate ATR dla BO – bardzo wysokie ATR blokują tryb
+            // Globalny gate – jeśli ATR/warunki środowiska są złe, od razu zwracamy None dla wszystkich
             if (!double.IsFinite(data.AtrPct1h) ||
                 data.AtrPct1h > (double)_options.BoAtrMaxPct)
             {
-                return ModeSignal.None;
+                return result;
             }
 
-            // -----------------------------------------------------------------
-            // 1. Hard – najbardziej selektywny tier:
-            //    - BBW powyżej bazowego progu +5,
-            //    - wymagamy BBW expanding,
-            //    - wymagamy kompresji inside/NR7,
-            //    - wymagamy OI + CVD w stronę wybicia (trend lub flush).
-            // -----------------------------------------------------------------
-            var hard = CalculateSignal(
-                data,
-                tier: ModeTier.Hard,
-                bbwMinOffset: +5.0,
-                requireBbwExpanding: true,
-                oiThresholdOffset: +0.3,   // OI próg ~0.8
-                requireCvd: true,
-                allowFlush: true);
+            // Tryb Test – specjalny przypadek
+            if (requestedTier == ModeTier.Test)
+            {
+                result[ModeTier.Test] = new ModeSignal(true, false, ModeTier.Test);
+                return result;
+            }
 
-            if (hard.HasBuy || hard.HasSell)
-                return hard;
+            // Jeśli requestedTier jest konkretny → licz tylko ten jeden (analityka/diagnostyka)
+            if (requestedTier is ModeTier.Hard or ModeTier.Medium or ModeTier.Soft)
+            {
+                var sig = GenerateForTier(data, requestedTier.Value);
+                result[requestedTier.Value] = sig;
+                return result;
+            }
 
-            // -----------------------------------------------------------------
-            // 2. Medium – bazowy tier BO:
-            //    - BBW wg bazowego progu,
-            //    - wymagamy BBW expanding,
-            //    - wymagamy kompresji inside/NR7,
-            //    - wymagamy OI + CVD w stronę wybicia (trend lub flush).
-            // -----------------------------------------------------------------
-            var medium = CalculateSignal(
-                data,
-                tier: ModeTier.Medium,
-                bbwMinOffset: 0.0,
-                requireBbwExpanding: true,
-                oiThresholdOffset: 0.0,   // OI próg ~0.5
-                requireCvd: true,
-                allowFlush: true);
+            // requestedTier == null / None → licz wszystkie 3 tiery
+            result[ModeTier.Hard] = GenerateForTier(data, ModeTier.Hard);
+            result[ModeTier.Medium] = GenerateForTier(data, ModeTier.Medium);
+            result[ModeTier.Soft] = GenerateForTier(data, ModeTier.Soft);
 
-            if (medium.HasBuy || medium.HasSell)
-                return medium;
-
-            // -----------------------------------------------------------------
-            // 3. Soft – najluźniejszy tier:
-            //    - BBW lekko poniżej bazowego progu (ale nadal sensowne),
-            //    - wymagamy BBW expanding,
-            //    - kompresja optional (łapiemy też wybicia z luźniejszych range'y),
-            //    - OI musi wspierać breakout, CVD tylko jako dodatkowy plus.
-            // -----------------------------------------------------------------
-            var soft = CalculateSignal(
-                data,
-                tier: ModeTier.Soft,
-                bbwMinOffset: -5.0,
-                requireBbwExpanding: true,
-                oiThresholdOffset: -0.2,   // OI próg ~0.3
-                requireCvd: false,
-                allowFlush: true);
-
-            if (soft.HasBuy || soft.HasSell)
-                return soft;
-
-            return ModeSignal.None;
+            return result;
         }
+
+
+        private ModeSignal GenerateForTier(SigmaData data, ModeTier tier)
+        {
+            return tier switch
+            {
+                ModeTier.Hard => CalculateSignal(
+                    data,
+                    tier: ModeTier.Hard,
+                    bbwMinOffset: +5.0,
+                    requireBbwExpanding: true,
+                    oiThresholdOffset: +0.3,   // OI próg ~0.8
+                    requireCvd: true,
+                    allowFlush: true),
+
+                ModeTier.Medium => CalculateSignal(
+                    data,
+                    tier: ModeTier.Medium,
+                    bbwMinOffset: 0.0,
+                    requireBbwExpanding: true,
+                    oiThresholdOffset: 0.0,    // OI próg ~0.5
+                    requireCvd: true,
+                    allowFlush: true),
+
+                ModeTier.Soft => CalculateSignal(
+                    data,
+                    tier: ModeTier.Soft,
+                    bbwMinOffset: -5.0,
+                    requireBbwExpanding: true,
+                    oiThresholdOffset: -0.2,   // OI próg ~0.3
+                    requireCvd: false,
+                    allowFlush: true),
+
+                _ => ModeSignal.None
+            };
+        }
+
 
         private ModeSignal CalculateSignal(
             SigmaData data,
@@ -315,10 +315,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 return ModeSignal.None;
             }
 
-            data.BreakoutLongCandidate = longTrigger;
-            data.BreakoutShortCandidate = shortTrigger;
-            data.BreakoutEntryTier = (int)tier;
-
             return new ModeSignal(longTrigger, shortTrigger, tier);
         }
 
@@ -373,7 +369,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return entry > 0m ? entry : (decimal?)null;
         }
 
-        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, ModeTier tier)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
             if (!refPrice.HasValue || refPrice.Value <= 0m)
@@ -398,10 +394,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             decimal hi = data.Last5mHigh
                          ?? data.Last1mHigh
                          ?? basis;
-
-            // Domyślnie 1×ATR5m za lokalnym zakresem.
-            // Dla twardszych tierów (Medium/Hard) zaciskamy bufor ATR.
-            var tier = (ModeTier)data.BreakoutEntryTier;
 
             decimal atrMultiplier = 1.0m;
             if (tier == ModeTier.Hard)

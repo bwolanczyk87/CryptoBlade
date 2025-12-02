@@ -82,10 +82,7 @@ namespace CryptoBlade.Strategies.Sigma
                 StringComparison.Ordinal);
         }
 
-        /// <summary>
-        /// Pełny parsing clientOrderId Sigmy.
-        /// </summary>
-        public static bool TryParse(
+        private static bool TryParse(
             string? clientOrderId,
             out ParsedSigmaClientOrderId parsed)
         {
@@ -163,9 +160,6 @@ namespace CryptoBlade.Strategies.Sigma
             return TryParse(clientOrderId, out var parsed) ? parsed.Symbol : null;
         }
 
-        /// <summary>
-        /// Zwraca LONG/SHORT na podstawie sparsowanego OrderSide.
-        /// </summary>
         public static string? TryGetDirectionTag(string? clientOrderId)
         {
             return TryParse(clientOrderId, out var parsed)
@@ -179,9 +173,6 @@ namespace CryptoBlade.Strategies.Sigma
                 ? parsed.Side
                 : null;
         }
-
-
-        // ================== PRYWATNE HELPERY ==================
 
         private static string DirectionToToken(OrderSide side)
             => side switch

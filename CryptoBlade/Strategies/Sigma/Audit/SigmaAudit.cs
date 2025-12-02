@@ -39,35 +39,6 @@ namespace CryptoBlade.Strategies.Sigma.Audit
         [AuditColumn(Order = 9, Decimals = 2)]
         public double ScoreBO { get; init; }
 
-
-        [AuditColumn(Order = 10)]
-        public int MmEntryTier { get; init; }
-
-        [AuditColumn(Order = 11)]
-        public int MrEntryTier { get; init; }
-
-        [AuditColumn(Order = 12)]
-        public int BoEntryTier { get; init; }
-
-        [AuditColumn(Order = 13)]
-
-        public bool MmLongCandidate { get; init; }
-
-        [AuditColumn(Order = 14)]
-        public bool MmShortCandidate { get; init; }
-
-        [AuditColumn(Order = 15)]
-        public bool MrLongCandidate { get; init; }
-
-        [AuditColumn(Order = 16)]
-        public bool MrShortCandidate { get; init; }
-
-        [AuditColumn(Order = 17)]
-        public bool BoLongCandidate { get; init; }
-
-        [AuditColumn(Order = 18)]
-        public bool BoShortCandidate { get; init; }
-
         // ========= CECHY – TREND / VALUE / VOL =========
 
         [AuditColumn(Order = 19, Decimals = 2)]
@@ -258,17 +229,6 @@ namespace CryptoBlade.Strategies.Sigma.Audit
                 ScoreMM = scores.Momentum,
                 ScoreMR = scores.MeanReversion,
                 ScoreBO = scores.Breakout,
-
-                MmEntryTier = data.MomentumEntryTier,
-                MrEntryTier = data.MeanReversionEntryTier,
-                BoEntryTier = data.BreakoutEntryTier,
-
-                MmLongCandidate = data.MomentumLongCandidate,
-                MmShortCandidate = data.MomentumShortCandidate,
-                MrLongCandidate = data.MeanReversionLongCandidate,
-                MrShortCandidate = data.MeanReversionShortCandidate,
-                BoLongCandidate = data.BreakoutLongCandidate,
-                BoShortCandidate = data.BreakoutShortCandidate,
 
                 Adx1h = data.Adx1h,
                 AtrPct1h = data.AtrPct1h,

@@ -6,9 +6,9 @@ namespace CryptoBlade.Strategies.Sigma.Modes
     {
         ModeKind Kind { get; }
 
-        ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal);
+        public IReadOnlyDictionary<ModeTier, ModeSignal> GenerateSignals(SigmaData data, ModeTier? requestedTier = null);
         decimal? ComputeEntryPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side);
-        decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice);
+        decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, ModeTier tier);
         (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, decimal risk);   
     }
 
@@ -21,9 +21,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
     public enum ModeTier {
         None = 0,
-        Soft = 1,
-        Medium = 2,
-        Hard = 3
+        Test = 1,
+        Soft = 2,
+        Medium = 3,
+        Hard = 4,
+
     }
 
     public readonly record struct ModeScores(double Momentum, double MeanReversion, double Breakout);

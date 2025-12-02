@@ -117,18 +117,26 @@ namespace CryptoBlade.Strategies.Sigma.Modes
             return mr;
         }
 
-        public ModeSignal GenerateSignal(SigmaData data, bool enableTestSignal)
+        public IReadOnlyDictionary<ModeTier, ModeSignal> GenerateSignals(
+            SigmaData data,
+            ModeTier? requestedTier = null)
         {
-            // Testowy sygnał bez wymagań
-            if (enableTestSignal)
-                return new ModeSignal(true, false, ModeTier.None);
-
             ArgumentNullException.ThrowIfNull(data);
 
-            // Reset per-bar debug
-            data.MeanReversionEntryTier = 0;
-            data.MeanReversionLongCandidate = false;
-            data.MeanReversionShortCandidate = false;
+            // Domyślna mapa – na starcie wszystko None.
+            var result = new Dictionary<ModeTier, ModeSignal>
+            {
+                [ModeTier.Hard] = ModeSignal.None,
+                [ModeTier.Medium] = ModeSignal.None,
+                [ModeTier.Soft] = ModeSignal.None
+            };
+
+            // Tryb testowy – zero gate’ów, czysty sygnał.
+            if (requestedTier == ModeTier.Test)
+            {
+                result[ModeTier.Test] = new ModeSignal(true, false, ModeTier.Test);
+                return result;
+            }
 
             // -----------------------------------------------------------------
             // 0. Globalne gate’y: ATR dla MR (spread gate jest globalnie w strategii)
@@ -138,92 +146,63 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 data.AtrPct1h > (double)_options.MrAtrMaxPct)
             {
                 // Zmienność nie w "umiarkowanym" zakresie dla MR.
-                return ModeSignal.None;
+                return result;
             }
 
-            // -----------------------------------------------------------------
-            // 1. Hard – najbardziej selektywny tier:
-            //    - bardzo niski ADX (mocne wycięcie trendów),
-            //    - wymagany strict close-back-in + duże wcześniejsze |z|,
-            //    - wymagane wsparcie ΔCVD.
-            // -----------------------------------------------------------------
-            var hard = CalculateSignal(
-                data,
-                tier: ModeTier.Hard,
-                adxMaxOffset: -2.0,   // ADX musi być niżej niż bazowy próg
-                outerZOffset: +0.2,   // wymagana większa wcześniejsza odchyłka od DVWAP
-                innerZOffset: -0.1,   // ciaśniejszy powrót do "value"
-                minStrongPrevZOffset: 0.0,   // próg A+ bazuje na ZVwapEnableMR + 0.5
-                enableRelaxedBackInFallback: false,
-                requireCvdSupport: true);
+            // Jeśli ktoś jawnie podał konkretny tier (Hard/Medium/Soft),
+            // liczony jest tylko ten jeden – bez kaskady.
+            if (requestedTier is ModeTier.Hard or ModeTier.Medium or ModeTier.Soft)
+            {
+                result[requestedTier.Value] = GenerateForTier(data, requestedTier.Value);
+                return result;
+            }
 
-            if (hard.HasBuy || hard.HasSell)
-                return hard;
+            // requestedTier == null albo ModeTier.None → licz wszystkie 3 tiery.
+            result[ModeTier.Hard] = GenerateForTier(data, ModeTier.Hard);
+            result[ModeTier.Medium] = GenerateForTier(data, ModeTier.Medium);
+            result[ModeTier.Soft] = GenerateForTier(data, ModeTier.Soft);
 
-            // -----------------------------------------------------------------
-            // 2. Medium – bazowy tier MR:
-            //    - ADX wg bazowego progu,
-            //    - back-in: strict lub fallback "relaxed",
-            //    - wymagane wsparcie ΔCVD.
-            // -----------------------------------------------------------------
-            var medium = CalculateSignal(
-                data,
-                tier: ModeTier.Medium,
-                adxMaxOffset: 0.0,
-                outerZOffset: 0.0,
-                innerZOffset: 0.0,
-                minStrongPrevZOffset: 0.0,
-                enableRelaxedBackInFallback: true,
-                requireCvdSupport: true);
-
-            if (medium.HasBuy || medium.HasSell)
-                return medium;
-
-            // -----------------------------------------------------------------
-            // 3. Soft – najluźniejszy tier:
-            //    - lekko wyższy dopuszczalny ADX,
-            //    - back-in: strict lub fallback "relaxed" z nieco miększymi progami,
-            //    - ΔCVD tylko jako informacja (nie blokuje wejść).
-            // -----------------------------------------------------------------
-            var soft = CalculateSignal(
-                data,
-                tier: ModeTier.Soft,
-                adxMaxOffset: +3.0,
-                outerZOffset: -0.2,
-                innerZOffset: +0.1,
-                minStrongPrevZOffset: 0.0,
-                enableRelaxedBackInFallback: true,
-                requireCvdSupport: false);
-
-            if (soft.HasBuy || soft.HasSell)
-                return soft;
-
-            return ModeSignal.None;
+            return result;
         }
 
-        /// <summary>
-        /// Generyczne liczenie sygnału Mean-Reversion dla danego tieru.
-        ///
-        /// Parametry:
-        /// - adxMaxOffset:
-        ///     bazowy próg to options.AdxDisableMomentum (granica momentum).
-        ///     Rzeczywisty próg = base + adxMaxOffset.
-        ///
-        /// - outerZOffset / innerZOffset:
-        ///     bazowe progi to options.ZVwapEnableMR (outer) i ZVwapExitMR (inner).
-        ///     Rzeczywiste = base + offset.
-        ///
-        /// - minStrongPrevZOffset:
-        ///     używany w tierze Hard do A+ (duża wcześniejsza odchyłka).
-        ///     próg = ZVwapEnableMR + 0.5 + minStrongPrevZOffset.
-        ///
-        /// - enableRelaxedBackInFallback:
-        ///     jeśli strict close-back-in nie złapie, używamy luźniejszej geometrii
-        ///     (outerSoft / innerLoose + wymagana poprawa |z|).
-        ///
-        /// - requireCvdSupport:
-        ///     jeśli true, wymagamy aby ΔCVD wspierał mean-reversion.
-        /// </summary>
+        private ModeSignal GenerateForTier(SigmaData data, ModeTier tier)
+        {
+            return tier switch
+            {
+                ModeTier.Hard => CalculateSignal(
+                    data,
+                    tier: ModeTier.Hard,
+                    adxMaxOffset: -2.0,   // ADX musi być niżej niż bazowy próg
+                    outerZOffset: +0.2,   // wymagana większa wcześniejsza odchyłka od DVWAP
+                    innerZOffset: -0.1,   // ciaśniejszy powrót do "value"
+                    minStrongPrevZOffset: 0.0,   // próg A+ bazuje na ZVwapEnableMR + 0.5
+                    enableRelaxedBackInFallback: false,
+                    requireCvdSupport: true),
+
+                ModeTier.Medium => CalculateSignal(
+                    data,
+                    tier: ModeTier.Medium,
+                    adxMaxOffset: 0.0,
+                    outerZOffset: 0.0,
+                    innerZOffset: 0.0,
+                    minStrongPrevZOffset: 0.0,
+                    enableRelaxedBackInFallback: true,
+                    requireCvdSupport: true),
+
+                ModeTier.Soft => CalculateSignal(
+                    data,
+                    tier: ModeTier.Soft,
+                    adxMaxOffset: +3.0,
+                    outerZOffset: -0.2,
+                    innerZOffset: +0.1,
+                    minStrongPrevZOffset: 0.0,
+                    enableRelaxedBackInFallback: true,
+                    requireCvdSupport: false),
+
+                _ => ModeSignal.None
+            };
+        }
+
         private ModeSignal CalculateSignal(
             SigmaData data,
             ModeTier tier,
@@ -385,10 +364,6 @@ namespace CryptoBlade.Strategies.Sigma.Modes
                 return ModeSignal.None;
             }
 
-            data.MeanReversionLongCandidate = longTrigger;
-            data.MeanReversionShortCandidate = shortTrigger;
-            data.MeanReversionEntryTier = (int)tier;
-
             return new ModeSignal(longTrigger, shortTrigger, tier);
         }
 
@@ -441,7 +416,7 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         /// - ~1× riskUnit za entry:
         ///   long: entry - riskUnit, short: entry + riskUnit.
         /// </summary>
-        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice)
+        public decimal? ComputeStopLossPrice(SigmaData data, SymbolInfo symbolInfo, OrderSide side, decimal entryPrice, ModeTier tier)
         {
             var refPrice = SessionHelpers.GetRefPrice(data);
             if (!refPrice.HasValue || refPrice.Value <= 0m)
@@ -475,11 +450,11 @@ namespace CryptoBlade.Strategies.Sigma.Modes
         }
 
         public (decimal? Tp1, decimal? Tp2) ComputeTakeProfits(
-    SigmaData data,
-    SymbolInfo symbolInfo,
-    OrderSide side,
-    decimal entryPrice,
-    decimal risk)
+            SigmaData data,
+            SymbolInfo symbolInfo,
+            OrderSide side,
+            decimal entryPrice,
+            decimal risk)
         {
             if (risk <= 0m || entryPrice <= 0m)
                 return (null, null);
@@ -559,6 +534,5 @@ namespace CryptoBlade.Strategies.Sigma.Modes
 
             return (tp1, tp2);
         }
-
     }
 }
