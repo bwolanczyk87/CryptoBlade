@@ -7,17 +7,17 @@ namespace CryptoBlade.Configuration
     public class TradingBotOptions
     {
         public BotMode BotMode { get; set; } = BotMode.Backtest;
-        public ExchangeAccount[] Accounts { get; set; } = Array.Empty<ExchangeAccount>();
+        public ExchangeAccount[] Accounts { get; set; } = [];
         public string AccountName { get; set; } = string.Empty;
         public string QuoteAsset { get; set; } = "USDT";
         public int MaxRunningStrategies { get; set; } = 15;
         public int DcaOrdersCount { get; set; } = 1000;
-        public DynamicBotCount DynamicBotCount { get; set; } = new DynamicBotCount();
+        public DynamicBotCount DynamicBotCount { get; set; } = new();
         public decimal WalletExposureLong { get; set; } = 1.0m;
         public decimal WalletExposureShort { get; set; } = 1.0m;
         public string[] Whitelist { get; set; } = Array.Empty<string>();
         public string[] Blacklist { get; set; } = Array.Empty<string>();
-        public SymbolTradingMode[] SymbolTradingModes { get; set; } = Array.Empty<SymbolTradingMode>();
+        public SymbolTradingMode[] SymbolTradingModes { get; set; } = [];
         public decimal MinimumVolume { get; set; }
         public decimal MinimumPriceDistance { get; set; }
         public string StrategyName { get; set; } = "AutoHedge";
@@ -38,12 +38,9 @@ namespace CryptoBlade.Configuration
         public decimal MinNormalizedAverageTrueRangePeriod { get; set; } = 1.0m;
         public int OrderBookDepth { get; set; } = 1;
         public BackTest BackTest { get; set; } = new BackTest();
-        public Unstucking Unstucking { get; set; } = new Unstucking();
         public StrategyOptions Strategies { get; set; } = new StrategyOptions();
-        public CriticalMode CriticalMode { get; set; } = new CriticalMode();
-        public OptimizerOptions Optimizer { get; set; } = new OptimizerOptions();
-        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
-        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
-        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; } = Array.Empty<SymbolClassificationLevel>();
+        public SymbolClassificationLevel[] SymbolMaturityPreference { get; set; } = [];
+        public SymbolClassificationLevel[] SymbolVolumePreference { get; set; } = [];
+        public SymbolClassificationLevel[] SymbolVolatilityPreference { get; set; } = [];
     }
 }

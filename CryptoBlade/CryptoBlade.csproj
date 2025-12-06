@@ -45,24 +45,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Data\Strategies\AutoHedge\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\AutoHedge\Backtest\Results\" />
-    <Folder Include="Data\Strategies\LinearRegression\Backtest\Results\" />
-    <Folder Include="Data\Strategies\LinearRegression\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Backtest\Results\" />
-    <Folder Include="Data\Strategies\MfiRsiCandlePrecise\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\MfiRsiEriTrend\Backtest\Results\" />
-    <Folder Include="Data\Strategies\MfiRsiEriTrend\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\Momentum\Backtest\Results\" />
-    <Folder Include="Data\Strategies\Momentum\Optimizer\Results\Session01\" />
-    <Folder Include="Data\Strategies\Mona\Backtest\Results\" />
-    <Folder Include="Data\Strategies\Mona\Optimizer\Results\" />
-    <Folder Include="Data\Strategies\Qiqi\Backtest\Results\" />
-    <Folder Include="Data\Strategies\Qiqi\Optimizer\Results\" />
     <Folder Include="Data\Strategies\Sigma\Audit\" />
     <Folder Include="Data\Strategies\Sigma\Audit\ETHUSDT\" />
     <Folder Include="Data\Strategies\Sigma\Backtest\" />
-    <Folder Include="Documentation\" />
   </ItemGroup>
 
 </Project>

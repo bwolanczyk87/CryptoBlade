@@ -1,4 +1,5 @@
-﻿using CryptoExchange.Net.Objects.Sockets;
+﻿using CryptoBlade.Exchanges.Interfaces;
+using CryptoExchange.Net.Objects.Sockets;
 
 namespace CryptoBlade.Exchanges
 {

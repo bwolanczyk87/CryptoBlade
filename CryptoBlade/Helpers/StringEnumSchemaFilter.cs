@@ -13,11 +13,8 @@ namespace CryptoBlade.Helpers
             {
                 schema.Type = "string";
                 schema.Format = null;
-                schema.Enum = Enum.GetNames(t)
-                    .Select(n => (IOpenApiAny)new OpenApiString(n))
-                    .ToList();
+                schema.Enum = [.. Enum.GetNames(t).Select(n => (IOpenApiAny)new OpenApiString(n))];
             }
         }
     }
-
 }

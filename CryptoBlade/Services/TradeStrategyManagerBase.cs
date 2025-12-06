@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
@@ -25,8 +25,8 @@ namespace CryptoBlade.Services
         private readonly Dictionary<string, ITradingStrategy> m_strategies;
         private readonly ITradingSymbolsManager m_symbolsManager;
         private readonly ITradingStrategyFactory m_strategyFactory;
-        private readonly ICbFuturesRestClient m_restClient;
-        private readonly ICbFuturesSocketClient m_socketClient;
+        private readonly IFuturesRestClient m_restClient;
+        private readonly IFuturesSocketClient m_socketClient;
         private readonly IOptions<TradingBotOptions> m_options;
         private CancellationTokenSource? m_cancelSource;
         private readonly List<IUpdateSubscription> m_subscriptions;
@@ -43,8 +43,8 @@ namespace CryptoBlade.Services
             ILogger<TradeStrategyManagerBase> logger,
             ITradingSymbolsManager symbolsManager,
             ITradingStrategyFactory strategyFactory,
-            ICbFuturesRestClient restClient,
-            ICbFuturesSocketClient socketClient, 
+            IFuturesRestClient restClient,
+            IFuturesSocketClient socketClient, 
             IWalletManager walletManager)
         {
             m_lock = new AsyncLock();

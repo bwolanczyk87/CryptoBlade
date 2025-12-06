@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Helpers;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Wallet;
@@ -16,7 +16,7 @@ namespace CryptoBlade.Strategies.Common
             string symbol, 
             TimeFrameWindow[] requiredTimeFrames, 
             IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient) 
+            IFuturesRestClient cbFuturesRestClient) 
             : base(options, botOptions, symbol, requiredTimeFrames, walletManager, cbFuturesRestClient)
         {
             m_options = options;

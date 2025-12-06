@@ -4,25 +4,21 @@ using Bybit.Net.Clients;
 using Bybit.Net.Interfaces.Clients;
 using CryptoBlade.Authentication;
 using CryptoBlade.BackTesting;
-using CryptoBlade.BackTesting.Binance;
 using CryptoBlade.BackTesting.Bybit;
 using CryptoBlade.Configuration;
 using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.HealthChecks;
 using CryptoBlade.Helpers;
-using CryptoBlade.Optimizer;
 using CryptoBlade.Services;
 using CryptoBlade.Strategies;
-using CryptoBlade.Strategies.AI;
 using CryptoBlade.Strategies.Symbols;
 using CryptoBlade.Strategies.Wallet;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Objects;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
-using ScottPlot.Statistics;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -41,21 +37,9 @@ namespace CryptoBlade
             builder.Configuration
                 .AddJsonFile("appsettings.Accounts.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables("CB_");
-            var debugView = builder.Configuration.GetDebugView();
-            string[] debugViewLines = [.. debugView.Split(Environment.NewLine)
-                .Where(x => !x.Contains("ApiKey", StringComparison.OrdinalIgnoreCase)
-                && !x.Contains("ApiSecret", StringComparison.OrdinalIgnoreCase))];
-            debugView = string.Join(Environment.NewLine, debugViewLines);
 
             var tradingBotOptions = builder.Configuration.GetSection("TradingBot").Get<TradingBotOptions>();
 
-            // Wczytaj konfigurację kont
-            var aiAccountsReader = new AIAccountReader("appsettings.Accounts.json");
-            AiAccountsRoot aiAccounts = aiAccountsReader.ReadConfig();
-            builder.Services.AddSingleton(aiAccounts);
-
-
-            // Add services to the container.
             builder.Services.AddRazorPages();
             var healthChecksBuilder = builder.Services.AddHealthChecks();
             builder.Services.AddHostedService<TradingHostedService>();
@@ -70,16 +54,10 @@ namespace CryptoBlade
                     o.SingleLine = true;
                 });
 
-                // 1) Przytnij cały HttpClient do Warning
                 logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
-
-                // 2) (opcjonalnie bardziej precyzyjnie) tylko dla bybitowego klienta:
                 logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient", LogLevel.Warning);
                 logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient.ClientHandler", LogLevel.Warning);
                 logging.AddFilter("System.Net.Http.HttpClient.IBybitRestClient.LogicalHandler", LogLevel.Warning);
-
-                // (opcjonalnie) mniej szumu z Microsoft
-                // logging.AddFilter("Microsoft", LogLevel.Warning);
             });
             builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
             builder.Services.AddEndpointsApiExplorer();
@@ -132,9 +110,7 @@ namespace CryptoBlade
             }
 
             var app = builder.Build();
-            var lf = app.Services.GetRequiredService<ILoggerFactory>();
-            ApplicationLogging.LoggerFactory = lf;
-            LogVersionAndConfiguration(debugView);
+            ApplicationLogging.LoggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
 
             if (!app.Environment.IsDevelopment())
             {
@@ -161,21 +137,11 @@ namespace CryptoBlade
             app.Run();
         }
 
-        private static void LogVersionAndConfiguration(string configuration)
-        {
-            var logger = ApplicationLogging.LoggerFactory.CreateLogger("Startup");
-            var assembly = Assembly.GetExecutingAssembly();
-            var version = assembly.GetName().Version;
-            logger.LogInformation($"CryptoBlade v{version}");
-            //logger.LogInformation(configuration);
-        }
-
         private static void AddOptimizerDependencies(WebApplicationBuilder builder,
             IHealthChecksBuilder healthChecksBuilder)
         {
             healthChecksBuilder.AddCheck<BacktestExecutionHealthCheck>("Backtest");
             builder.Services.AddHostedService<OptimizerHostedService>();
-            builder.Services.AddSingleton<IOptimizer, GeneticAlgorithmOptimizer>();
             builder.Services.AddSingleton<IWalletManager, NullWalletManager>();
             builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
             builder.Services.AddSingleton<ITradeStrategyManager, NullTradeStrategyManager>();
@@ -233,53 +199,36 @@ namespace CryptoBlade
             builder.Services.AddSingleton(provider =>
             {
                 var historicalDataStorage = provider.GetRequiredService<IHistoricalDataStorage>();
-                IHistoricalDataDownloader downloader;
-                switch (tradingBotOptions.BackTest.DataSource)
-                {
-                    case DataSource.Bybit:
-                        var bybitLogger = ApplicationLogging.CreateLogger<BybitHistoricalDataDownloader>();
-                        var bybitClient = CreateUnauthorizedBybitClient(Options.Create(tradingBotOptions));
-                        downloader = new BybitHistoricalDataDownloader(
-                            historicalDataStorage,
-                            bybitLogger,
-                            bybitClient);
-                        break;
-                    case DataSource.Binance:
-                        var binanceLogger = ApplicationLogging.CreateLogger<BinanceHistoricalDataDownloader>();
-                        var binanceClient = CreateUnauthorizedBinanceClient();
-                        downloader = new BinanceHistoricalDataDownloader(
-                            historicalDataStorage,
-                            binanceLogger,
-                            binanceClient);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
+                var bybitLogger = ApplicationLogging.CreateLogger<BybitHistoricalDataDownloader>();
+                var bybitClient = CreateUnauthorizedBybitClient(Options.Create(tradingBotOptions));
 
-                return downloader;
+                return new BybitHistoricalDataDownloader(
+                    historicalDataStorage,
+                    bybitLogger,
+                    bybitClient);
             });
             builder.Services.AddSingleton<IHistoricalDataStorage, ProtoHistoricalDataStorage>();
             builder.Services.AddOptions<ProtoHistoricalDataStorageOptions>().Configure(x =>
             {
                 x.Directory = historicalDataDirectory;
             });
-            builder.Services.AddSingleton<ICbFuturesRestClient>(sp => sp.GetRequiredService<BackTestExchange>());
-            builder.Services.AddSingleton<ICbFuturesSocketClient>(sp => sp.GetRequiredService<BackTestExchange>());
+            builder.Services.AddSingleton<IFuturesRestClient>(sp => sp.GetRequiredService<BackTestExchange>());
+            builder.Services.AddSingleton<IFuturesSocketClient>(sp => sp.GetRequiredService<BackTestExchange>());
             builder.Services.AddSingleton<IBackTestRunner>(sp => sp.GetRequiredService<BackTestExchange>());
             builder.Services.AddHostedService<BackTestPerformanceTracker>();
         }
 
-        private static BybitCbFuturesRestClient CreateUnauthorizedBybitClient(IOptions<TradingBotOptions> tradingBotOptions)
+        private static BybitFuturesRestClient CreateUnauthorizedBybitClient(IOptions<TradingBotOptions> tradingBotOptions)
         {
             var bybit = new BybitRestClient();
-            var cbRestClientOptions = Options.Create(new BybitCbFuturesRestClientOptions
+            var cbRestClientOptions = Options.Create(new BybitFuturesRestClientOptions
             {
                 PlaceOrderAttempts = 5
             });
-            var cbRestClient = new BybitCbFuturesRestClient(cbRestClientOptions,
+            var cbRestClient = new BybitFuturesRestClient(cbRestClientOptions,
                 tradingBotOptions,
                 bybit,
-                ApplicationLogging.CreateLogger<BybitCbFuturesRestClient>());
+                ApplicationLogging.CreateLogger<BybitFuturesRestClient>());
 
             return cbRestClient;
         }
@@ -370,25 +319,25 @@ namespace CryptoBlade
                     });
                 });
 
-                builder.Services.AddSingleton<ICbFuturesSocketClient>(provider =>
+                builder.Services.AddSingleton<IFuturesSocketClient>(provider =>
                 {
                     IBybitSocketClient bybitSocketClientMain = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientMain>();
                     IBybitSocketClient bybitSocketClientSecondary = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientSecondary>();
-                    return new BybitCbFuturesSocketClient(bybitSocketClientMain, bybitSocketClientSecondary, Options.Create(tradingBotOptions));
+                    return new BybitFuturesSocketClient(bybitSocketClientMain, bybitSocketClientSecondary, Options.Create(tradingBotOptions));
                 });
             }
             else
             {
-                builder.Services.AddSingleton<ICbFuturesSocketClient>(provider =>
+                builder.Services.AddSingleton<IFuturesSocketClient>(provider =>
                 {
                     IBybitSocketClient bybitSocketClientMain = (IBybitSocketClient)provider.GetRequiredService<IBybitSocketClientMain>();
-                    return new BybitCbFuturesSocketClient(bybitSocketClientMain, null, Options.Create(tradingBotOptions));
+                    return new BybitFuturesSocketClient(bybitSocketClientMain, null, Options.Create(tradingBotOptions));
                 });
             }
 
-            builder.Services.AddSingleton<ICbFuturesRestClient, BybitCbFuturesRestClient>();
+            builder.Services.AddSingleton<IFuturesRestClient, BybitFuturesRestClient>();
             builder.Services.AddSingleton<IBybitCBRestClient, BybitCBRestClient>();
-            builder.Services.AddOptions<BybitCbFuturesRestClientOptions>().Configure(options =>
+            builder.Services.AddOptions<BybitFuturesRestClientOptions>().Configure(options =>
             {
                 options.PlaceOrderAttempts = tradingBotOptions.PlaceOrderAttempts;
             });

@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Sigma;
 using CryptoBlade.Strategies.Wallet;

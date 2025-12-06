@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Sigma.Audit;
@@ -21,7 +21,7 @@ namespace CryptoBlade.Strategies.Sigma
 
         protected override bool UseMarketOrdersForEntries => false;
 
-        public SigmaStrategy(IOptions<SigmaStrategyOptions> options, IOptions<TradingBotOptions> botOptions, string symbol, IWalletManager walletManager, ICbFuturesRestClient restClient)
+        public SigmaStrategy(IOptions<SigmaStrategyOptions> options, IOptions<TradingBotOptions> botOptions, string symbol, IWalletManager walletManager, IFuturesRestClient restClient)
             : base(options, botOptions, symbol, GetRequiredTimeFrames(options.Value), walletManager, restClient)
         {
             _options = options.Value;

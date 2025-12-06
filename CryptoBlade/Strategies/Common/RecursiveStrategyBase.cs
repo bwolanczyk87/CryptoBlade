@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
@@ -14,7 +14,7 @@ namespace CryptoBlade.Strategies.Common
             IOptions<TradingBotOptions> botOptions,
             string symbol,
             TimeFrameWindow[] requiredTimeFrames, IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient) : base(options, botOptions, symbol, requiredTimeFrames, walletManager,
+            IFuturesRestClient cbFuturesRestClient) : base(options, botOptions, symbol, requiredTimeFrames, walletManager,
             cbFuturesRestClient)
         {
             m_options = options;

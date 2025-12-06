@@ -1,4 +1,4 @@
-﻿using CryptoBlade.Exchanges;
+﻿using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Models;
 using CryptoExchange.Net.Interfaces;
 using System.Text.Json;
@@ -15,7 +15,7 @@ namespace CryptoBlade.Strategies.Symbols
         }
 
         public async Task<List<SymbolInfo>> GetTradingSymbolsAsync(
-            ICbFuturesRestClient restClient,
+            IFuturesRestClient restClient,
             List<string> whitelist, 
             List<string> blacklist, 
             SymbolPreferences symbolPreferences,
@@ -57,7 +57,7 @@ namespace CryptoBlade.Strategies.Symbols
                 .Where(s => preferedSymbols.Contains(s.Name)).ToList();
         }
 
-        private async Task<SymbolInfo[]> GetSymbolsRealOrHistoricalInfoAsync(ICbFuturesRestClient restClient, string historicalDataDirectory, CancellationToken cancel = default)
+        private async Task<SymbolInfo[]> GetSymbolsRealOrHistoricalInfoAsync(IFuturesRestClient restClient, string historicalDataDirectory, CancellationToken cancel = default)
         {
             string jsonFile = Path.Combine(historicalDataDirectory, "symbolinfo.json");
 

@@ -1,19 +1,19 @@
-﻿using CryptoBlade.Exchanges;
+﻿using CryptoBlade.Exchanges.Interfaces;
 
 namespace CryptoBlade.Strategies.Wallet
 {
     public class WalletManager : IWalletManager
     {
-        private readonly ICbFuturesRestClient m_restClient;
-        private readonly ICbFuturesSocketClient m_socketClient;
+        private readonly IFuturesRestClient m_restClient;
+        private readonly IFuturesSocketClient m_socketClient;
         private IUpdateSubscription? m_walletSubscription;
         private CancellationTokenSource? m_cancellationTokenSource;
         private readonly ILogger<WalletManager> m_logger;
         private Task? m_initTask;
 
         public WalletManager(ILogger<WalletManager> logger,
-            ICbFuturesRestClient restClient,
-            ICbFuturesSocketClient socketClient)
+            IFuturesRestClient restClient,
+            IFuturesSocketClient socketClient)
         {
             m_restClient = restClient;
             m_socketClient = socketClient;

@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
@@ -21,7 +21,7 @@ namespace CryptoBlade.Strategies.Common
         public const int c_defaultCandleBufferSize = 1000;
         public const int c_publicTradeMaxCount = 50000;
         public const int c_liquidationMaxCount = 50000;
-        protected readonly ICbFuturesRestClient m_cbFuturesRestClient;
+        protected readonly IFuturesRestClient m_cbFuturesRestClient;
         protected readonly ILogger m_logger;
         private readonly Random m_random = new();
 
@@ -31,7 +31,7 @@ namespace CryptoBlade.Strategies.Common
             string symbol,
             TimeFrameWindow[] requiredTimeFrames,
             IWalletManager walletManager,
-            ICbFuturesRestClient cbFuturesRestClient)
+            IFuturesRestClient cbFuturesRestClient)
         {
             m_logger = ApplicationLogging.CreateLogger(GetType().FullName ?? nameof(TradingStrategyBase));
             RequiredTimeFrameWindows = requiredTimeFrames;

@@ -1,6 +1,6 @@
 ﻿using Bert.RateLimiters;
 using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Symbols;
@@ -22,8 +22,8 @@ namespace CryptoBlade.Services
             ILogger<DynamicTradingStrategyManager> logger,
             ITradingSymbolsManager symbolsManager,
             ITradingStrategyFactory strategyFactory, 
-            ICbFuturesRestClient restClient,
-            ICbFuturesSocketClient socketClient, 
+            IFuturesRestClient restClient,
+            IFuturesSocketClient socketClient, 
             IWalletManager walletManager) 
             : base(options, logger, symbolsManager, strategyFactory, restClient, socketClient, walletManager)
         {

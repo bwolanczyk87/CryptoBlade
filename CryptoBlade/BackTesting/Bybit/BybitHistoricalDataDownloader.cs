@@ -2,7 +2,7 @@
 using System.IO.Compression;
 using System.Net;
 using CryptoBlade.BackTesting.Model;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Models;
 using CsvHelper;
 using Nito.AsyncEx;
@@ -13,11 +13,11 @@ namespace CryptoBlade.BackTesting.Bybit
     {
         private readonly IHistoricalDataStorage m_historicalDataStorage;
         private readonly ILogger<BybitHistoricalDataDownloader> m_logger;
-        private readonly ICbFuturesRestClient m_cbFuturesRestClient;
+        private readonly IFuturesRestClient m_cbFuturesRestClient;
 
         public BybitHistoricalDataDownloader(IHistoricalDataStorage historicalDataStorage, 
             ILogger<BybitHistoricalDataDownloader> logger,
-            ICbFuturesRestClient cbFuturesRestClient)
+            IFuturesRestClient cbFuturesRestClient)
         {
             m_historicalDataStorage = historicalDataStorage;
             m_logger = logger;

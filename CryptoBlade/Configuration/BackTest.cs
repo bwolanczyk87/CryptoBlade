@@ -15,7 +15,5 @@
         public string ResultDetailedFileName { get; set; } = "result_detailed.json";
 
         public int InitialUntradableDays { get; set; } = 0;
-
-        public DataSource DataSource { get; set; } = DataSource.Binance;
     }
 }

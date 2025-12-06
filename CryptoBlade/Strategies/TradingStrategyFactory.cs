@@ -1,22 +1,22 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
 using CryptoBlade.Helpers;
 using CryptoBlade.Strategies.Common;
 using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using CryptoBlade.Strategies.AI;
 using CryptoBlade.Strategies.Sigma;
+using CryptoBlade.Exchanges.Interfaces;
 
 namespace CryptoBlade.Strategies
 {
     public class TradingStrategyFactory : ITradingStrategyFactory
     {
         private readonly IWalletManager m_walletManager;
-        private readonly ICbFuturesRestClient m_restClient;
+        private readonly IFuturesRestClient m_restClient;
         private readonly IOptions<TradingBotOptions> m_botOptions;
         private readonly AiAccountsRoot m_aiAccounts;
 
-        public TradingStrategyFactory(IWalletManager walletManager, ICbFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions, AiAccountsRoot aiAccounts)
+        public TradingStrategyFactory(IWalletManager walletManager, IFuturesRestClient restClient, IOptions<TradingBotOptions> botOptions, AiAccountsRoot aiAccounts)
         {
             m_walletManager = walletManager;
             m_restClient = restClient;

@@ -1,5 +1,5 @@
 ﻿using CryptoBlade.Configuration;
-using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies;
 using CryptoBlade.Strategies.Common;
@@ -17,9 +17,9 @@ namespace CryptoBlade.Services
         public DefaultTradingStrategyManager(IOptions<TradingBotOptions> options, 
             ILogger<DefaultTradingStrategyManager> logger, 
             ITradingStrategyFactory strategyFactory,
-            ICbFuturesRestClient restClient,
+            IFuturesRestClient restClient,
             ITradingSymbolsManager symbolsManager,
-            ICbFuturesSocketClient socketClient, 
+            IFuturesSocketClient socketClient, 
             IWalletManager walletManager) 
             : base(options, logger, symbolsManager, strategyFactory, restClient, socketClient, walletManager)
         {

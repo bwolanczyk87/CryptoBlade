@@ -1,5 +1,6 @@
 ﻿using Bybit.Net.Enums;
 using CryptoBlade.Exchanges;
+using CryptoBlade.Exchanges.Interfaces;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Sigma.Helpers;
@@ -10,10 +11,10 @@ using OrderStatus = CryptoBlade.Models.OrderStatus;
 
 namespace CryptoBlade.Strategies.Sigma
 {
-    public sealed class SigmaPositionManager(SigmaStrategyOptions options, ICbFuturesRestClient restClient)
+    public sealed class SigmaPositionManager(SigmaStrategyOptions options, IFuturesRestClient restClient)
     {
         private readonly SigmaStrategyOptions _options = options;
-        private readonly ICbFuturesRestClient _restClient = restClient;
+        private readonly IFuturesRestClient _restClient = restClient;
         private IMode? _lastMode;
         private decimal _lastRiskPerUnit = 0m;
 
@@ -102,7 +103,7 @@ namespace CryptoBlade.Strategies.Sigma
 
             string clientOrderId = SigmaClientOrderId.Build(symbolInfo.Name, mode.Kind, side, SigmaOrderKind.Entry, nowUtc);
 
-            var request = new BybitCbFuturesRestClient.OrderRequest(
+            var request = new BybitFuturesRestClient.OrderRequest(
                 Symbol: symbolInfo.Name,
                 Category: Category.Linear,
                 Side: side.ToOrderSide(),
@@ -216,7 +217,7 @@ namespace CryptoBlade.Strategies.Sigma
                     SigmaOrderKind.TakeProfit1,
                     DateTime.UtcNow);
 
-                var tp1Req = new BybitCbFuturesRestClient.OrderRequest(
+                var tp1Req = new BybitFuturesRestClient.OrderRequest(
                     Symbol: symbol,
                     Category: Category.Linear,
                     Side: tpSide.ToOrderSide(),

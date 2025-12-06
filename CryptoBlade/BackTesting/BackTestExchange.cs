@@ -7,10 +7,11 @@ using CryptoBlade.Strategies.Wallet;
 using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 using Bybit.Net.Objects.Models.V5;
+using CryptoBlade.Exchanges.Interfaces;
 
 namespace CryptoBlade.BackTesting
 {
-    public class BackTestExchange : ICbFuturesRestClient, ICbFuturesSocketClient, IBackTestRunner
+    public class BackTestExchange : IFuturesRestClient, IFuturesSocketClient, IBackTestRunner
     {
         private readonly IOptions<BackTestExchangeOptions> m_options;
         private readonly IBackTestDataDownloader m_backTestDataDownloader;
@@ -26,7 +27,7 @@ namespace CryptoBlade.BackTesting
         private readonly HashSet<OrderUpdateSubscription> m_orderSubscriptions;
         private readonly HashSet<NextStepSubscription> m_nextStepSubscriptions;
         private readonly HashSet<FundRateFeeSubscription> m_fundingRateFeeSubscriptions;
-        private readonly ICbFuturesRestClient m_cbFuturesRestClient;
+        private readonly IFuturesRestClient m_cbFuturesRestClient;
         private Balance m_currentBalance;
         private readonly Dictionary<string, HashSet<Order>> m_openOrders;
         private readonly Dictionary<string, OpenPositionWithOrders> m_longPositions;
@@ -36,7 +37,7 @@ namespace CryptoBlade.BackTesting
         public BackTestExchange(IOptions<BackTestExchangeOptions> options,
             IBackTestDataDownloader backTestDataDownloader,
             IHistoricalDataStorage historicalDataStorage,
-            ICbFuturesRestClient cbFuturesRestClient,
+            IFuturesRestClient cbFuturesRestClient,
             ITradingSymbolsManager symbolsManager)
         {
             m_lock = new AsyncLock();
@@ -956,12 +957,12 @@ namespace CryptoBlade.BackTesting
             throw new NotImplementedException();
         }
 
-        public Task<BybitOrderId?> PlaceOrderAsync(BybitCbFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
+        public Task<BybitOrderId?> PlaceOrderAsync(BybitFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }
 
-        public Task<BybitOrderId?> AmendOrderAsync(BybitCbFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
+        public Task<BybitOrderId?> AmendOrderAsync(BybitFuturesRestClient.OrderRequest request, CancellationToken cancel = default)
         {
             throw new NotImplementedException();
         }
