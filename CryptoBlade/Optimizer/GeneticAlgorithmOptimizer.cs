@@ -61,7 +61,6 @@ namespace CryptoBlade.Optimizer
         private async Task OptimizeAsync(CancellationToken cancel)
         {
             var geneticAlgorithmOptions = m_options.Value.Optimizer.GeneticAlgorithm;
-            await DownloadDataAsync(cancel);
             ISelection selection;
             switch (geneticAlgorithmOptions.SelectionStrategy)
             {
@@ -243,32 +242,6 @@ namespace CryptoBlade.Optimizer
 
                 m_cancellationTokenSource.Dispose();
             }
-        }
-
-        private async Task DownloadDataAsync(CancellationToken cancel)
-        {
-            IOptions<ProtoHistoricalDataStorageOptions> protoHistoricalDataStorageOptions = Options.Create(
-                new ProtoHistoricalDataStorageOptions
-                {
-                    Directory = ConfigPaths.DefaultHistoricalDataDirectory,
-                });
-            ProtoHistoricalDataStorage historicalDataStorage = new(protoHistoricalDataStorageOptions);
-            BinanceCbFuturesRestClient binanceCbFuturesRestClient = new(
-                ApplicationLogging.CreateLogger<BinanceCbFuturesRestClient>(),
-                new BinanceRestClient());
-            BinanceHistoricalDataDownloader binanceHistoricalDataDownloader = new(
-                historicalDataStorage,
-                ApplicationLogging.CreateLogger<BinanceHistoricalDataDownloader>(),
-                binanceCbFuturesRestClient);
-            BackTestDataDownloader backTestDataDownloader = new(binanceHistoricalDataDownloader);
-
-            var start = m_options.Value.BackTest.Start;
-            var end = m_options.Value.BackTest.End;
-            start -= m_options.Value.BackTest.StartupCandleData;
-            start = start.Date;
-            end = end.Date;
-            var symbols = m_options.Value.Whitelist;
-            await backTestDataDownloader.DownloadDataForBackTestAsync(symbols, start, end, cancel);
         }
 
         private IOptions<TOptions> CreateChromosomeOptions<TOptions>(TradingBotOptions config,

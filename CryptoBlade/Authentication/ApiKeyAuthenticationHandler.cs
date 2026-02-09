@@ -8,7 +8,7 @@ namespace CryptoBlade.Authentication
     public sealed class ApiKeyAuthenticationHandler
         : AuthenticationHandler<ApiKeySchemeOptions>
     {
-        public const string Scheme = "ApiKeyScheme";
+        public new const string Scheme = "ApiKeyScheme";
         private readonly ApiKeyOptions _opt;
 
         public ApiKeyAuthenticationHandler(

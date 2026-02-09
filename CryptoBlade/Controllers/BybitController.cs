@@ -345,6 +345,37 @@ namespace CryptoBlade.Api.Controllers
             return Ok(data);
         }
 
+        /// <summary>GET EXECUTION HISTORY (raw).</summary>
+        [HttpGet("execution/history")]
+        [Authorize]
+        public async Task<IActionResult> GetExecutionHistory(
+            [FromQuery] string? symbol,
+            [FromQuery] Category? category,
+            [FromQuery] DateTime? start,
+            [FromQuery] DateTime? end,
+            [FromQuery] TradeType? tradeType,
+            [FromQuery, Range(1, 100)] int? limit,
+            [FromQuery] string? cursor,
+            [FromQuery] string? orderId,
+            [FromQuery] string? clientOrderId,
+            [FromQuery] string? baseAsset,
+            CancellationToken ct)
+        {
+            var data = await _client.GetExecutionHistoryRawAsync(
+                symbol,
+                category,
+                start,
+                end,
+                tradeType,
+                limit,
+                cursor,
+                orderId,
+                clientOrderId,
+                baseAsset,
+                ct);
+            return Ok(data);
+        }
+
         /// <summary>GET CLOSED PNL (raw).</summary>
         [HttpGet("positions/closed-pnl")]
         [Authorize]

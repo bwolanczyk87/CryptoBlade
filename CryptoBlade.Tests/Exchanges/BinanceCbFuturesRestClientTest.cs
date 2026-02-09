@@ -23,18 +23,5 @@ namespace CryptoBlade.Tests.Exchanges
                     });
                 });
         }
-
-        [Fact]
-        public async Task ShouldGetFundingRates()
-        {
-            var binance = new BinanceRestClient();
-            var cbRestClient = new BinanceCbFuturesRestClient(
-                m_loggerFactory.CreateLogger<BinanceCbFuturesRestClient>(),
-                binance);
-            var start = DateTime.UtcNow.Date.AddDays(-1);
-            var end = start.AddDays(1);
-            var rates = await cbRestClient.GetFundingRatesAsync("BTCUSDT", start, end);
-            Assert.NotEmpty(rates);
-        }
     }
 }

@@ -61,6 +61,10 @@ namespace CryptoBlade
             builder.Services.Configure<TradingBotOptions>(builder.Configuration.GetSection("TradingBot"));
             builder.Services.AddLogging(options =>
             {
+                // Bybit.Net 4.3.2 may emit "Cannot map enum value ... OrderType=UNKNOWN" warnings for execution history.
+                // Keep the library version and suppress only this noisy converter category.
+                options.AddFilter("CryptoExchange.Net.Converters", LogLevel.Error);
+                options.AddFilter("CryptoExchange.Net.Converters.SystemTextJson.EnumConverter", LogLevel.Error);
                 options.AddSimpleConsole(o =>
                 {
                     o.UseUtcTimestamp = true;
@@ -230,14 +234,6 @@ namespace CryptoBlade
                             bybitLogger,
                             bybitClient);
                         break;
-                    case DataSource.Binance:
-                        var binanceLogger = ApplicationLogging.CreateLogger<BinanceHistoricalDataDownloader>();
-                        var binanceClient = CreateUnauthorizedBinanceClient();
-                        downloader = new BinanceHistoricalDataDownloader(
-                            historicalDataStorage,
-                            binanceLogger,
-                            binanceClient);
-                        break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
@@ -270,16 +266,6 @@ namespace CryptoBlade
             return cbRestClient;
         }
 
-        private static BinanceCbFuturesRestClient CreateUnauthorizedBinanceClient()
-        {
-            var binance = new BinanceRestClient();
-            var cbRestClient = new BinanceCbFuturesRestClient(
-                ApplicationLogging.CreateLogger<BinanceCbFuturesRestClient>(),
-                binance);
-
-            return cbRestClient;
-        }
-
         private static void AddLiveDependencies(WebApplicationBuilder builder, IHealthChecksBuilder healthChecksBuilder)
         {
             builder.Services.AddSingleton<ITradingSymbolsManager, TradingSymbolsManager>();
@@ -308,10 +294,8 @@ namespace CryptoBlade
             builder.Services.AddBybit(
                 restOptions =>
                 {
-                    restOptions.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
-
                     if (mainAccount.HasApiCredentials())
-                        restOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
+                        restOptions.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
 
                     if (mainAccount.IsDemo)
                     {
@@ -319,9 +303,6 @@ namespace CryptoBlade
                     }
                     else
                     {
-                        restOptions.ReceiveWindow = TimeSpan.FromSeconds(10);
-                        restOptions.AutoTimestamp = true;
-                        restOptions.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
                     }
                 });
 
@@ -331,7 +312,7 @@ namespace CryptoBlade
                 {
                     if (mainAccount.HasApiCredentials())
                     {
-                        socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
+                        socketClientOptions.ApiCredentials = new ApiCredentials(mainAccount.ApiKey, mainAccount.ApiSecret);
                     }
                     if (mainAccount.IsDemo)
                     {
@@ -351,7 +332,7 @@ namespace CryptoBlade
                     {
                         if (secondaryAccount.HasApiCredentials())
                         {
-                            socketClientOptions.V5Options.ApiCredentials = new ApiCredentials(secondaryAccount.ApiKey, secondaryAccount.ApiSecret);
+                            socketClientOptions.ApiCredentials = new ApiCredentials(secondaryAccount.ApiKey, secondaryAccount.ApiSecret);
                         }
                     });
                 });

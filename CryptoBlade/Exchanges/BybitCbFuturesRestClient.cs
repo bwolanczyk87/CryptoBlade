@@ -5,7 +5,6 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
-using CryptoExchange.Net.CommonObjects;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
@@ -461,6 +460,7 @@ namespace CryptoBlade.Exchanges
                 {
                     var symbolsResult = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseSymbolsAsync(
                         m_category,
+                        null,
                         null,
                         null,
                         null,

@@ -38,20 +38,6 @@ namespace CryptoBlade.Tests.BackTesting
             return downloader;
         }
 
-        private BinanceHistoricalDataDownloader CreateBinanceHistoricalDataDownloader(IHistoricalDataStorage storage)
-        {
-            var binance = new BinanceRestClient();
-            var cbRestClient = new BinanceCbFuturesRestClient(
-                ApplicationLogging.CreateLogger<BinanceCbFuturesRestClient>(),
-                binance);
-            var downloader = new BinanceHistoricalDataDownloader(
-                storage,
-                ApplicationLogging.CreateLogger<BinanceHistoricalDataDownloader>(),
-                cbRestClient);
-
-            return downloader;
-        }
-
         [Fact]
         public async Task AllBackTestDataShouldBeDownloaded()
         {
@@ -67,9 +53,6 @@ namespace CryptoBlade.Tests.BackTesting
             {
                 case DataSource.Bybit:
                     downloader = CreateBybitHistoricalDataDownloader(storage);
-                    break;
-                case DataSource.Binance: 
-                    downloader = CreateBinanceHistoricalDataDownloader(storage);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

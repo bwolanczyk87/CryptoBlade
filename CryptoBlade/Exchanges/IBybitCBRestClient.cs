@@ -17,6 +17,18 @@ namespace CryptoBlade.Exchanges
         Task<Candle[]> GetKlinesAsync(string symbol, TimeFrame interval, int limit, CancellationToken cancel = default);
         Task<Candle[]> GetKlinesClosedAsync(string symbol, TimeFrame interval, int limit, CancellationToken cancel = default);
         Task<object?> GetOrderHistoryRawAsync(string? symbol = null, string? cursor = null, CancellationToken cancel = default);
+        Task<object?> GetExecutionHistoryRawAsync(
+            string? symbol = null,
+            Category? category = null,
+            DateTime? start = null,
+            DateTime? end = null,
+            TradeType? tradeType = null,
+            int? limit = null,
+            string? cursor = null,
+            string? orderId = null,
+            string? clientOrderId = null,
+            string? baseAsset = null,
+            CancellationToken cancel = default);
         Task<Order[]> GetOrdersAsync(CancellationToken cancel = default);
         Task<Position[]> GetPositionsAsync(CancellationToken cancel = default);
         Task<SymbolInfo> GetSymbolInfoAsync(string symbol, CancellationToken cancel = default);

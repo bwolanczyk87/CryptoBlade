@@ -8,7 +8,6 @@ using CryptoBlade.Helpers;
 using CryptoBlade.Mapping;
 using CryptoBlade.Models;
 using CryptoBlade.Strategies.Policies;
-using CryptoExchange.Net.CommonObjects;
 using Microsoft.Extensions.Options;
 using Order = CryptoBlade.Models.Order;
 using OrderSide = Bybit.Net.Enums.OrderSide;
@@ -543,7 +542,7 @@ namespace CryptoBlade.Exchanges
             var symbolInfo = await ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
                 var result = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseSymbolsAsync(
-                         m_category, symbol, null, null, null, null, cancel);
+                         m_category, symbol, null, null, null, null, ct: cancel);
 
                 if (!result.GetResultOrError(out var data, out var error))
                     throw new InvalidOperationException(error.Message);
@@ -613,7 +612,7 @@ public async Task<Ticker> GetTickerAsync(string symbol, CancellationToken cancel
             var list = await CryptoBlade.Strategies.Policies.ExchangePolicies.RetryForever.ExecuteAsync(async () =>
             {
                 var priceDataRes = await m_bybitRestClient.V5Api.ExchangeData.GetLinearInverseTickersAsync(
-                    m_category, symbol, null, null, cancel);
+                    m_category, symbol, null, null, ct: cancel);
 
                 if (priceDataRes.GetResultOrError(out var data, out var error))
                     return data.List;
@@ -778,6 +777,152 @@ public async Task<Ticker> GetTickerAsync(string symbol, CancellationToken cancel
             }
             return res.Data;
         }
+
+        public async Task<object?> GetExecutionHistoryRawAsync(
+            string? symbol = null,
+            Category? category = null,
+            DateTime? start = null,
+            DateTime? end = null,
+            TradeType? tradeType = null,
+            int? limit = null,
+            string? cursor = null,
+            string? orderId = null,
+            string? clientOrderId = null,
+            string? baseAsset = null,
+            CancellationToken cancel = default)
+        {
+            Category effectiveCategory = category ?? m_category;
+            int effectiveLimit = Math.Clamp(limit ?? 100, 1, 100);
+
+            // Full-range mode: when start/end are provided, fetch all pages across 7-day windows.
+            bool fullRangeMode = start.HasValue
+                                 && end.HasValue
+                                 && string.IsNullOrWhiteSpace(cursor)
+                                 && string.IsNullOrWhiteSpace(orderId)
+                                 && string.IsNullOrWhiteSpace(clientOrderId);
+
+            if (fullRangeMode)
+            {
+                DateTime rangeStart = start!.Value;
+                DateTime rangeEnd = end!.Value;
+                if (rangeStart > rangeEnd)
+                {
+                    (rangeStart, rangeEnd) = (rangeEnd, rangeStart);
+                }
+
+                List<object> allExecutions = new();
+                DateTime windowStart = rangeStart;
+                TimeSpan maxWindow = TimeSpan.FromDays(7);
+
+                while (windowStart <= rangeEnd)
+                {
+                    DateTime windowEnd = windowStart.Add(maxWindow);
+                    if (windowEnd > rangeEnd)
+                    {
+                        windowEnd = rangeEnd;
+                    }
+
+                    string? pageCursor = null;
+                    var seenPageCursors = new HashSet<string>(StringComparer.Ordinal);
+                    int pageCounter = 0;
+                    while (true)
+                    {
+                        pageCounter++;
+                        if (pageCounter > 10000)
+                        {
+                            m_logger.LogWarning("GetExecutionHistory stopped pagination after {Pages} pages for range {Start:u} - {End:u}",
+                                pageCounter, windowStart, windowEnd);
+                            break;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(pageCursor) && !seenPageCursors.Add(pageCursor))
+                        {
+                            m_logger.LogWarning("GetExecutionHistory detected repeated cursor '{Cursor}' for range {Start:u} - {End:u}. Stopping pagination to avoid loop.",
+                                pageCursor, windowStart, windowEnd);
+                            break;
+                        }
+
+                        var res = await CryptoBlade.Strategies.Policies.ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+                            await m_bybitRestClient.V5Api.Trading.GetUserTradesAsync(
+                                category: effectiveCategory,
+                                symbol: symbol,
+                                baseAsset: baseAsset,
+                                orderId: null,
+                                clientOrderId: null,
+                                startTime: windowStart,
+                                endTime: windowEnd,
+                                tradeType: tradeType,
+                                limit: effectiveLimit,
+                                cursor: pageCursor,
+                                ct: cancel));
+
+                        if (!res.Success)
+                        {
+                            m_logger.LogError("GetExecutionHistory failed for range {Start:u} - {End:u}: {Err}",
+                                windowStart, windowEnd, res.Error?.Message);
+                            return null;
+                        }
+
+                        var pageData = res.Data;
+                        allExecutions.AddRange(pageData.List.Select(x => (object)x));
+
+                        var nextCursor = pageData.NextPageCursor;
+                        if (string.IsNullOrWhiteSpace(nextCursor))
+                        {
+                            break;
+                        }
+
+                        if (string.Equals(nextCursor, pageCursor, StringComparison.Ordinal))
+                        {
+                            m_logger.LogWarning("GetExecutionHistory got identical next cursor '{Cursor}' for range {Start:u} - {End:u}. Stopping pagination to avoid loop.",
+                                nextCursor, windowStart, windowEnd);
+                            break;
+                        }
+
+                        pageCursor = nextCursor;
+                    }
+
+                    if (windowEnd >= rangeEnd)
+                    {
+                        break;
+                    }
+
+                    windowStart = windowEnd.AddMilliseconds(1);
+                }
+
+                return new
+                {
+                    List = allExecutions,
+                    Count = allExecutions.Count,
+                    Start = rangeStart,
+                    End = rangeEnd,
+                    NextPageCursor = (string?)null
+                };
+            }
+
+            var singlePageRes = await CryptoBlade.Strategies.Policies.ExchangePolicies.RetryForever.ExecuteAsync(async () =>
+                await m_bybitRestClient.V5Api.Trading.GetUserTradesAsync(
+                    category: effectiveCategory,
+                    symbol: symbol,
+                    baseAsset: baseAsset,
+                    orderId: orderId,
+                    clientOrderId: clientOrderId,
+                    startTime: start,
+                    endTime: end,
+                    tradeType: tradeType,
+                    limit: effectiveLimit,
+                    cursor: cursor,
+                    ct: cancel));
+
+            if (!singlePageRes.Success)
+            {
+                m_logger.LogError("GetExecutionHistory failed: {Err}", singlePageRes.Error?.Message);
+                return null;
+            }
+
+            return singlePageRes.Data;
+        }
+        
 
         public async Task<object?> GetClosedPnlRawAsync(string? symbol = null, DateTime? start = null, DateTime? end = null, string? cursor = null, CancellationToken cancel = default)
         {
